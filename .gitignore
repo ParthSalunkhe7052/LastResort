@@ -12,8 +12,8 @@ browser/node_modules/
 browser/dist/
 
 ai/.venv/
-ai/__pycache__/
-ai/src/__pycache__/
+**/__pycache__/
+*.pyc
 
 .DS_Store
 Thumbs.db
