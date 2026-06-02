@@ -1,0 +1,78 @@
+syntax = "proto3";
+
+package ai.v1;
+
+option go_package = "github.com/parth/lastresort/internal/gen/ai/v1;aiv1";
+
+service AiService {
+  rpc AnalyzeRecon(AnalyzeReconRequest) returns (AnalyzeReconResponse);
+  rpc GenerateHypotheses(GenerateHypothesesRequest) returns (GenerateHypothesesResponse);
+  rpc ScoreConfidence(ScoreConfidenceRequest) returns (ScoreConfidenceResponse);
+  rpc Health(HealthRequest) returns (HealthResponse);
+  rpc GenerateFindingNarrative(GenerateFindingNarrativeRequest) returns (GenerateFindingNarrativeResponse);
+}
+
+message HealthRequest {}
+
+message HealthResponse {
+  string status = 1;
+  string provider = 2;
+  string model = 3;
+  bool initialized = 4;
+}
+
+message AnalyzeReconRequest {
+  string target_url = 1;
+  map<string, string> headers = 2;
+  repeated string cookie_names = 3;
+}
+
+message AnalyzeReconResponse {
+  repeated string detected_technologies = 1;
+  string authentication_model = 2;
+  repeated string recommended_tests = 3;
+}
+
+message GenerateHypothesesRequest {
+  string target_url = 1;
+  repeated string endpoints = 2;
+}
+
+message Hypothesis {
+  string id = 1;
+  string title = 2;
+  string description = 3;
+  float confidence = 4; // 0.0 to 1.0
+  string vulnerability_type = 5;
+}
+
+message GenerateHypothesesResponse {
+  repeated Hypothesis hypotheses = 1;
+}
+
+message ScoreConfidenceRequest {
+  string vulnerability_type = 1;
+  string endpoint = 2;
+  string payload = 3;
+  string response_body = 4;
+  int32 response_status = 5;
+}
+
+message ScoreConfidenceResponse {
+  float confidence = 1; // 0.0 to 1.0
+  string explanation = 2;
+  bool is_false_positive = 3;
+}
+
+message GenerateFindingNarrativeRequest {
+  string vulnerability_type = 1;
+  string title = 2;
+  string endpoint = 3;
+  string evidence = 4;
+  float confidence = 5;
+}
+
+message GenerateFindingNarrativeResponse {
+  string description = 1;
+  string remediation = 2;
+}

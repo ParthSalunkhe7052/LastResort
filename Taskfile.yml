@@ -1,0 +1,24 @@
+version: '3'
+
+tasks:
+  proto:
+    desc: Compile protobuf definitions for Go, TS, and Python
+    cmds:
+      - Remove-Item -Recurse -Force internal/gen/proto || true
+      - $env:PATH += ";$env:USERPROFILE/go/bin;ui/node_modules/.bin"; & "$env:USERPROFILE/go/bin/buf.exe" generate proto
+      - & "ai/.venv/Scripts/python.exe" -m grpc_tools.protoc -I proto --python_out=ai/src/proto --pyi_out=ai/src/proto --grpc_python_out=ai/src/proto proto/ai/v1/ai.proto
+
+  go:
+    desc: Build and run Go Core daemon
+    cmds:
+      - go run cmd/lastresort/main.go serve
+
+  ai:
+    desc: Run Python AI Service virtualenv
+    cmds:
+      - & "ai/.venv/Scripts/python.exe" ai/src/server.py
+
+  ui:
+    desc: Run TypeScript UI Vite dev server
+    cmds:
+      - cd ui && npm run dev

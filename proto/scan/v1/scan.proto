@@ -1,0 +1,198 @@
+syntax = "proto3";
+
+package scan.v1;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+
+option go_package = "github.com/parth/lastresort/internal/gen/scan/v1;scanv1";
+
+service ScanService {
+  rpc CreateScan(CreateScanRequest) returns (CreateScanResponse);
+  rpc StartScan(StartScanRequest) returns (StartScanResponse);
+  rpc GetScan(GetScanRequest) returns (GetScanResponse);
+  rpc ListScans(ListScansRequest) returns (ListScansResponse);
+  rpc StreamScanEvents(StreamScanEventsRequest) returns (stream ScanEvent);
+
+  // New Dashboard APIs
+  rpc ListFlows(ListFlowsRequest) returns (ListFlowsResponse);
+  rpc ListFindings(ListFindingsRequest) returns (ListFindingsResponse);
+  rpc SendRepeaterRequest(SendRepeaterRequestRequest) returns (SendRepeaterRequestResponse);
+  rpc ListEndpoints(ListEndpointsRequest) returns (ListEndpointsResponse);
+  rpc GenerateReport(GenerateReportRequest) returns (GenerateReportResponse);
+  rpc ListReports(ListReportsRequest) returns (ListReportsResponse);
+}
+
+enum ScanStatus {
+  SCAN_STATUS_UNSPECIFIED = 0;
+  SCAN_STATUS_QUEUED = 1;
+  SCAN_STATUS_RUNNING = 2;
+  SCAN_STATUS_PAUSED = 3;
+  SCAN_STATUS_COMPLETED = 4;
+  SCAN_STATUS_FAILED = 5;
+}
+
+enum ScanProfile {
+  SCAN_PROFILE_UNSPECIFIED = 0;
+  SCAN_PROFILE_QUICK = 1;
+  SCAN_PROFILE_STANDARD = 2;
+  SCAN_PROFILE_DEEP = 3;
+}
+
+message ScanConfig {
+  string target_url = 1;
+  repeated string scope_patterns = 2;
+  ScanProfile profile = 3;
+}
+
+message CreateScanRequest {
+  ScanConfig config = 1;
+}
+
+message CreateScanResponse {
+  string scan_id = 1;
+}
+
+message StartScanRequest {
+  string scan_id = 1;
+}
+
+message StartScanResponse {
+  bool success = 1;
+}
+
+message GetScanRequest {
+  string scan_id = 1;
+}
+
+message GetScanResponse {
+  string scan_id = 1;
+  ScanConfig config = 2;
+  ScanStatus status = 3;
+  float progress = 4; // 0.0 to 1.0
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp started_at = 6;
+  google.protobuf.Timestamp finished_at = 7;
+  string detected_technologies = 8;
+  string auth_model = 9;
+}
+
+message ListScansRequest {}
+
+message ListScansResponse {
+  repeated GetScanResponse scans = 1;
+}
+
+message StreamScanEventsRequest {
+  string scan_id = 1;
+}
+
+message ScanEvent {
+  string scan_id = 1;
+  string event_type = 2; // e.g. "phase.started", "finding.new", "progress.update"
+  google.protobuf.Timestamp timestamp = 3;
+  google.protobuf.Struct data = 4;
+}
+
+// Flow and history messages
+message ListFlowsRequest {
+  string scan_id = 1; // if empty, list all
+}
+
+message FlowRecord {
+  int64 id = 1;
+  string scan_id = 2;
+  string method = 3;
+  string url = 4;
+  string request_headers = 5;
+  bytes request_body = 6;
+  string response_headers = 7;
+  bytes response_body = 8;
+  int32 response_status = 9;
+  string created_at = 10;
+}
+
+message ListFlowsResponse {
+  repeated FlowRecord flows = 1;
+}
+
+// Findings and vulnerability messages
+message ListFindingsRequest {
+  string scan_id = 1; // if empty, list all
+}
+
+message FindingRecord {
+  string id = 1;
+  string scan_id = 2;
+  string title = 3;
+  string description = 4;
+  string severity = 5;
+  string vulnerability_type = 6;
+  string endpoint = 7;
+  string payload = 8;
+  int32 response_status = 9;
+  float confidence = 10;
+  bool is_false_positive = 11;
+  string created_at = 12;
+}
+
+message ListFindingsResponse {
+  repeated FindingRecord findings = 1;
+}
+
+// Repeater messages
+message SendRepeaterRequestRequest {
+  string raw_request = 1;
+  string target_host = 2; // e.g. "example.com:443"
+  bool use_tls = 3;
+}
+
+message SendRepeaterRequestResponse {
+  string raw_response = 1;
+}
+
+message ListEndpointsRequest {
+  string scan_id = 1;
+}
+
+message EndpointRecord {
+  string id = 1;
+  string scan_id = 2;
+  string method = 3;
+  string url = 4;
+  string source = 5;
+  int32 status_code = 6;
+  string content_type = 7;
+  string first_seen_at = 8;
+  string last_seen_at = 9;
+}
+
+message ListEndpointsResponse {
+  repeated EndpointRecord endpoints = 1;
+}
+
+message GenerateReportRequest {
+  string scan_id = 1;
+}
+
+message GenerateReportResponse {
+  string report_id = 1;
+  string path = 2;
+}
+
+message ListReportsRequest {
+  string scan_id = 1;
+}
+
+message ReportRecord {
+  string id = 1;
+  string scan_id = 2;
+  string format = 3;
+  string path = 4;
+  string title = 5;
+  string created_at = 6;
+}
+
+message ListReportsResponse {
+  repeated ReportRecord reports = 1;
+}

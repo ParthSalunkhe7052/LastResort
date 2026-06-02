@@ -1,0 +1,14 @@
+version: v1
+plugins:
+  - name: go
+    out: internal/gen
+    opt: paths=source_relative
+  - name: connect-go
+    out: internal/gen
+    opt: paths=source_relative
+  - name: es
+    out: ui/src/gen
+    opt: target=ts
+  - name: connect-es
+    out: ui/src/gen
+    opt: target=ts
