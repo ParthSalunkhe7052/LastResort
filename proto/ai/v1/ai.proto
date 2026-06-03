@@ -98,6 +98,36 @@ message DecideBrowserActionRequest {
   string url = 1;
   string page_source = 2;
   string current_goal = 3;
+
+  bool last_action_success = 4;
+  string last_action_error = 5;
+  string current_url = 6;
+  string page_title = 7;
+
+  repeated BrowserElement links = 8;
+  repeated BrowserElement buttons = 9;
+  repeated BrowserForm forms = 10;
+
+  string last_action = 11;
+  string last_selector = 12;
+  string screenshot_base64 = 13;
+}
+
+message BrowserElement {
+  string text = 1;
+  string selector = 2;
+  string type = 3;
+  string href = 4;
+  string id = 5;
+  string name = 6;
+  string value = 7;
+}
+
+message BrowserForm {
+  string selector = 1;
+  string action = 2;
+  string method = 3;
+  repeated BrowserElement inputs = 4;
 }
 
 message DecideBrowserActionResponse {

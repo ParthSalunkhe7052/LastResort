@@ -156,14 +156,64 @@ class GenerateAttackPayloadResponse(_message.Message):
     def __init__(self, method: _Optional[str] = ..., url: _Optional[str] = ..., body: _Optional[str] = ..., headers: _Optional[_Mapping[str, str]] = ..., explanation: _Optional[str] = ...) -> None: ...
 
 class DecideBrowserActionRequest(_message.Message):
-    __slots__ = ("url", "page_source", "current_goal")
+    __slots__ = ("url", "page_source", "current_goal", "last_action_success", "last_action_error", "current_url", "page_title", "links", "buttons", "forms", "last_action", "last_selector", "screenshot_base64")
     URL_FIELD_NUMBER: _ClassVar[int]
     PAGE_SOURCE_FIELD_NUMBER: _ClassVar[int]
     CURRENT_GOAL_FIELD_NUMBER: _ClassVar[int]
+    LAST_ACTION_SUCCESS_FIELD_NUMBER: _ClassVar[int]
+    LAST_ACTION_ERROR_FIELD_NUMBER: _ClassVar[int]
+    CURRENT_URL_FIELD_NUMBER: _ClassVar[int]
+    PAGE_TITLE_FIELD_NUMBER: _ClassVar[int]
+    LINKS_FIELD_NUMBER: _ClassVar[int]
+    BUTTONS_FIELD_NUMBER: _ClassVar[int]
+    FORMS_FIELD_NUMBER: _ClassVar[int]
+    LAST_ACTION_FIELD_NUMBER: _ClassVar[int]
+    LAST_SELECTOR_FIELD_NUMBER: _ClassVar[int]
+    SCREENSHOT_BASE64_FIELD_NUMBER: _ClassVar[int]
     url: str
     page_source: str
     current_goal: str
-    def __init__(self, url: _Optional[str] = ..., page_source: _Optional[str] = ..., current_goal: _Optional[str] = ...) -> None: ...
+    last_action_success: bool
+    last_action_error: str
+    current_url: str
+    page_title: str
+    links: _containers.RepeatedCompositeFieldContainer[BrowserElement]
+    buttons: _containers.RepeatedCompositeFieldContainer[BrowserElement]
+    forms: _containers.RepeatedCompositeFieldContainer[BrowserForm]
+    last_action: str
+    last_selector: str
+    screenshot_base64: str
+    def __init__(self, url: _Optional[str] = ..., page_source: _Optional[str] = ..., current_goal: _Optional[str] = ..., last_action_success: bool = ..., last_action_error: _Optional[str] = ..., current_url: _Optional[str] = ..., page_title: _Optional[str] = ..., links: _Optional[_Iterable[_Union[BrowserElement, _Mapping]]] = ..., buttons: _Optional[_Iterable[_Union[BrowserElement, _Mapping]]] = ..., forms: _Optional[_Iterable[_Union[BrowserForm, _Mapping]]] = ..., last_action: _Optional[str] = ..., last_selector: _Optional[str] = ..., screenshot_base64: _Optional[str] = ...) -> None: ...
+
+class BrowserElement(_message.Message):
+    __slots__ = ("text", "selector", "type", "href", "id", "name", "value")
+    TEXT_FIELD_NUMBER: _ClassVar[int]
+    SELECTOR_FIELD_NUMBER: _ClassVar[int]
+    TYPE_FIELD_NUMBER: _ClassVar[int]
+    HREF_FIELD_NUMBER: _ClassVar[int]
+    ID_FIELD_NUMBER: _ClassVar[int]
+    NAME_FIELD_NUMBER: _ClassVar[int]
+    VALUE_FIELD_NUMBER: _ClassVar[int]
+    text: str
+    selector: str
+    type: str
+    href: str
+    id: str
+    name: str
+    value: str
+    def __init__(self, text: _Optional[str] = ..., selector: _Optional[str] = ..., type: _Optional[str] = ..., href: _Optional[str] = ..., id: _Optional[str] = ..., name: _Optional[str] = ..., value: _Optional[str] = ...) -> None: ...
+
+class BrowserForm(_message.Message):
+    __slots__ = ("selector", "action", "method", "inputs")
+    SELECTOR_FIELD_NUMBER: _ClassVar[int]
+    ACTION_FIELD_NUMBER: _ClassVar[int]
+    METHOD_FIELD_NUMBER: _ClassVar[int]
+    INPUTS_FIELD_NUMBER: _ClassVar[int]
+    selector: str
+    action: str
+    method: str
+    inputs: _containers.RepeatedCompositeFieldContainer[BrowserElement]
+    def __init__(self, selector: _Optional[str] = ..., action: _Optional[str] = ..., method: _Optional[str] = ..., inputs: _Optional[_Iterable[_Union[BrowserElement, _Mapping]]] = ...) -> None: ...
 
 class DecideBrowserActionResponse(_message.Message):
     __slots__ = ("action", "selector", "value", "explanation")

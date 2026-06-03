@@ -684,6 +684,56 @@ export class DecideBrowserActionRequest extends Message<DecideBrowserActionReque
    */
   currentGoal = "";
 
+  /**
+   * @generated from field: bool last_action_success = 4;
+   */
+  lastActionSuccess = false;
+
+  /**
+   * @generated from field: string last_action_error = 5;
+   */
+  lastActionError = "";
+
+  /**
+   * @generated from field: string current_url = 6;
+   */
+  currentUrl = "";
+
+  /**
+   * @generated from field: string page_title = 7;
+   */
+  pageTitle = "";
+
+  /**
+   * @generated from field: repeated ai.v1.BrowserElement links = 8;
+   */
+  links: BrowserElement[] = [];
+
+  /**
+   * @generated from field: repeated ai.v1.BrowserElement buttons = 9;
+   */
+  buttons: BrowserElement[] = [];
+
+  /**
+   * @generated from field: repeated ai.v1.BrowserForm forms = 10;
+   */
+  forms: BrowserForm[] = [];
+
+  /**
+   * @generated from field: string last_action = 11;
+   */
+  lastAction = "";
+
+  /**
+   * @generated from field: string last_selector = 12;
+   */
+  lastSelector = "";
+
+  /**
+   * @generated from field: string screenshot_base64 = 13;
+   */
+  screenshotBase64 = "";
+
   constructor(data?: PartialMessage<DecideBrowserActionRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -695,6 +745,16 @@ export class DecideBrowserActionRequest extends Message<DecideBrowserActionReque
     { no: 1, name: "url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "page_source", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "current_goal", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "last_action_success", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 5, name: "last_action_error", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "current_url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 7, name: "page_title", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 8, name: "links", kind: "message", T: BrowserElement, repeated: true },
+    { no: 9, name: "buttons", kind: "message", T: BrowserElement, repeated: true },
+    { no: 10, name: "forms", kind: "message", T: BrowserForm, repeated: true },
+    { no: 11, name: "last_action", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 12, name: "last_selector", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 13, name: "screenshot_base64", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DecideBrowserActionRequest {
@@ -711,6 +771,134 @@ export class DecideBrowserActionRequest extends Message<DecideBrowserActionReque
 
   static equals(a: DecideBrowserActionRequest | PlainMessage<DecideBrowserActionRequest> | undefined, b: DecideBrowserActionRequest | PlainMessage<DecideBrowserActionRequest> | undefined): boolean {
     return proto3.util.equals(DecideBrowserActionRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message ai.v1.BrowserElement
+ */
+export class BrowserElement extends Message<BrowserElement> {
+  /**
+   * @generated from field: string text = 1;
+   */
+  text = "";
+
+  /**
+   * @generated from field: string selector = 2;
+   */
+  selector = "";
+
+  /**
+   * @generated from field: string type = 3;
+   */
+  type = "";
+
+  /**
+   * @generated from field: string href = 4;
+   */
+  href = "";
+
+  /**
+   * @generated from field: string id = 5;
+   */
+  id = "";
+
+  /**
+   * @generated from field: string name = 6;
+   */
+  name = "";
+
+  /**
+   * @generated from field: string value = 7;
+   */
+  value = "";
+
+  constructor(data?: PartialMessage<BrowserElement>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "ai.v1.BrowserElement";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "text", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "selector", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "type", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "href", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 7, name: "value", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): BrowserElement {
+    return new BrowserElement().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): BrowserElement {
+    return new BrowserElement().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): BrowserElement {
+    return new BrowserElement().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: BrowserElement | PlainMessage<BrowserElement> | undefined, b: BrowserElement | PlainMessage<BrowserElement> | undefined): boolean {
+    return proto3.util.equals(BrowserElement, a, b);
+  }
+}
+
+/**
+ * @generated from message ai.v1.BrowserForm
+ */
+export class BrowserForm extends Message<BrowserForm> {
+  /**
+   * @generated from field: string selector = 1;
+   */
+  selector = "";
+
+  /**
+   * @generated from field: string action = 2;
+   */
+  action = "";
+
+  /**
+   * @generated from field: string method = 3;
+   */
+  method = "";
+
+  /**
+   * @generated from field: repeated ai.v1.BrowserElement inputs = 4;
+   */
+  inputs: BrowserElement[] = [];
+
+  constructor(data?: PartialMessage<BrowserForm>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "ai.v1.BrowserForm";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "selector", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "action", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "method", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "inputs", kind: "message", T: BrowserElement, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): BrowserForm {
+    return new BrowserForm().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): BrowserForm {
+    return new BrowserForm().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): BrowserForm {
+    return new BrowserForm().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: BrowserForm | PlainMessage<BrowserForm> | undefined, b: BrowserForm | PlainMessage<BrowserForm> | undefined): boolean {
+    return proto3.util.equals(BrowserForm, a, b);
   }
 }
 
