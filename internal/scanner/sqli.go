@@ -31,11 +31,8 @@ type sqliResult struct {
 	vulnStatus int
 }
 
-// ScanSQLi runs multi-stage SQL injection checks:
-// 1. Error-based detection (error markers in response)
-// 2. Boolean-based detection (differential response comparison)
-// 3. Time-based detection (response timing delta)
-// A finding is always created with evidence attached.
+// ScanSQLi [DEPRECATED] runs legacy multi-stage SQL injection checks via net/http.
+// Use runAgentSqli in internal/orchestrator for modern, browser-aware SQLi testing.
 func (as *ActiveScanner) ScanSQLi(ctx context.Context, scanID, method, urlStr string, body []byte, contentType string) error {
 	points, err := ExtractInsertionPoints(method, urlStr, body, contentType)
 	if err != nil {

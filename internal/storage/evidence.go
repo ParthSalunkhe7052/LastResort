@@ -10,10 +10,11 @@ import (
 type EvidenceType string
 
 const (
-	EvidenceHTTPFlow EvidenceType = "HTTP_FLOW"
-	EvidenceHeader   EvidenceType = "HEADER_MATCH"
-	EvidenceBody     EvidenceType = "BODY_MATCH"
-	EvidenceTiming   EvidenceType = "TIMING"
+	EvidenceHTTPFlow  EvidenceType = "HTTP_FLOW"
+	EvidenceHeader    EvidenceType = "HEADER_MATCH"
+	EvidenceBody      EvidenceType = "BODY_MATCH"
+	EvidenceTiming    EvidenceType = "TIMING"
+	EvidenceScreenshot EvidenceType = "SCREENSHOT"
 )
 
 type FindingEvidence struct {

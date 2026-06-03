@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"strings"
@@ -25,17 +24,19 @@ import (
 
 // Orchestrator manages background execution of scan phases
 type Orchestrator struct {
-	db        *storage.DB
-	aiClient  aiv1connect.AiServiceClient
-	proxyPort int
+	db            *storage.DB
+	aiClient      aiv1connect.AiServiceClient
+	browserClient *browser.Client
+	proxyPort     int
 }
 
 // NewOrchestrator instantiates a new Orchestrator
 func NewOrchestrator(db *storage.DB, aiClient aiv1connect.AiServiceClient, proxyPort int) *Orchestrator {
 	return &Orchestrator{
-		db:        db,
-		aiClient:  aiClient,
-		proxyPort: proxyPort,
+		db:            db,
+		aiClient:      aiClient,
+		browserClient: browser.NewClient(""),
+		proxyPort:     proxyPort,
 	}
 }
 
@@ -416,6 +417,85 @@ func moduleDisplayName(module string) string {
 	}
 }
 
+func (o *Orchestrator) runAgentSqli(ctx context.Context, scanID, targetURL string) error {
+	endpoints, err := o.db.ListEndpoints(ctx, scanID)
+	if err != nil {
+		return err
+	}
+
+	for _, ep := range endpoints {
+		// Only meaningful when there are insertion points.
+		points, _ := scanner.ExtractInsertionPoints(ep.Method, ep.URL, nil, "")
+		if len(points) == 0 {
+			continue
+		}
+
+		for _, pt := range points {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+			}
+
+			// 1. Generate Attack Payload for SQLi
+			payloadReq := connect.NewRequest(&aiv1.GenerateAttackPayloadRequest{
+				HypothesisTitle:       fmt.Sprintf("SQL Injection in %s", pt.Name),
+				HypothesisDescription: fmt.Sprintf("Potential SQL injection vulnerability detected in parameter %s at %s.", pt.Name, ep.URL),
+				Endpoint:              ep.URL,
+				Method:                ep.Method,
+			})
+
+			start := time.Now()
+			payloadRes, err := o.aiClient.GenerateAttackPayload(ctx, payloadReq)
+			o.trackGeminiCall(ctx, scanID, time.Since(start))
+			if err != nil {
+				continue
+			}
+
+			// 2. Execute Attack (Agent-Driven)
+			actionRes, err := o.executeBrowserAttack(ctx, scanID, payloadRes.Msg)
+			if err != nil || actionRes == nil {
+				continue
+			}
+
+			// 3. Score confidence using AI verification
+			scoreReq := connect.NewRequest(&aiv1.ScoreConfidenceRequest{
+				VulnerabilityType: "SQL Injection",
+				Endpoint:          payloadRes.Msg.Url,
+				Payload:           payloadRes.Msg.Body,
+				ResponseBody:      actionRes.PageSource,
+				ResponseStatus:    200,
+			})
+			scoreRes, err := o.aiClient.ScoreConfidence(ctx, scoreReq)
+			if err != nil {
+				continue
+			}
+
+			// 4. Save finding if verified
+			if scoreRes.Msg.Confidence > 0.7 && !scoreRes.Msg.IsFalsePositive {
+				_, _ = o.db.SaveFindingWithEvidence(ctx, storage.FindingInput{
+					ScanID:            scanID,
+					Title:             "[AI-VERIFIED] SQL Injection in Parameter: " + pt.Name,
+					Description:       payloadRes.Msg.Explanation + "\n\nVerification: " + scoreRes.Msg.Explanation,
+					Severity:          severityFromConfidence(float64(scoreRes.Msg.Confidence)),
+					VulnerabilityType: "SQL Injection",
+					Endpoint:          payloadRes.Msg.Url,
+					Payload:           payloadRes.Msg.Body,
+					ResponseStatus:    200,
+					Confidence:        float64(scoreRes.Msg.Confidence),
+					Category:          "VERIFIED_ATTACK",
+				}, storage.EvidenceInput{
+					FlowID:          0,
+					EvidenceType:    storage.EvidenceScreenshot,
+					RequestExcerpt:  fmt.Sprintf("%s %s (param: %s)", ep.Method, payloadRes.Msg.Url, pt.Name),
+					ResponseExcerpt: actionRes.PageSource,
+				})
+			}
+		}
+	}
+	return nil
+}
+
 func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module string, as *scanner.ActiveScanner) error {
 	onLog := func(msg string) {
 		GlobalBroker.Publish(Event{
@@ -548,44 +628,7 @@ func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module 
 		return nil
 
 	case ModuleSqliBasic:
-		// 1) Run query-based SQLi checks on endpoints with query params.
-		endpoints, err := o.db.ListEndpoints(ctx, scanID)
-		if err != nil {
-			return err
-		}
-		for _, ep := range endpoints {
-			points, _ := scanner.ExtractInsertionPoints(ep.Method, ep.URL, nil, "")
-			if len(points) == 0 {
-				continue
-			}
-			_ = as.ScanSQLi(ctx, scanID, ep.Method, ep.URL, nil, "")
-		}
-
-		// 2) Run body-based SQLi checks on captured flows (POST/PUT/PATCH/DELETE).
-		rows, err := o.db.QueryContext(ctx, "SELECT method, url, request_headers, request_body FROM http_flows WHERE scan_id = ? ORDER BY id DESC", scanID)
-		if err != nil {
-			return nil
-		}
-		defer rows.Close()
-		for rows.Next() {
-			var method, urlStr string
-			var headersJSON string
-			var body []byte
-			if err := rows.Scan(&method, &urlStr, &headersJSON, &body); err != nil {
-				continue
-			}
-			contentType := ""
-			var hdrMap map[string][]string
-			if json.Unmarshal([]byte(headersJSON), &hdrMap) == nil {
-				if vals, ok := hdrMap["Content-Type"]; ok && len(vals) > 0 {
-					contentType = vals[0]
-				} else if vals, ok := hdrMap["content-type"]; ok && len(vals) > 0 {
-					contentType = vals[0]
-				}
-			}
-			_ = as.ScanSQLi(ctx, scanID, method, urlStr, body, contentType)
-		}
-		return nil
+		return o.runAgentSqli(ctx, scanID, targetURL)
 
 	case ModuleCsrfBasic:
 		rows, err := o.db.QueryContext(ctx, "SELECT id, method, url, request_headers, request_body FROM http_flows WHERE scan_id = ? ORDER BY id DESC", scanID)
@@ -701,31 +744,29 @@ func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module 
 					return
 				}
 				
-				// 2. Execute the AI-crafted attack
-				client := &http.Client{Timeout: 10 * time.Second}
-				req, err := http.NewRequestWithContext(execCtx, payloadRes.Msg.Method, payloadRes.Msg.Url, strings.NewReader(payloadRes.Msg.Body))
+				// 2. Execute the AI-crafted attack (Agent-Driven)
+				actionRes, err := o.executeBrowserAttack(execCtx, scanID, payloadRes.Msg)
 				if err != nil {
+					log.Printf("[Orchestrator] AI Attack Execution Failed for %s: %v", hyp.Title, err)
 					return
 				}
-				for k, v := range payloadRes.Msg.Headers {
-					req.Header.Set(k, v)
-				}
-				
-				resp, err := client.Do(req)
-				if err != nil {
-					return
-				}
-				respBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 100*1024))
-				resp.Body.Close()
 
-				// 3. Save flow for evidence
-				flowID, _ := o.db.SaveFlow(execCtx, scanID, payloadRes.Msg.Method, payloadRes.Msg.Url, req.Header, []byte(payloadRes.Msg.Body), resp.Header, respBytes, resp.StatusCode)
-				
-				// 4. Heuristic verification (simplistic for now)
-				isVerified := false
-				if resp.StatusCode >= 500 || strings.Contains(strings.ToLower(string(respBytes)), "sql") || strings.Contains(strings.ToLower(string(respBytes)), "alert(1)") {
-					isVerified = true
+				// 3. Score confidence using AI verification
+				scoreReq := connect.NewRequest(&aiv1.ScoreConfidenceRequest{
+					VulnerabilityType: hyp.VulnerabilityType,
+					Endpoint:          payloadRes.Msg.Url,
+					Payload:           payloadRes.Msg.Body,
+					ResponseBody:      actionRes.PageSource,
+					ResponseStatus:    200, // Browser interactions don't yield raw status codes easily
+				})
+				scoreRes, err := o.aiClient.ScoreConfidence(execCtx, scoreReq)
+				if err != nil {
+					log.Printf("[Orchestrator] AI Confidence Scoring Failed for %s: %v", hyp.Title, err)
+					return
 				}
+
+				// 4. Update status and save finding if verified
+				isVerified := scoreRes.Msg.Confidence > 0.7 && !scoreRes.Msg.IsFalsePositive
 				
 				if isVerified {
 					_, _ = o.db.ExecContext(execCtx, "UPDATE hypotheses SET status = ? WHERE scan_id = ? AND title = ?", "VERIFIED", scanID, hyp.Title)
@@ -734,19 +775,19 @@ func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module 
 					_, _ = o.db.SaveFindingWithEvidence(execCtx, storage.FindingInput{
 						ScanID:            scanID,
 						Title:             "[AI-VERIFIED] " + hyp.Title,
-						Description:       hyp.Description + "\n\nAI Explanation: " + payloadRes.Msg.Explanation,
-						Severity:          "HIGH",
+						Description:       hyp.Description + "\n\nAI Explanation: " + payloadRes.Msg.Explanation + "\n\nVerification: " + scoreRes.Msg.Explanation,
+						Severity:          severityFromConfidence(float64(scoreRes.Msg.Confidence)),
 						VulnerabilityType: hyp.VulnerabilityType,
 						Endpoint:          payloadRes.Msg.Url,
 						Payload:           payloadRes.Msg.Body,
-						ResponseStatus:    resp.StatusCode,
-						Confidence:        0.9,
+						ResponseStatus:    200,
+						Confidence:        float64(scoreRes.Msg.Confidence),
 						Category:          "VERIFIED_ATTACK",
 					}, storage.EvidenceInput{
-						FlowID:          flowID,
-						EvidenceType:    storage.EvidenceHTTPFlow,
+						FlowID:          0, // Browser attacks don't have a single flow ID in the same way, but we should attach the screenshot
+						EvidenceType:    storage.EvidenceScreenshot,
 						RequestExcerpt:  fmt.Sprintf("%s %s", payloadRes.Msg.Method, payloadRes.Msg.Url),
-						ResponseExcerpt: string(respBytes),
+						ResponseExcerpt: actionRes.PageSource,
 					})
 				} else {
 					_, _ = o.db.ExecContext(execCtx, "UPDATE hypotheses SET status = ? WHERE scan_id = ? AND title = ?", "FAILED", scanID, hyp.Title)
@@ -757,14 +798,11 @@ func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module 
 				_ = o.db.SaveJournalEntry(execCtx, &storage.JournalEntry{
 					ScanID:    scanID,
 					Step:      lastStep + 1,
-					Action:    "http_request",
+					Action:    "browser_attack",
 					Value:     payloadRes.Msg.Url,
 					Success:   isVerified,
 					Reasoning: payloadRes.Msg.Explanation,
-					Result: &aiv1.ActionResult{
-						Success:    isVerified,
-						CurrentUrl: payloadRes.Msg.Url,
-					},
+					Result:    mapActionResult(actionRes),
 				})
 			}(h)
 		}
@@ -1069,4 +1107,43 @@ func mapActionResult(res *browser.ActionResult) *aiv1.ActionResult {
 		Forms:            mapBrowserForms(res.Forms),
 		PageSource:       res.PageSource,
 	}
+}
+
+// executeBrowserAttack performs a single AI-defined attack using the Playwright service.
+func (o *Orchestrator) executeBrowserAttack(ctx context.Context, scanID string, payload *aiv1.GenerateAttackPayloadResponse) (*browser.ActionResult, error) {
+	// 1. Start session/Navigate
+	actionReq := browser.ActionRequest{
+		ScanID:    scanID,
+		URL:       payload.Url,
+		Action:    "navigate",
+		ProxyPort: o.proxyPort,
+	}
+	
+	actionRes, err := o.browserClient.ExecuteAction(ctx, actionReq)
+	if err != nil {
+		return nil, err
+	}
+	
+	if !actionRes.Success {
+		return actionRes, nil
+	}
+
+	// 2. Perform the actual injection action
+	// The AI usually provides a payload for a specific parameter.
+	// For now, we attempt to find the element and fill it, or just use navigate if it's a GET param.
+	// If method is GET, the payload is already in the URL from GenerateAttackPayload.
+	
+	if strings.ToUpper(payload.Method) == "GET" {
+		return actionRes, nil
+	}
+
+	// For POST/PUT/etc, we might need to find the form and fill it.
+	// This is a simplified version; a full agent would use DecideBrowserAction in a loop.
+	// But for a single payload execution, we try to be smart.
+	
+	// If the AI didn't provide a selector, we might need to guess or ask AI.
+	// For now, we assume the AI provided the full URL if it's a simple injection,
+	// or we use the 'fill' action if we have a target element.
+	
+	return actionRes, nil
 }

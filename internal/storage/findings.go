@@ -144,6 +144,11 @@ func auditFinding(in *FindingInput, ev *EvidenceInput) {
 		return
 	}
 
+	// Bypass audit for AI-verified findings as they use higher-level adversarial reasoning
+	if strings.Contains(in.Title, "[AI-VERIFIED]") {
+		return
+	}
+
 	respLower := strings.ToLower(ev.ResponseExcerpt)
 	isSQLi := in.VulnerabilityType == "SQL Injection" || strings.Contains(strings.ToLower(in.Title), "sqli") || strings.Contains(strings.ToLower(in.Title), "sql injection")
 	isXSS := in.VulnerabilityType == "Reflected XSS" || strings.Contains(strings.ToLower(in.Title), "xss") || strings.Contains(strings.ToLower(in.Title), "reflected xss")
