@@ -829,6 +829,11 @@ export class BrowserActionOutcome extends Message<BrowserActionOutcome> {
    */
   error = "";
 
+  /**
+   * @generated from field: ai.v1.ActionResult result = 6;
+   */
+  result?: ActionResult;
+
   constructor(data?: PartialMessage<BrowserActionOutcome>) {
     super();
     proto3.util.initPartial(data, this);
@@ -842,6 +847,7 @@ export class BrowserActionOutcome extends Message<BrowserActionOutcome> {
     { no: 3, name: "value", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 4, name: "success", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 5, name: "error", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "result", kind: "message", T: ActionResult },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): BrowserActionOutcome {
@@ -858,6 +864,91 @@ export class BrowserActionOutcome extends Message<BrowserActionOutcome> {
 
   static equals(a: BrowserActionOutcome | PlainMessage<BrowserActionOutcome> | undefined, b: BrowserActionOutcome | PlainMessage<BrowserActionOutcome> | undefined): boolean {
     return proto3.util.equals(BrowserActionOutcome, a, b);
+  }
+}
+
+/**
+ * @generated from message ai.v1.ActionResult
+ */
+export class ActionResult extends Message<ActionResult> {
+  /**
+   * @generated from field: bool success = 1;
+   */
+  success = false;
+
+  /**
+   * @generated from field: string failure_reason = 2;
+   */
+  failureReason = "";
+
+  /**
+   * @generated from field: string current_url = 3;
+   */
+  currentUrl = "";
+
+  /**
+   * @generated from field: string page_title = 4;
+   */
+  pageTitle = "";
+
+  /**
+   * @generated from field: string screenshot_base64 = 5;
+   */
+  screenshotBase64 = "";
+
+  /**
+   * @generated from field: repeated ai.v1.BrowserElement links = 6;
+   */
+  links: BrowserElement[] = [];
+
+  /**
+   * @generated from field: repeated ai.v1.BrowserElement buttons = 7;
+   */
+  buttons: BrowserElement[] = [];
+
+  /**
+   * @generated from field: repeated ai.v1.BrowserForm forms = 8;
+   */
+  forms: BrowserForm[] = [];
+
+  /**
+   * @generated from field: string page_source = 9;
+   */
+  pageSource = "";
+
+  constructor(data?: PartialMessage<ActionResult>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "ai.v1.ActionResult";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "success", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 2, name: "failure_reason", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "current_url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "page_title", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "screenshot_base64", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "links", kind: "message", T: BrowserElement, repeated: true },
+    { no: 7, name: "buttons", kind: "message", T: BrowserElement, repeated: true },
+    { no: 8, name: "forms", kind: "message", T: BrowserForm, repeated: true },
+    { no: 9, name: "page_source", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ActionResult {
+    return new ActionResult().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ActionResult {
+    return new ActionResult().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ActionResult {
+    return new ActionResult().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ActionResult | PlainMessage<ActionResult> | undefined, b: ActionResult | PlainMessage<ActionResult> | undefined): boolean {
+    return proto3.util.equals(ActionResult, a, b);
   }
 }
 

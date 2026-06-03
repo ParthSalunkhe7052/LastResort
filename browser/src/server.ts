@@ -92,7 +92,8 @@ app.post('/action', async (req: Request, res: Response) => {
 
     return res.json({
       success: true,
-      screenshot: screenshot.toString('base64'),
+      failureReason: '',
+      screenshotBase64: screenshot.toString('base64'),
       pageSource,
       currentUrl: page.url(),
       pageTitle: await page.title(),
@@ -104,7 +105,10 @@ app.post('/action', async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error(`[SERVER] [ACTION ERROR]`, error);
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ 
+      success: false, 
+      failureReason: error.message || 'Unknown browser error'
+    });
   }
 });
 

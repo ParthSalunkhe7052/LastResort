@@ -125,6 +125,19 @@ message BrowserActionOutcome {
   string value = 3;
   bool success = 4;
   string error = 5;
+  ActionResult result = 6;
+}
+
+message ActionResult {
+  bool success = 1;
+  string failure_reason = 2;
+  string current_url = 3;
+  string page_title = 4;
+  string screenshot_base64 = 5;
+  repeated BrowserElement links = 6;
+  repeated BrowserElement buttons = 7;
+  repeated BrowserForm forms = 8;
+  string page_source = 9;
 }
 
 message BrowserElement {

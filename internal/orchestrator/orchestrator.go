@@ -802,7 +802,7 @@ func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module 
 			// Update state from response
 			currentURL = actionRes.CurrentURL
 			pageTitle = actionRes.PageTitle
-			screenshotBase64 = actionRes.Screenshot
+			screenshotBase64 = actionRes.ScreenshotBase64
 			links = mapBrowserElements(actionRes.Links)
 			buttons = mapBrowserElements(actionRes.Buttons)
 			forms = mapBrowserForms(actionRes.Forms)
@@ -861,27 +861,43 @@ func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module 
 			lastSelector = decideRes.Msg.Selector
 
 			execRes, err := browserClient.ExecuteAction(ctx, execReq)
+			var outcome *aiv1.BrowserActionOutcome
 			if err != nil {
 				lastActionSuccess = false
 				lastActionError = err.Error()
 				onLog(fmt.Sprintf("[AGENT] [ERROR] Execution of %s failed: %v", decideRes.Msg.Action, err))
+				
+				outcome = &aiv1.BrowserActionOutcome{
+					Action:   decideRes.Msg.Action,
+					Selector: decideRes.Msg.Selector,
+					Value:    decideRes.Msg.Value,
+					Success:  false,
+					Error:    err.Error(),
+					Result: &aiv1.ActionResult{
+						Success:       false,
+						FailureReason: err.Error(),
+					},
+				}
 			} else {
 				lastActionSuccess = execRes.Success
 				if !execRes.Success {
-					lastActionError = execRes.Error
+					lastActionError = execRes.FailureReason
 				} else {
 					lastActionError = ""
+				}
+				
+				outcome = &aiv1.BrowserActionOutcome{
+					Action:   decideRes.Msg.Action,
+					Selector: decideRes.Msg.Selector,
+					Value:    decideRes.Msg.Value,
+					Success:  execRes.Success,
+					Error:    execRes.FailureReason,
+					Result:   mapActionResult(execRes),
 				}
 			}
 
 			// Add to history
-			history = append(history, &aiv1.BrowserActionOutcome{
-				Action:   decideRes.Msg.Action,
-				Selector: decideRes.Msg.Selector,
-				Value:    decideRes.Msg.Value,
-				Success:  lastActionSuccess,
-				Error:    lastActionError,
-			})
+			history = append(history, outcome)
 
 			// Small delay for animations
 			time.Sleep(2 * time.Second)
@@ -993,4 +1009,18 @@ func mapBrowserForms(forms []browser.BrowserForm) []*aiv1.BrowserForm {
 		}
 	}
 	return res
+}
+
+func mapActionResult(res *browser.ActionResult) *aiv1.ActionResult {
+	return &aiv1.ActionResult{
+		Success:          res.Success,
+		FailureReason:    res.FailureReason,
+		CurrentUrl:       res.CurrentURL,
+		PageTitle:        res.PageTitle,
+		ScreenshotBase64: res.ScreenshotBase64,
+		Links:            mapBrowserElements(res.Links),
+		Buttons:          mapBrowserElements(res.Buttons),
+		Forms:            mapBrowserForms(res.Forms),
+		PageSource:       res.PageSource,
+	}
 }

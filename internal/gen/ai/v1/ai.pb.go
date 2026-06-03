@@ -1005,6 +1005,7 @@ type BrowserActionOutcome struct {
 	Value         string                 `protobuf:"bytes,3,opt,name=value,proto3" json:"value,omitempty"`
 	Success       bool                   `protobuf:"varint,4,opt,name=success,proto3" json:"success,omitempty"`
 	Error         string                 `protobuf:"bytes,5,opt,name=error,proto3" json:"error,omitempty"`
+	Result        *ActionResult          `protobuf:"bytes,6,opt,name=result,proto3" json:"result,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1074,6 +1075,121 @@ func (x *BrowserActionOutcome) GetError() string {
 	return ""
 }
 
+func (x *BrowserActionOutcome) GetResult() *ActionResult {
+	if x != nil {
+		return x.Result
+	}
+	return nil
+}
+
+type ActionResult struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Success          bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	FailureReason    string                 `protobuf:"bytes,2,opt,name=failure_reason,json=failureReason,proto3" json:"failure_reason,omitempty"`
+	CurrentUrl       string                 `protobuf:"bytes,3,opt,name=current_url,json=currentUrl,proto3" json:"current_url,omitempty"`
+	PageTitle        string                 `protobuf:"bytes,4,opt,name=page_title,json=pageTitle,proto3" json:"page_title,omitempty"`
+	ScreenshotBase64 string                 `protobuf:"bytes,5,opt,name=screenshot_base64,json=screenshotBase64,proto3" json:"screenshot_base64,omitempty"`
+	Links            []*BrowserElement      `protobuf:"bytes,6,rep,name=links,proto3" json:"links,omitempty"`
+	Buttons          []*BrowserElement      `protobuf:"bytes,7,rep,name=buttons,proto3" json:"buttons,omitempty"`
+	Forms            []*BrowserForm         `protobuf:"bytes,8,rep,name=forms,proto3" json:"forms,omitempty"`
+	PageSource       string                 `protobuf:"bytes,9,opt,name=page_source,json=pageSource,proto3" json:"page_source,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *ActionResult) Reset() {
+	*x = ActionResult{}
+	mi := &file_ai_v1_ai_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ActionResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ActionResult) ProtoMessage() {}
+
+func (x *ActionResult) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_v1_ai_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ActionResult.ProtoReflect.Descriptor instead.
+func (*ActionResult) Descriptor() ([]byte, []int) {
+	return file_ai_v1_ai_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *ActionResult) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *ActionResult) GetFailureReason() string {
+	if x != nil {
+		return x.FailureReason
+	}
+	return ""
+}
+
+func (x *ActionResult) GetCurrentUrl() string {
+	if x != nil {
+		return x.CurrentUrl
+	}
+	return ""
+}
+
+func (x *ActionResult) GetPageTitle() string {
+	if x != nil {
+		return x.PageTitle
+	}
+	return ""
+}
+
+func (x *ActionResult) GetScreenshotBase64() string {
+	if x != nil {
+		return x.ScreenshotBase64
+	}
+	return ""
+}
+
+func (x *ActionResult) GetLinks() []*BrowserElement {
+	if x != nil {
+		return x.Links
+	}
+	return nil
+}
+
+func (x *ActionResult) GetButtons() []*BrowserElement {
+	if x != nil {
+		return x.Buttons
+	}
+	return nil
+}
+
+func (x *ActionResult) GetForms() []*BrowserForm {
+	if x != nil {
+		return x.Forms
+	}
+	return nil
+}
+
+func (x *ActionResult) GetPageSource() string {
+	if x != nil {
+		return x.PageSource
+	}
+	return ""
+}
+
 type BrowserElement struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Text          string                 `protobuf:"bytes,1,opt,name=text,proto3" json:"text,omitempty"`
@@ -1089,7 +1205,7 @@ type BrowserElement struct {
 
 func (x *BrowserElement) Reset() {
 	*x = BrowserElement{}
-	mi := &file_ai_v1_ai_proto_msgTypes[15]
+	mi := &file_ai_v1_ai_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1101,7 +1217,7 @@ func (x *BrowserElement) String() string {
 func (*BrowserElement) ProtoMessage() {}
 
 func (x *BrowserElement) ProtoReflect() protoreflect.Message {
-	mi := &file_ai_v1_ai_proto_msgTypes[15]
+	mi := &file_ai_v1_ai_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1114,7 +1230,7 @@ func (x *BrowserElement) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BrowserElement.ProtoReflect.Descriptor instead.
 func (*BrowserElement) Descriptor() ([]byte, []int) {
-	return file_ai_v1_ai_proto_rawDescGZIP(), []int{15}
+	return file_ai_v1_ai_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *BrowserElement) GetText() string {
@@ -1178,7 +1294,7 @@ type BrowserForm struct {
 
 func (x *BrowserForm) Reset() {
 	*x = BrowserForm{}
-	mi := &file_ai_v1_ai_proto_msgTypes[16]
+	mi := &file_ai_v1_ai_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1190,7 +1306,7 @@ func (x *BrowserForm) String() string {
 func (*BrowserForm) ProtoMessage() {}
 
 func (x *BrowserForm) ProtoReflect() protoreflect.Message {
-	mi := &file_ai_v1_ai_proto_msgTypes[16]
+	mi := &file_ai_v1_ai_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1203,7 +1319,7 @@ func (x *BrowserForm) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BrowserForm.ProtoReflect.Descriptor instead.
 func (*BrowserForm) Descriptor() ([]byte, []int) {
-	return file_ai_v1_ai_proto_rawDescGZIP(), []int{16}
+	return file_ai_v1_ai_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *BrowserForm) GetSelector() string {
@@ -1246,7 +1362,7 @@ type DecideBrowserActionResponse struct {
 
 func (x *DecideBrowserActionResponse) Reset() {
 	*x = DecideBrowserActionResponse{}
-	mi := &file_ai_v1_ai_proto_msgTypes[17]
+	mi := &file_ai_v1_ai_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1258,7 +1374,7 @@ func (x *DecideBrowserActionResponse) String() string {
 func (*DecideBrowserActionResponse) ProtoMessage() {}
 
 func (x *DecideBrowserActionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_ai_v1_ai_proto_msgTypes[17]
+	mi := &file_ai_v1_ai_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1271,7 +1387,7 @@ func (x *DecideBrowserActionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DecideBrowserActionResponse.ProtoReflect.Descriptor instead.
 func (*DecideBrowserActionResponse) Descriptor() ([]byte, []int) {
-	return file_ai_v1_ai_proto_rawDescGZIP(), []int{17}
+	return file_ai_v1_ai_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *DecideBrowserActionResponse) GetAction() string {
@@ -1408,13 +1524,27 @@ const file_ai_v1_ai_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a?\n" +
 	"\x11LocalStorageEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x90\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xbd\x01\n" +
 	"\x14BrowserActionOutcome\x12\x16\n" +
 	"\x06action\x18\x01 \x01(\tR\x06action\x12\x1a\n" +
 	"\bselector\x18\x02 \x01(\tR\bselector\x12\x14\n" +
 	"\x05value\x18\x03 \x01(\tR\x05value\x12\x18\n" +
 	"\asuccess\x18\x04 \x01(\bR\asuccess\x12\x14\n" +
-	"\x05error\x18\x05 \x01(\tR\x05error\"\xa2\x01\n" +
+	"\x05error\x18\x05 \x01(\tR\x05error\x12+\n" +
+	"\x06result\x18\x06 \x01(\v2\x13.ai.v1.ActionResultR\x06result\"\xe5\x02\n" +
+	"\fActionResult\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12%\n" +
+	"\x0efailure_reason\x18\x02 \x01(\tR\rfailureReason\x12\x1f\n" +
+	"\vcurrent_url\x18\x03 \x01(\tR\n" +
+	"currentUrl\x12\x1d\n" +
+	"\n" +
+	"page_title\x18\x04 \x01(\tR\tpageTitle\x12+\n" +
+	"\x11screenshot_base64\x18\x05 \x01(\tR\x10screenshotBase64\x12+\n" +
+	"\x05links\x18\x06 \x03(\v2\x15.ai.v1.BrowserElementR\x05links\x12/\n" +
+	"\abuttons\x18\a \x03(\v2\x15.ai.v1.BrowserElementR\abuttons\x12(\n" +
+	"\x05forms\x18\b \x03(\v2\x12.ai.v1.BrowserFormR\x05forms\x12\x1f\n" +
+	"\vpage_source\x18\t \x01(\tR\n" +
+	"pageSource\"\xa2\x01\n" +
 	"\x0eBrowserElement\x12\x12\n" +
 	"\x04text\x18\x01 \x01(\tR\x04text\x12\x1a\n" +
 	"\bselector\x18\x02 \x01(\tR\bselector\x12\x12\n" +
@@ -1454,7 +1584,7 @@ func file_ai_v1_ai_proto_rawDescGZIP() []byte {
 	return file_ai_v1_ai_proto_rawDescData
 }
 
-var file_ai_v1_ai_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
+var file_ai_v1_ai_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
 var file_ai_v1_ai_proto_goTypes = []any{
 	(*HealthRequest)(nil),                    // 0: ai.v1.HealthRequest
 	(*HealthResponse)(nil),                   // 1: ai.v1.HealthResponse
@@ -1471,44 +1601,49 @@ var file_ai_v1_ai_proto_goTypes = []any{
 	(*GenerateAttackPayloadResponse)(nil),    // 12: ai.v1.GenerateAttackPayloadResponse
 	(*DecideBrowserActionRequest)(nil),       // 13: ai.v1.DecideBrowserActionRequest
 	(*BrowserActionOutcome)(nil),             // 14: ai.v1.BrowserActionOutcome
-	(*BrowserElement)(nil),                   // 15: ai.v1.BrowserElement
-	(*BrowserForm)(nil),                      // 16: ai.v1.BrowserForm
-	(*DecideBrowserActionResponse)(nil),      // 17: ai.v1.DecideBrowserActionResponse
-	nil,                                      // 18: ai.v1.AnalyzeReconRequest.HeadersEntry
-	nil,                                      // 19: ai.v1.GenerateAttackPayloadResponse.HeadersEntry
-	nil,                                      // 20: ai.v1.DecideBrowserActionRequest.CookiesEntry
-	nil,                                      // 21: ai.v1.DecideBrowserActionRequest.LocalStorageEntry
+	(*ActionResult)(nil),                     // 15: ai.v1.ActionResult
+	(*BrowserElement)(nil),                   // 16: ai.v1.BrowserElement
+	(*BrowserForm)(nil),                      // 17: ai.v1.BrowserForm
+	(*DecideBrowserActionResponse)(nil),      // 18: ai.v1.DecideBrowserActionResponse
+	nil,                                      // 19: ai.v1.AnalyzeReconRequest.HeadersEntry
+	nil,                                      // 20: ai.v1.GenerateAttackPayloadResponse.HeadersEntry
+	nil,                                      // 21: ai.v1.DecideBrowserActionRequest.CookiesEntry
+	nil,                                      // 22: ai.v1.DecideBrowserActionRequest.LocalStorageEntry
 }
 var file_ai_v1_ai_proto_depIdxs = []int32{
-	18, // 0: ai.v1.AnalyzeReconRequest.headers:type_name -> ai.v1.AnalyzeReconRequest.HeadersEntry
+	19, // 0: ai.v1.AnalyzeReconRequest.headers:type_name -> ai.v1.AnalyzeReconRequest.HeadersEntry
 	5,  // 1: ai.v1.GenerateHypothesesResponse.hypotheses:type_name -> ai.v1.Hypothesis
-	19, // 2: ai.v1.GenerateAttackPayloadResponse.headers:type_name -> ai.v1.GenerateAttackPayloadResponse.HeadersEntry
-	15, // 3: ai.v1.DecideBrowserActionRequest.links:type_name -> ai.v1.BrowserElement
-	15, // 4: ai.v1.DecideBrowserActionRequest.buttons:type_name -> ai.v1.BrowserElement
-	16, // 5: ai.v1.DecideBrowserActionRequest.forms:type_name -> ai.v1.BrowserForm
-	20, // 6: ai.v1.DecideBrowserActionRequest.cookies:type_name -> ai.v1.DecideBrowserActionRequest.CookiesEntry
-	21, // 7: ai.v1.DecideBrowserActionRequest.local_storage:type_name -> ai.v1.DecideBrowserActionRequest.LocalStorageEntry
+	20, // 2: ai.v1.GenerateAttackPayloadResponse.headers:type_name -> ai.v1.GenerateAttackPayloadResponse.HeadersEntry
+	16, // 3: ai.v1.DecideBrowserActionRequest.links:type_name -> ai.v1.BrowserElement
+	16, // 4: ai.v1.DecideBrowserActionRequest.buttons:type_name -> ai.v1.BrowserElement
+	17, // 5: ai.v1.DecideBrowserActionRequest.forms:type_name -> ai.v1.BrowserForm
+	21, // 6: ai.v1.DecideBrowserActionRequest.cookies:type_name -> ai.v1.DecideBrowserActionRequest.CookiesEntry
+	22, // 7: ai.v1.DecideBrowserActionRequest.local_storage:type_name -> ai.v1.DecideBrowserActionRequest.LocalStorageEntry
 	14, // 8: ai.v1.DecideBrowserActionRequest.history:type_name -> ai.v1.BrowserActionOutcome
-	15, // 9: ai.v1.BrowserForm.inputs:type_name -> ai.v1.BrowserElement
-	2,  // 10: ai.v1.AiService.AnalyzeRecon:input_type -> ai.v1.AnalyzeReconRequest
-	4,  // 11: ai.v1.AiService.GenerateHypotheses:input_type -> ai.v1.GenerateHypothesesRequest
-	7,  // 12: ai.v1.AiService.ScoreConfidence:input_type -> ai.v1.ScoreConfidenceRequest
-	0,  // 13: ai.v1.AiService.Health:input_type -> ai.v1.HealthRequest
-	9,  // 14: ai.v1.AiService.GenerateFindingNarrative:input_type -> ai.v1.GenerateFindingNarrativeRequest
-	11, // 15: ai.v1.AiService.GenerateAttackPayload:input_type -> ai.v1.GenerateAttackPayloadRequest
-	13, // 16: ai.v1.AiService.DecideBrowserAction:input_type -> ai.v1.DecideBrowserActionRequest
-	3,  // 17: ai.v1.AiService.AnalyzeRecon:output_type -> ai.v1.AnalyzeReconResponse
-	6,  // 18: ai.v1.AiService.GenerateHypotheses:output_type -> ai.v1.GenerateHypothesesResponse
-	8,  // 19: ai.v1.AiService.ScoreConfidence:output_type -> ai.v1.ScoreConfidenceResponse
-	1,  // 20: ai.v1.AiService.Health:output_type -> ai.v1.HealthResponse
-	10, // 21: ai.v1.AiService.GenerateFindingNarrative:output_type -> ai.v1.GenerateFindingNarrativeResponse
-	12, // 22: ai.v1.AiService.GenerateAttackPayload:output_type -> ai.v1.GenerateAttackPayloadResponse
-	17, // 23: ai.v1.AiService.DecideBrowserAction:output_type -> ai.v1.DecideBrowserActionResponse
-	17, // [17:24] is the sub-list for method output_type
-	10, // [10:17] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	15, // 9: ai.v1.BrowserActionOutcome.result:type_name -> ai.v1.ActionResult
+	16, // 10: ai.v1.ActionResult.links:type_name -> ai.v1.BrowserElement
+	16, // 11: ai.v1.ActionResult.buttons:type_name -> ai.v1.BrowserElement
+	17, // 12: ai.v1.ActionResult.forms:type_name -> ai.v1.BrowserForm
+	16, // 13: ai.v1.BrowserForm.inputs:type_name -> ai.v1.BrowserElement
+	2,  // 14: ai.v1.AiService.AnalyzeRecon:input_type -> ai.v1.AnalyzeReconRequest
+	4,  // 15: ai.v1.AiService.GenerateHypotheses:input_type -> ai.v1.GenerateHypothesesRequest
+	7,  // 16: ai.v1.AiService.ScoreConfidence:input_type -> ai.v1.ScoreConfidenceRequest
+	0,  // 17: ai.v1.AiService.Health:input_type -> ai.v1.HealthRequest
+	9,  // 18: ai.v1.AiService.GenerateFindingNarrative:input_type -> ai.v1.GenerateFindingNarrativeRequest
+	11, // 19: ai.v1.AiService.GenerateAttackPayload:input_type -> ai.v1.GenerateAttackPayloadRequest
+	13, // 20: ai.v1.AiService.DecideBrowserAction:input_type -> ai.v1.DecideBrowserActionRequest
+	3,  // 21: ai.v1.AiService.AnalyzeRecon:output_type -> ai.v1.AnalyzeReconResponse
+	6,  // 22: ai.v1.AiService.GenerateHypotheses:output_type -> ai.v1.GenerateHypothesesResponse
+	8,  // 23: ai.v1.AiService.ScoreConfidence:output_type -> ai.v1.ScoreConfidenceResponse
+	1,  // 24: ai.v1.AiService.Health:output_type -> ai.v1.HealthResponse
+	10, // 25: ai.v1.AiService.GenerateFindingNarrative:output_type -> ai.v1.GenerateFindingNarrativeResponse
+	12, // 26: ai.v1.AiService.GenerateAttackPayload:output_type -> ai.v1.GenerateAttackPayloadResponse
+	18, // 27: ai.v1.AiService.DecideBrowserAction:output_type -> ai.v1.DecideBrowserActionResponse
+	21, // [21:28] is the sub-list for method output_type
+	14, // [14:21] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_ai_v1_ai_proto_init() }
@@ -1522,7 +1657,7 @@ func file_ai_v1_ai_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ai_v1_ai_proto_rawDesc), len(file_ai_v1_ai_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   22,
+			NumMessages:   23,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

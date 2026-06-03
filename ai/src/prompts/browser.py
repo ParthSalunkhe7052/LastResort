@@ -59,8 +59,16 @@ def get_decide_action_prompt(request) -> str:
             if outcome.value:
                 line += f" | Value: {outcome.value}"
             line += f" -> {status}"
-            if outcome.error:
+            
+            if outcome.success and outcome.HasField('result'):
+                res = outcome.result
+                line += f" | URL: {res.current_url}"
+                if res.page_title:
+                    line += f" | Title: {res.page_title}"
+            
+            if not outcome.success and outcome.error:
                 line += f" (Error: {outcome.error})"
+            
             prompt += line + "\n"
         prompt += "\n"
     

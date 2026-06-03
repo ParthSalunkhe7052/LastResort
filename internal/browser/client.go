@@ -46,18 +46,18 @@ type ActionRequest struct {
 	ProxyPort int    `json:"proxyPort"`
 }
 
-type ActionResponse struct {
-	Success      bool              `json:"success"`
-	Screenshot   string            `json:"screenshot"` // base64
-	PageSource   string            `json:"pageSource"`
-	CurrentURL   string            `json:"currentUrl"`
-	PageTitle    string            `json:"pageTitle"`
-	Links        []BrowserElement  `json:"links"`
-	Buttons      []BrowserElement  `json:"buttons"`
-	Forms        []BrowserForm     `json:"forms"`
-	Cookies      []Cookie          `json:"cookies"`
-	LocalStorage map[string]string `json:"localStorage"`
-	Error        string            `json:"error"`
+type ActionResult struct {
+	Success          bool              `json:"success"`
+	FailureReason    string            `json:"failureReason"`
+	ScreenshotBase64 string            `json:"screenshotBase64"` // base64
+	PageSource       string            `json:"pageSource"`
+	CurrentURL       string            `json:"currentUrl"`
+	PageTitle        string            `json:"pageTitle"`
+	Links            []BrowserElement  `json:"links"`
+	Buttons          []BrowserElement  `json:"buttons"`
+	Forms            []BrowserForm     `json:"forms"`
+	Cookies          []Cookie          `json:"cookies"`
+	LocalStorage     map[string]string `json:"localStorage"`
 }
 
 type Cookie struct {
@@ -157,7 +157,7 @@ func (c *Client) Crawl(ctx context.Context, scanID, targetURL string, proxyPort 
 }
 
 // ExecuteAction sends a single browser interaction command to the Playwright service.
-func (c *Client) ExecuteAction(ctx context.Context, req ActionRequest) (*ActionResponse, error) {
+func (c *Client) ExecuteAction(ctx context.Context, req ActionRequest) (*ActionResult, error) {
 	reqBody, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal action request: %w", err)
@@ -179,11 +179,11 @@ func (c *Client) ExecuteAction(ctx context.Context, req ActionRequest) (*ActionR
 		return nil, fmt.Errorf("browser service action returned non-200 status code: %d", resp.StatusCode)
 	}
 
-	var actionResp ActionResponse
-	if err := json.NewDecoder(resp.Body).Decode(&actionResp); err != nil {
+	var actionRes ActionResult
+	if err := json.NewDecoder(resp.Body).Decode(&actionRes); err != nil {
 		return nil, fmt.Errorf("failed to decode browser action response: %w", err)
 	}
 
-	return &actionResp, nil
+	return &actionRes, nil
 }
 

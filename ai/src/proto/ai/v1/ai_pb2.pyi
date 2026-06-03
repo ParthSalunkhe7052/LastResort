@@ -208,18 +208,42 @@ class DecideBrowserActionRequest(_message.Message):
     def __init__(self, url: _Optional[str] = ..., page_source: _Optional[str] = ..., current_goal: _Optional[str] = ..., last_action_success: bool = ..., last_action_error: _Optional[str] = ..., current_url: _Optional[str] = ..., page_title: _Optional[str] = ..., links: _Optional[_Iterable[_Union[BrowserElement, _Mapping]]] = ..., buttons: _Optional[_Iterable[_Union[BrowserElement, _Mapping]]] = ..., forms: _Optional[_Iterable[_Union[BrowserForm, _Mapping]]] = ..., last_action: _Optional[str] = ..., last_selector: _Optional[str] = ..., screenshot_base64: _Optional[str] = ..., session_id: _Optional[str] = ..., cookies: _Optional[_Mapping[str, str]] = ..., local_storage: _Optional[_Mapping[str, str]] = ..., history: _Optional[_Iterable[_Union[BrowserActionOutcome, _Mapping]]] = ...) -> None: ...
 
 class BrowserActionOutcome(_message.Message):
-    __slots__ = ("action", "selector", "value", "success", "error")
+    __slots__ = ("action", "selector", "value", "success", "error", "result")
     ACTION_FIELD_NUMBER: _ClassVar[int]
     SELECTOR_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     SUCCESS_FIELD_NUMBER: _ClassVar[int]
     ERROR_FIELD_NUMBER: _ClassVar[int]
+    RESULT_FIELD_NUMBER: _ClassVar[int]
     action: str
     selector: str
     value: str
     success: bool
     error: str
-    def __init__(self, action: _Optional[str] = ..., selector: _Optional[str] = ..., value: _Optional[str] = ..., success: bool = ..., error: _Optional[str] = ...) -> None: ...
+    result: ActionResult
+    def __init__(self, action: _Optional[str] = ..., selector: _Optional[str] = ..., value: _Optional[str] = ..., success: bool = ..., error: _Optional[str] = ..., result: _Optional[_Union[ActionResult, _Mapping]] = ...) -> None: ...
+
+class ActionResult(_message.Message):
+    __slots__ = ("success", "failure_reason", "current_url", "page_title", "screenshot_base64", "links", "buttons", "forms", "page_source")
+    SUCCESS_FIELD_NUMBER: _ClassVar[int]
+    FAILURE_REASON_FIELD_NUMBER: _ClassVar[int]
+    CURRENT_URL_FIELD_NUMBER: _ClassVar[int]
+    PAGE_TITLE_FIELD_NUMBER: _ClassVar[int]
+    SCREENSHOT_BASE64_FIELD_NUMBER: _ClassVar[int]
+    LINKS_FIELD_NUMBER: _ClassVar[int]
+    BUTTONS_FIELD_NUMBER: _ClassVar[int]
+    FORMS_FIELD_NUMBER: _ClassVar[int]
+    PAGE_SOURCE_FIELD_NUMBER: _ClassVar[int]
+    success: bool
+    failure_reason: str
+    current_url: str
+    page_title: str
+    screenshot_base64: str
+    links: _containers.RepeatedCompositeFieldContainer[BrowserElement]
+    buttons: _containers.RepeatedCompositeFieldContainer[BrowserElement]
+    forms: _containers.RepeatedCompositeFieldContainer[BrowserForm]
+    page_source: str
+    def __init__(self, success: bool = ..., failure_reason: _Optional[str] = ..., current_url: _Optional[str] = ..., page_title: _Optional[str] = ..., screenshot_base64: _Optional[str] = ..., links: _Optional[_Iterable[_Union[BrowserElement, _Mapping]]] = ..., buttons: _Optional[_Iterable[_Union[BrowserElement, _Mapping]]] = ..., forms: _Optional[_Iterable[_Union[BrowserForm, _Mapping]]] = ..., page_source: _Optional[str] = ...) -> None: ...
 
 class BrowserElement(_message.Message):
     __slots__ = ("text", "selector", "type", "href", "id", "name", "value")
