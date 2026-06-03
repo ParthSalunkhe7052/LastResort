@@ -767,6 +767,7 @@ func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module 
 		var links []*aiv1.BrowserElement
 		var buttons []*aiv1.BrowserElement
 		var forms []*aiv1.BrowserForm
+		var history []*aiv1.BrowserActionOutcome
 
 		defer func() {
 			// Cleanup browser session on exit
@@ -806,6 +807,11 @@ func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module 
 			buttons = mapBrowserElements(actionRes.Buttons)
 			forms = mapBrowserForms(actionRes.Forms)
 
+			cookiesMap := make(map[string]string)
+			for _, c := range actionRes.Cookies {
+				cookiesMap[c.Name] = c.Value
+			}
+
 			// 2. Ask AI what to do next
 			decideReq := connect.NewRequest(&aiv1.DecideBrowserActionRequest{
 				Url:               targetURL,
@@ -821,6 +827,10 @@ func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module 
 				LastAction:        lastAction,
 				LastSelector:      lastSelector,
 				ScreenshotBase64:  screenshotBase64,
+				SessionId:         scanID,
+				Cookies:           cookiesMap,
+				LocalStorage:      actionRes.LocalStorage,
+				History:           history,
 			})
 
 			start := time.Now()
@@ -863,6 +873,15 @@ func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module 
 					lastActionError = ""
 				}
 			}
+
+			// Add to history
+			history = append(history, &aiv1.BrowserActionOutcome{
+				Action:   decideRes.Msg.Action,
+				Selector: decideRes.Msg.Selector,
+				Value:    decideRes.Msg.Value,
+				Success:  lastActionSuccess,
+				Error:    lastActionError,
+			})
 
 			// Small delay for animations
 			time.Sleep(2 * time.Second)

@@ -111,6 +111,20 @@ message DecideBrowserActionRequest {
   string last_action = 11;
   string last_selector = 12;
   string screenshot_base64 = 13;
+
+  // Browser Attack Context
+  string session_id = 14;
+  map<string, string> cookies = 15;
+  map<string, string> local_storage = 16;
+  repeated BrowserActionOutcome history = 17;
+}
+
+message BrowserActionOutcome {
+  string action = 1;
+  string selector = 2;
+  string value = 3;
+  bool success = 4;
+  string error = 5;
 }
 
 message BrowserElement {

@@ -47,15 +47,28 @@ type ActionRequest struct {
 }
 
 type ActionResponse struct {
-	Success    bool             `json:"success"`
-	Screenshot string           `json:"screenshot"` // base64
-	PageSource string           `json:"pageSource"`
-	CurrentURL string           `json:"currentUrl"`
-	PageTitle  string           `json:"pageTitle"`
-	Links      []BrowserElement `json:"links"`
-	Buttons    []BrowserElement `json:"buttons"`
-	Forms      []BrowserForm    `json:"forms"`
-	Error      string           `json:"error"`
+	Success      bool              `json:"success"`
+	Screenshot   string            `json:"screenshot"` // base64
+	PageSource   string            `json:"pageSource"`
+	CurrentURL   string            `json:"currentUrl"`
+	PageTitle    string            `json:"pageTitle"`
+	Links        []BrowserElement  `json:"links"`
+	Buttons      []BrowserElement  `json:"buttons"`
+	Forms        []BrowserForm     `json:"forms"`
+	Cookies      []Cookie          `json:"cookies"`
+	LocalStorage map[string]string `json:"localStorage"`
+	Error        string            `json:"error"`
+}
+
+type Cookie struct {
+	Name     string  `json:"name"`
+	Value    string  `json:"value"`
+	Domain   string  `json:"domain"`
+	Path     string  `json:"path"`
+	Expires  float64 `json:"expires"`
+	HTTPOnly bool    `json:"httpOnly"`
+	Secure   bool    `json:"secure"`
+	SameSite string  `json:"sameSite"`
 }
 
 type BrowserElement struct {

@@ -734,6 +734,28 @@ export class DecideBrowserActionRequest extends Message<DecideBrowserActionReque
    */
   screenshotBase64 = "";
 
+  /**
+   * Browser Attack Context
+   *
+   * @generated from field: string session_id = 14;
+   */
+  sessionId = "";
+
+  /**
+   * @generated from field: map<string, string> cookies = 15;
+   */
+  cookies: { [key: string]: string } = {};
+
+  /**
+   * @generated from field: map<string, string> local_storage = 16;
+   */
+  localStorage: { [key: string]: string } = {};
+
+  /**
+   * @generated from field: repeated ai.v1.BrowserActionOutcome history = 17;
+   */
+  history: BrowserActionOutcome[] = [];
+
   constructor(data?: PartialMessage<DecideBrowserActionRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -755,6 +777,10 @@ export class DecideBrowserActionRequest extends Message<DecideBrowserActionReque
     { no: 11, name: "last_action", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 12, name: "last_selector", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 13, name: "screenshot_base64", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 14, name: "session_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 15, name: "cookies", kind: "map", K: 9 /* ScalarType.STRING */, V: {kind: "scalar", T: 9 /* ScalarType.STRING */} },
+    { no: 16, name: "local_storage", kind: "map", K: 9 /* ScalarType.STRING */, V: {kind: "scalar", T: 9 /* ScalarType.STRING */} },
+    { no: 17, name: "history", kind: "message", T: BrowserActionOutcome, repeated: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DecideBrowserActionRequest {
@@ -771,6 +797,67 @@ export class DecideBrowserActionRequest extends Message<DecideBrowserActionReque
 
   static equals(a: DecideBrowserActionRequest | PlainMessage<DecideBrowserActionRequest> | undefined, b: DecideBrowserActionRequest | PlainMessage<DecideBrowserActionRequest> | undefined): boolean {
     return proto3.util.equals(DecideBrowserActionRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message ai.v1.BrowserActionOutcome
+ */
+export class BrowserActionOutcome extends Message<BrowserActionOutcome> {
+  /**
+   * @generated from field: string action = 1;
+   */
+  action = "";
+
+  /**
+   * @generated from field: string selector = 2;
+   */
+  selector = "";
+
+  /**
+   * @generated from field: string value = 3;
+   */
+  value = "";
+
+  /**
+   * @generated from field: bool success = 4;
+   */
+  success = false;
+
+  /**
+   * @generated from field: string error = 5;
+   */
+  error = "";
+
+  constructor(data?: PartialMessage<BrowserActionOutcome>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "ai.v1.BrowserActionOutcome";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "action", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "selector", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "value", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "success", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 5, name: "error", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): BrowserActionOutcome {
+    return new BrowserActionOutcome().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): BrowserActionOutcome {
+    return new BrowserActionOutcome().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): BrowserActionOutcome {
+    return new BrowserActionOutcome().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: BrowserActionOutcome | PlainMessage<BrowserActionOutcome> | undefined, b: BrowserActionOutcome | PlainMessage<BrowserActionOutcome> | undefined): boolean {
+    return proto3.util.equals(BrowserActionOutcome, a, b);
   }
 }
 

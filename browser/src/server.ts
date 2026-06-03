@@ -88,6 +88,7 @@ app.post('/action', async (req: Request, res: Response) => {
     const screenshot = await page.screenshot({ type: 'png' });
     const pageSource = await page.content();
     const context = await scrapePageContext(page);
+    const cookies = await page.context().cookies();
 
     return res.json({
       success: true,
@@ -97,7 +98,9 @@ app.post('/action', async (req: Request, res: Response) => {
       pageTitle: await page.title(),
       links: context.links,
       buttons: context.buttons,
-      forms: context.forms
+      forms: context.forms,
+      cookies,
+      localStorage: context.localStorage
     });
   } catch (error: any) {
     console.error(`[SERVER] [ACTION ERROR]`, error);

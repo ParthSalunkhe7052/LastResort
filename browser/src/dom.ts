@@ -23,6 +23,7 @@ export interface PageContext {
   links: BrowserElement[];
   buttons: BrowserElement[];
   forms: BrowserForm[];
+  localStorage?: Record<string, string>;
 }
 
 export async function scrapePageContext(page: Page): Promise<PageContext> {
@@ -92,12 +93,26 @@ export async function scrapePageContext(page: Page): Promise<PageContext> {
         };
       });
 
+      // Extract Local Storage
+      const storage: Record<string, string> = {};
+      try {
+        for (let i = 0; i < window.localStorage.length; i++) {
+          const key = window.localStorage.key(i);
+          if (key) {
+            storage[key] = window.localStorage.getItem(key) || '';
+          }
+        }
+      } catch (e) {
+        console.error('Failed to access localStorage', e);
+      }
+
       return {
         url: window.location.href,
         title: document.title,
         links: links.filter(l => l.href && !l.href.startsWith('javascript:')),
         buttons,
-        forms
+        forms,
+        localStorage: storage
       };
     });
   } catch (error) {
@@ -107,7 +122,8 @@ export async function scrapePageContext(page: Page): Promise<PageContext> {
       title: '',
       links: [],
       buttons: [],
-      forms: []
+      forms: [],
+      localStorage: {}
     };
   }
 }

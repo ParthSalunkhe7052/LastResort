@@ -27,15 +27,49 @@ def get_decide_action_prompt(request) -> str:
     prompt = (
         f"Goal: {request.current_goal}\n"
         f"Current URL: {request.current_url or request.url}\n"
-        f"Page Title: {request.page_title}\n\n"
+        f"Page Title: {request.page_title}\n"
+        f"Session ID: {request.session_id}\n\n"
     )
     
-    # Feedback from last action
+    # Cookies and Local Storage
+    if request.cookies:
+        prompt += "--- COOKIES ---\n"
+        for name, value in request.cookies.items():
+            prompt += f"{name}: {value}\n"
+        prompt += "\n"
+        
+    if request.local_storage:
+        prompt += "--- LOCAL STORAGE ---\n"
+        for key, value in request.local_storage.items():
+            # Truncate values to avoid bloat
+            val_str = str(value)
+            if len(val_str) > 100:
+                val_str = val_str[:100] + "..."
+            prompt += f"{key}: {val_str}\n"
+        prompt += "\n"
+
+    # Full Action History
+    if request.history:
+        prompt += "--- ACTION HISTORY ---\n"
+        for i, outcome in enumerate(request.history):
+            status = "SUCCESS" if outcome.success else "FAILED"
+            line = f"[{i}] Action: {outcome.action}"
+            if outcome.selector:
+                line += f" | Selector: {outcome.selector}"
+            if outcome.value:
+                line += f" | Value: {outcome.value}"
+            line += f" -> {status}"
+            if outcome.error:
+                line += f" (Error: {outcome.error})"
+            prompt += line + "\n"
+        prompt += "\n"
+    
+    # Feedback from last action (for immediate context)
     if request.last_action:
         status = "SUCCESS" if request.last_action_success else "FAILED"
-        prompt += f"Last Action: {request.last_action} (Status: {status})\n"
+        prompt += f"Most Recent Action: {request.last_action} (Status: {status})\n"
         if not request.last_action_success and request.last_action_error:
-            prompt += f"Error from last action: {request.last_action_error}\n"
+            prompt += f"Error: {request.last_action_error}\n"
             prompt += "CRITICAL: The last action failed. Do not repeat the same failing action. Try a different approach or selector.\n"
         prompt += "\n"
 
