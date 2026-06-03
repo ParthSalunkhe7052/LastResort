@@ -23,7 +23,7 @@ class LLMProvider(ABC):
         pass
 
     @abstractmethod
-    def generate_json(self, prompt: str, schema: Dict[str, Any], system_instruction: str = None) -> Dict[str, Any]:
+    def generate_json(self, prompt: str, schema: Dict[str, Any], system_instruction: str = None, image_data: bytes = None, image_mime_type: str = "image/png") -> Dict[str, Any]:
         pass
 
 
@@ -37,7 +37,7 @@ class MockProvider(LLMProvider):
             return "Detected technology: Nginx. Suggested authentication: Cookie-based session ID."
         return "This is a mock text generation response from MockProvider."
 
-    def generate_json(self, prompt: str, schema: Dict[str, Any], system_instruction: str = None) -> Dict[str, Any]:
+    def generate_json(self, prompt: str, schema: Dict[str, Any], system_instruction: str = None, image_data: bytes = None, image_mime_type: str = "image/png") -> Dict[str, Any]:
         # Return mock JSON structures based on keywords
         prompt_lower = prompt.lower()
         if "hypotheses" in prompt_lower or "endpoints" in prompt_lower:
@@ -67,13 +67,21 @@ class MockProvider(LLMProvider):
                 "is_false_positive": False
             }
 
+        if "action" in prompt_lower or "goal" in prompt_lower:
+            return {
+                "action": "finish",
+                "selector": "",
+                "value": "",
+                "explanation": "Mock action: finishing."
+            }
+
         return {}
 
 
 class GeminiProvider(LLMProvider):
     """LLM provider utilizing the Gemini API."""
 
-    def __init__(self, api_key: str = None, model_name: str = "gemini-2.5-flash"):
+    def __init__(self, api_key: str = None, model_name: str = "gemini-1.5-flash"):
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
         self.model_name = model_name
         if genai is None:
@@ -85,7 +93,6 @@ class GeminiProvider(LLMProvider):
 
     def generate_text(self, prompt: str, system_instruction: str = None) -> str:
         # If system instruction is provided, we can pass it during configuration
-        config = {}
         if system_instruction:
             model = genai.GenerativeModel(self.model_name, system_instruction=system_instruction)
         else:
@@ -94,7 +101,7 @@ class GeminiProvider(LLMProvider):
         response = model.generate_content(prompt)
         return response.text
 
-    def generate_json(self, prompt: str, schema: Dict[str, Any], system_instruction: str = None) -> Dict[str, Any]:
+    def generate_json(self, prompt: str, schema: Dict[str, Any], system_instruction: str = None, image_data: bytes = None, image_mime_type: str = "image/png") -> Dict[str, Any]:
         # Gemini supports structured JSON output
         generation_config = {
             "response_mime_type": "application/json",
@@ -113,7 +120,14 @@ class GeminiProvider(LLMProvider):
                 generation_config=generation_config
             )
 
-        response = model.generate_content(prompt)
+        content = [prompt]
+        if image_data:
+            content.append({
+                "mime_type": image_mime_type,
+                "data": image_data
+            })
+
+        response = model.generate_content(content)
         try:
             return json.loads(response.text)
         except json.JSONDecodeError:
@@ -148,7 +162,7 @@ class OllamaProvider(LLMProvider):
         except Exception as e:
             return f"Ollama error: {str(e)}"
 
-    def generate_json(self, prompt: str, schema: Dict[str, Any], system_instruction: str = None) -> Dict[str, Any]:
+    def generate_json(self, prompt: str, schema: Dict[str, Any], system_instruction: str = None, image_data: bytes = None, image_mime_type: str = "image/png") -> Dict[str, Any]:
         url = f"{self.host}/api/generate"
         system_prompt = system_instruction or ""
         

@@ -1,6 +1,8 @@
 import sys
 import os
 import time
+import base64
+import json
 from concurrent import futures
 import grpc
 from dotenv import load_dotenv
@@ -14,6 +16,7 @@ sys.path.append(proto_sub_dir)
 import ai_pb2
 import ai_pb2_grpc
 from llm.provider import MockProvider, GeminiProvider, OllamaProvider
+from prompts.browser import BROWSER_SYSTEM_INSTRUCTION, get_decide_action_prompt
 
 # Load environment variables
 load_dotenv()
@@ -36,8 +39,9 @@ class AiServiceServicer(ai_pb2_grpc.AiServiceServicer):
             api_key = os.getenv("GEMINI_API_KEY")
             if not api_key:
                 raise ValueError("GEMINI_API_KEY environment variable must be set. Mock AI fallback is disabled.")
-            print(f"[AI] Initializing Gemini LLM Provider (model: gemini-2.5-flash).")
             self.provider = GeminiProvider(api_key=api_key)
+            model_name = getattr(self.provider, "model_name", "gemini-1.5-flash")
+            print(f"[AI] Initializing Gemini LLM Provider (model: {model_name}).")
 
     def Health(self, request, context):
         print("[AI] Received Health request")
@@ -287,25 +291,41 @@ class AiServiceServicer(ai_pb2_grpc.AiServiceServicer):
             "required": ["action", "selector", "value", "explanation"]
         }
 
-        prompt = (
-            f"You are a penetration tester driving a browser. Your current goal is: {request.current_goal}\n"
-            f"Current URL: {request.url}\n\n"
-            f"Page Source (truncated):\n{request.page_source[:5000]}\n\n"
-            f"Decide the next action to take. Actions: 'click', 'fill', 'type', 'navigate', 'wait', 'finish'.\n"
-            f"Return the CSS selector if clicking/filling, and the value if filling/typing."
-        )
-
         try:
+            # Prepare prompt and image
+            prompt = get_decide_action_prompt(request)
+            
+            image_data = None
+            if request.screenshot_base64:
+                try:
+                    # Clean the base64 string if it has a prefix
+                    b64_str = request.screenshot_base64
+                    if "," in b64_str:
+                        b64_str = b64_str.split(",")[1]
+                    image_data = base64.b64decode(b64_str)
+                except Exception as e:
+                    print(f"[AI] [WARNING] Failed to decode screenshot: {e}")
+
             if isinstance(self.provider, MockProvider):
+                # We can still use generate_json with MockProvider as it was updated
+                res_json = self.provider.generate_json(
+                    prompt,
+                    schema=schema,
+                    system_instruction=BROWSER_SYSTEM_INSTRUCTION,
+                    image_data=image_data
+                )
                 return ai_pb2.DecideBrowserActionResponse(
-                    action="finish",
-                    explanation="Mock action: finishing."
+                    action=res_json.get("action", "finish"),
+                    selector=res_json.get("selector", ""),
+                    value=res_json.get("value", ""),
+                    explanation=res_json.get("explanation", "Mock response.")
                 )
 
             res_json = self.provider.generate_json(
                 prompt,
                 schema=schema,
-                system_instruction="You are an autonomous security agent. Drive the browser to achieve the security testing goal."
+                system_instruction=BROWSER_SYSTEM_INSTRUCTION,
+                image_data=image_data
             )
 
             return ai_pb2.DecideBrowserActionResponse(
@@ -316,6 +336,8 @@ class AiServiceServicer(ai_pb2_grpc.AiServiceServicer):
             )
         except Exception as e:
             print(f"[AI] [ERROR] DecideBrowserAction failed: {e}")
+            import traceback
+            traceback.print_exc()
             context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(str(e))
             return ai_pb2.DecideBrowserActionResponse()
