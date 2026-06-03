@@ -3,14 +3,8 @@ import { client } from './api/client'
 import { ScanProfile, ScanStatus } from './gen/scan/v1/scan_pb'
 import MainLayout from './components/layout/MainLayout'
 import Dashboard from './components/dashboard/Dashboard'
-import EndpointMap from './components/endpoints/EndpointMap'
-import ProxyHistory from './components/proxy/ProxyHistory'
-import type { ProxyFlowRecord } from './components/proxy/ProxyHistory'
-import HttpRepeater from './components/editor/HttpRepeater'
-import FindingsBrowser from './components/findings/FindingsBrowser'
 import type { FindingRecord } from './components/findings/FindingsBrowser'
-import ReportGenerator from './components/reports/ReportGenerator'
-import Settings from './components/settings/Settings'
+
 
 interface ScanEventRecord {
   time: string
@@ -29,18 +23,10 @@ interface ScanRecord {
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'endpoints' | 'proxy-history' | 'repeater' | 'findings' | 'reports' | 'ai-console' | 'settings'>('dashboard')
   
   // Dashboard & Configuration States
-  const [targetUrl, setTargetUrl] = useState('http://localhost:9091')
+  const [targetUrl, setTargetUrl] = useState('https://owasp.org/www-project-juice-shop/')
   const [profile, setProfile] = useState<ScanProfile>(ScanProfile.STANDARD)
-  const [enabledModules, setEnabledModules] = useState({
-    ports: true,
-    robots: true,
-    headers: true,
-    cookies: true,
-    aiRecon: true
-  })
 
   // Connection states
   const [goDaemonStatus, setGoDaemonStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting')
@@ -52,32 +38,26 @@ export default function App() {
   const [events, setEvents] = useState<ScanEventRecord[]>([])
   const [isStartingScan, setIsStartingScan] = useState(false)
 
-  // Proxy History States
-  const [flows, setFlows] = useState<ProxyFlowRecord[]>([])
-  const [selectedFlow, setSelectedFlow] = useState<ProxyFlowRecord | null>(null)
-  const [flowSearch, setFlowSearch] = useState('')
-
   // Findings Browser States
   const [findings, setFindings] = useState<FindingRecord[]>([])
-  const [selectedFinding, setSelectedFinding] = useState<FindingRecord | null>(null)
 
-  // HTTP Repeater (Editor) States
-  const [repeaterHost, setRepeaterHost] = useState('httpbin.org')
-  const [repeaterTls, setRepeaterTls] = useState(true)
-  const [repeaterRequest, setRepeaterRequest] = useState(
-    "GET /get HTTP/1.1\r\n" +
-    "Host: httpbin.org\r\n" +
-    "User-Agent: LastResort/0.1.0\r\n" +
-    "Accept: */*\r\n" +
-    "Connection: close\r\n\r\n"
-  )
-  const [repeaterResponse, setRepeaterResponse] = useState('')
-  const [isSendingRepeater, setIsSendingRepeater] = useState(false)
+  // Hypotheses State
+  const [hypotheses, setHypotheses] = useState<any[]>([])
+
+  // Scan Modules State
+  const [scanModules, setScanModules] = useState<any[]>([])
+
+  // Live Browser Streaming State
+  const [liveScreenshot, setLiveScreenshot] = useState<string | null>(null)
+
+  // Performance Summary State
+  const [performanceMetrics, setPerformanceMetrics] = useState<any>(null)
+
 
   // Check health on mount and periodically
   const checkHealth = async () => {
     try {
-      const res = await fetch('http://localhost:8443/health')
+      const res = await fetch('http://127.0.0.1:8443/health')
       if (res.ok) {
         const data = await res.json()
         setGoDaemonStatus('connected')
@@ -122,29 +102,6 @@ export default function App() {
     }
   }
 
-  // Fetch Proxy flows
-  const fetchFlows = async () => {
-    if (goDaemonStatus !== 'connected') return
-    try {
-      const res = await client.listFlows({})
-      const records = res.flows.map(f => ({
-        id: f.id.toString(),
-        scanId: f.scanId,
-        method: f.method,
-        url: f.url,
-        requestHeaders: f.requestHeaders,
-        requestBody: new TextDecoder().decode(f.requestBody),
-        responseHeaders: f.responseHeaders,
-        responseBody: new TextDecoder().decode(f.responseBody),
-        responseStatus: f.responseStatus,
-        createdAt: new Date(f.createdAt).toLocaleTimeString()
-      }))
-      setFlows(records)
-    } catch (err) {
-      console.error('Failed to load proxy flows:', err)
-    }
-  }
-
   // Fetch security findings
   const fetchFindings = async () => {
     if (goDaemonStatus !== 'connected') return
@@ -161,6 +118,7 @@ export default function App() {
         payload: f.payload,
         responseStatus: f.responseStatus,
         confidence: f.confidence,
+        category: f.category,
         isFalsePositive: f.isFalsePositive,
         createdAt: new Date(f.createdAt).toLocaleDateString() + ' ' + new Date(f.createdAt).toLocaleTimeString()
       }))
@@ -170,21 +128,64 @@ export default function App() {
     }
   }
 
+  // Fetch hypotheses
+  const fetchHypotheses = async () => {
+    if (!activeScanId || goDaemonStatus !== 'connected') return
+    try {
+      const res = await fetch(`http://127.0.0.1:8443/api/v1/hypotheses?scan_id=${activeScanId}`)
+      if (res.ok) {
+        const data = await res.json()
+        setHypotheses(data.hypotheses || [])
+      }
+    } catch (err) {
+      console.error('Failed to load hypotheses:', err)
+    }
+  }
+
+  const fetchScanModules = async () => {
+    if (!activeScanId || goDaemonStatus !== 'connected') return
+    try {
+      const res = await fetch(`http://127.0.0.1:8443/api/v1/scan-modules?scan_id=${activeScanId}`)
+      if (res.ok) {
+        const data = await res.json()
+        setScanModules(data.modules || [])
+      }
+    } catch (err) {
+      console.error('Failed to load scan modules:', err)
+    }
+  }
+
+  const fetchPerformanceMetrics = async () => {
+    if (!activeScanId || goDaemonStatus !== 'connected') return
+    try {
+      const res = await fetch(`http://127.0.0.1:8443/api/v1/scan/performance?scan_id=${activeScanId}`)
+      if (res.ok) {
+        const data = await res.json()
+        setPerformanceMetrics(data)
+      }
+    } catch (err) {
+      console.error('Failed to load performance metrics:', err)
+    }
+  }
+
   const syncSystem = () => {
     checkHealth()
     fetchScans()
-    fetchFlows()
     fetchFindings()
+    fetchHypotheses()
+    fetchScanModules()
+    fetchPerformanceMetrics()
   }
 
   useEffect(() => {
     fetchScans()
-    if (activeTab === 'proxy-history') {
-      fetchFlows()
-    } else if (activeTab === 'findings') {
-      fetchFindings()
+    fetchFindings()
+    if (activeScanId) {
+      fetchHypotheses()
+      fetchScanModules()
+      fetchPerformanceMetrics()
     }
-  }, [goDaemonStatus, activeScanId, activeTab])
+  }, [goDaemonStatus, activeScanId])
 
   // Start a new scan and subscribe to events stream
   const handleStartScan = async (e: React.FormEvent) => {
@@ -192,6 +193,7 @@ export default function App() {
     if (goDaemonStatus !== 'connected') return
     setIsStartingScan(true)
     setEvents([])
+    setLiveScreenshot(null)
 
     try {
       const createRes = await client.createScan({
@@ -271,126 +273,69 @@ export default function App() {
         const fields = event.data?.fields as any
         if (event.eventType === 'phase.started') {
           msg = `Phase [${fields?.phase?.kind?.value}] started.`
+          fetchScanModules()
         } else if (event.eventType === 'progress.update') {
           msg = `Progress: ${(Number(fields?.progress?.kind?.value || 0) * 100).toFixed(0)}%`
         } else if (event.eventType === 'finding.new') {
           msg = `[FINDING DISCOVERED] Title: "${fields?.title?.kind?.value}" | Severity: ${fields?.severity?.kind?.value}`
+          fetchFindings()
         } else if (event.eventType === 'hypothesis.generated') {
           msg = `[HYPOTHESIS] "${fields?.title?.kind?.value}" (confidence: ${Number(fields?.confidence?.kind?.value || 0).toFixed(2)})`
+          fetchHypotheses()
         } else if (event.eventType === 'log.info' || event.eventType === 'log.warning' || event.eventType === 'log.error') {
           msg = `${fields?.message?.kind?.value || ''}`
         } else if (event.eventType === 'module.error') {
           msg = `Module [${fields?.phase?.kind?.value}] error: ${fields?.error?.kind?.value}`
+          fetchScanModules()
         } else if (event.eventType === 'phase.completed') {
           msg = `Phase [${fields?.phase?.kind?.value}] completed successfully.`
+          fetchScanModules()
+        } else if (event.eventType === 'browser.screenshot') {
+          const img = fields?.image?.kind?.value || ''
+          setLiveScreenshot(img)
+          continue
         }
         addEventLog(event.eventType, msg)
       }
       addEventLog('system', `Orchestrator completed scan workflow successfully.`)
       playChime()
       fetchScans()
+      fetchScanModules()
+      fetchFindings()
+      fetchPerformanceMetrics()
     } catch (err: any) {
       addEventLog('error', `Stream closed: ${err.message}`)
     }
   }
 
-  // Send Repeater Request
-  const handleSendRepeater = async () => {
-    if (goDaemonStatus !== 'connected') return
-    setIsSendingRepeater(true)
-    setRepeaterResponse('')
-    try {
-      const res = await client.sendRepeaterRequest({
-        rawRequest: repeaterRequest,
-        targetHost: repeaterHost,
-        useTls: repeaterTls
-      })
-      setRepeaterResponse(res.rawResponse)
-    } catch (err: any) {
-      setRepeaterResponse(`[ERROR] Connection failed:\n${err.message}`)
-    } finally {
-      setIsSendingRepeater(false)
-    }
-  }
-
-  const handleSendToRepeater = (host: string, useTls: boolean, request: string) => {
-    setRepeaterHost(host)
-    setRepeaterTls(useTls)
-    setRepeaterRequest(request)
-    setActiveTab('repeater')
-  }
-
   return (
     <MainLayout
-      activeTab={activeTab}
-      setActiveTab={setActiveTab}
+      activeTab="dashboard"
+      setActiveTab={() => {}}
       goDaemonStatus={goDaemonStatus}
       pythonAiStatus={pythonAiStatus}
       targetUrl={targetUrl}
       onSync={syncSystem}
     >
-      {activeTab === 'dashboard' && (
-        <Dashboard
-          targetUrl={targetUrl}
-          setTargetUrl={setTargetUrl}
-          profile={profile}
-          setProfile={setProfile}
-          enabledModules={enabledModules}
-          setEnabledModules={setEnabledModules}
-          goDaemonStatus={goDaemonStatus}
-          isStartingScan={isStartingScan}
-          handleStartScan={handleStartScan}
-          events={events}
-          scans={scans}
-          setActiveScanId={setActiveScanId}
-          subscribeToEvents={subscribeToEvents}
-        />
-      )}
-
-      {activeTab === 'endpoints' && (
-        <EndpointMap activeScanId={activeScanId} />
-      )}
-
-      {activeTab === 'proxy-history' && (
-        <ProxyHistory
-          flows={flows}
-          selectedFlow={selectedFlow}
-          setSelectedFlow={setSelectedFlow}
-          flowSearch={flowSearch}
-          setFlowSearch={setFlowSearch}
-          onSendToRepeater={handleSendToRepeater}
-        />
-      )}
-
-      {activeTab === 'repeater' && (
-        <HttpRepeater
-          repeaterHost={repeaterHost}
-          setRepeaterHost={setRepeaterHost}
-          repeaterTls={repeaterTls}
-          setRepeaterTls={setRepeaterTls}
-          repeaterRequest={repeaterRequest}
-          setRepeaterRequest={setRepeaterRequest}
-          repeaterResponse={repeaterResponse}
-          isSendingRepeater={isSendingRepeater}
-          handleSendRepeater={handleSendRepeater}
-        />
-      )}
-
-      {activeTab === 'findings' && (
-        <FindingsBrowser
-          findings={findings}
-          selectedFinding={selectedFinding}
-          setSelectedFinding={setSelectedFinding}
-        />
-      )}
-
-      {activeTab === 'reports' && (
-        <ReportGenerator activeScanId={activeScanId} />
-      )}
-
-      {activeTab === 'settings' && (
-        <Settings />
-      )}
+      <Dashboard
+        targetUrl={targetUrl}
+        setTargetUrl={setTargetUrl}
+        profile={profile}
+        setProfile={setProfile}
+        goDaemonStatus={goDaemonStatus}
+        isStartingScan={isStartingScan}
+        handleStartScan={handleStartScan}
+        events={events}
+        scans={scans}
+        setActiveScanId={setActiveScanId}
+        subscribeToEvents={subscribeToEvents}
+        scanModules={scanModules}
+        activeScanId={activeScanId}
+        findings={findings}
+        hypotheses={hypotheses}
+        liveScreenshot={liveScreenshot}
+        performanceMetrics={performanceMetrics}
+      />
     </MainLayout>
   )
 }

@@ -839,6 +839,13 @@ export class FindingRecord extends Message<FindingRecord> {
    */
   createdAt = "";
 
+  /**
+   * OBSERVATION, HYPOTHESIS, ATTEMPT, VERIFIED_ATTACK
+   *
+   * @generated from field: string category = 13;
+   */
+  category = "";
+
   constructor(data?: PartialMessage<FindingRecord>) {
     super();
     proto3.util.initPartial(data, this);
@@ -859,6 +866,7 @@ export class FindingRecord extends Message<FindingRecord> {
     { no: 10, name: "confidence", kind: "scalar", T: 2 /* ScalarType.FLOAT */ },
     { no: 11, name: "is_false_positive", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 12, name: "created_at", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 13, name: "category", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): FindingRecord {

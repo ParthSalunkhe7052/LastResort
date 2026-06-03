@@ -42,13 +42,13 @@ func NewProxyServer(db *storage.DB, cm *CertManager, port int) *ProxyServer {
 
 // Start boots the proxy server on its configured port in a background loop.
 func (p *ProxyServer) Start() error {
-	addr := fmt.Sprintf(":%d", p.port)
+	addr := fmt.Sprintf("127.0.0.1:%d", p.port)
 	l, err := net.Listen("tcp", addr)
 	if err != nil {
 		return fmt.Errorf("failed to listen on %s: %w", addr, err)
 	}
 	p.listener = l
-	log.Printf("[Proxy] Intercepting MITM proxy listening on http://localhost%s", addr)
+	log.Printf("[Proxy] Intercepting MITM proxy listening on http://%s", addr)
 
 	p.wg.Add(1)
 	go func() {

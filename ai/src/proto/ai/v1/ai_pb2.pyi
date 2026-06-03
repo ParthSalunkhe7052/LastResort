@@ -121,3 +121,58 @@ class GenerateFindingNarrativeResponse(_message.Message):
     description: str
     remediation: str
     def __init__(self, description: _Optional[str] = ..., remediation: _Optional[str] = ...) -> None: ...
+
+class GenerateAttackPayloadRequest(_message.Message):
+    __slots__ = ("hypothesis_title", "hypothesis_description", "endpoint", "method")
+    HYPOTHESIS_TITLE_FIELD_NUMBER: _ClassVar[int]
+    HYPOTHESIS_DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
+    ENDPOINT_FIELD_NUMBER: _ClassVar[int]
+    METHOD_FIELD_NUMBER: _ClassVar[int]
+    hypothesis_title: str
+    hypothesis_description: str
+    endpoint: str
+    method: str
+    def __init__(self, hypothesis_title: _Optional[str] = ..., hypothesis_description: _Optional[str] = ..., endpoint: _Optional[str] = ..., method: _Optional[str] = ...) -> None: ...
+
+class GenerateAttackPayloadResponse(_message.Message):
+    __slots__ = ("method", "url", "body", "headers", "explanation")
+    class HeadersEntry(_message.Message):
+        __slots__ = ("key", "value")
+        KEY_FIELD_NUMBER: _ClassVar[int]
+        VALUE_FIELD_NUMBER: _ClassVar[int]
+        key: str
+        value: str
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[str] = ...) -> None: ...
+    METHOD_FIELD_NUMBER: _ClassVar[int]
+    URL_FIELD_NUMBER: _ClassVar[int]
+    BODY_FIELD_NUMBER: _ClassVar[int]
+    HEADERS_FIELD_NUMBER: _ClassVar[int]
+    EXPLANATION_FIELD_NUMBER: _ClassVar[int]
+    method: str
+    url: str
+    body: str
+    headers: _containers.ScalarMap[str, str]
+    explanation: str
+    def __init__(self, method: _Optional[str] = ..., url: _Optional[str] = ..., body: _Optional[str] = ..., headers: _Optional[_Mapping[str, str]] = ..., explanation: _Optional[str] = ...) -> None: ...
+
+class DecideBrowserActionRequest(_message.Message):
+    __slots__ = ("url", "page_source", "current_goal")
+    URL_FIELD_NUMBER: _ClassVar[int]
+    PAGE_SOURCE_FIELD_NUMBER: _ClassVar[int]
+    CURRENT_GOAL_FIELD_NUMBER: _ClassVar[int]
+    url: str
+    page_source: str
+    current_goal: str
+    def __init__(self, url: _Optional[str] = ..., page_source: _Optional[str] = ..., current_goal: _Optional[str] = ...) -> None: ...
+
+class DecideBrowserActionResponse(_message.Message):
+    __slots__ = ("action", "selector", "value", "explanation")
+    ACTION_FIELD_NUMBER: _ClassVar[int]
+    SELECTOR_FIELD_NUMBER: _ClassVar[int]
+    VALUE_FIELD_NUMBER: _ClassVar[int]
+    EXPLANATION_FIELD_NUMBER: _ClassVar[int]
+    action: str
+    selector: str
+    value: str
+    explanation: str
+    def __init__(self, action: _Optional[str] = ..., selector: _Optional[str] = ..., value: _Optional[str] = ..., explanation: _Optional[str] = ...) -> None: ...

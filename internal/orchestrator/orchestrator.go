@@ -4,12 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/parth/lastresort/internal/browser"
 	"github.com/parth/lastresort/internal/crawler"
 	aiv1 "github.com/parth/lastresort/internal/gen/ai/v1"
 	"github.com/parth/lastresort/internal/gen/ai/v1/aiv1connect"
@@ -34,6 +37,19 @@ func NewOrchestrator(db *storage.DB, aiClient aiv1connect.AiServiceClient, proxy
 		aiClient:  aiClient,
 		proxyPort: proxyPort,
 	}
+}
+
+func (o *Orchestrator) trackGeminiCall(ctx context.Context, scanID string, duration time.Duration) {
+	if scanID == "" {
+		return
+	}
+	_, _ = o.db.ExecContext(ctx,
+		`UPDATE scans SET
+			gemini_calls = COALESCE(gemini_calls, 0) + 1,
+			gemini_time_ms = COALESCE(gemini_time_ms, 0) + ?
+		 WHERE id = ?`,
+		duration.Milliseconds(), scanID,
+	)
 }
 
 // Start spawns a background goroutine to execute the scan sequence
@@ -79,7 +95,26 @@ func (o *Orchestrator) Start(scanID string) {
 
 		as := scanner.NewActiveScanner(o.db)
 
-		for _, module := range modules {
+		// Divide modules into prep, parallel (active tests), and completion phases
+		var prepModules []string
+		var parallelModules []string
+		var completionModules []string
+
+		for _, m := range modules {
+			switch m {
+			case ModuleRecon, ModuleAuthDiscovery, ModuleCrawlStatic, ModulePassive:
+				prepModules = append(prepModules, m)
+			case ModuleHeaders, ModuleCors, ModuleXssReflected, ModuleSqliBasic, ModuleCsrfBasic, ModuleRateLimitBasic, ModuleAiHypotheses:
+				parallelModules = append(parallelModules, m)
+			case ModuleReport:
+				completionModules = append(completionModules, m)
+			default:
+				prepModules = append(prepModules, m)
+			}
+		}
+
+		// 1. Preparation Phase (Sequential)
+		for _, module := range prepModules {
 			select {
 			case <-ctx.Done():
 				o.failScan(scanID, fmt.Errorf("scan context cancelled: %w", ctx.Err()))
@@ -92,14 +127,113 @@ func (o *Orchestrator) Start(scanID string) {
 			startedAt := time.Now()
 			_ = o.db.UpsertScanModule(ctx, scanID, phaseName, storage.ModuleRunning, &startedAt, nil, "")
 
-			if err := o.runModule(ctx, scanID, targetURL, module, as); err != nil {
-				// Keep local-first behavior: modules can fail without hard aborting, but we surface it.
+			err := o.runModule(ctx, scanID, targetURL, module, as)
+			completedAt := time.Now()
+			if err != nil {
 				o.publishModuleError(scanID, phaseName, err)
-				log.Printf("[Orchestrator] [WARNING] Module %s failed/partial: %v", module, err)
-				completedAt := time.Now()
+				log.Printf("[Orchestrator] [WARNING] Prep Module %s failed: %v", module, err)
 				_ = o.db.UpsertScanModule(ctx, scanID, phaseName, storage.ModuleFailed, &startedAt, &completedAt, err.Error())
 			} else {
+				_ = o.db.UpsertScanModule(ctx, scanID, phaseName, storage.ModuleSuccess, &startedAt, &completedAt, "")
+			}
+
+			o.publishPhaseCompleted(scanID, phaseName)
+			cumulative += weights[module]
+			if cumulative > 1.0 {
+				cumulative = 1.0
+			}
+			o.publishProgress(scanID, cumulative)
+			o.updateScanStatus(scanID, scanv1.ScanStatus_SCAN_STATUS_RUNNING, cumulative)
+		}
+
+		// 2. Active Testing Phase (Parallel Worker Pool)
+		if len(parallelModules) > 0 {
+			var mu sync.Mutex
+			
+			startParallelModule := func(module string) time.Time {
+				mu.Lock()
+				defer mu.Unlock()
+				phaseName := moduleDisplayName(module)
+				startedAt := time.Now()
+				_ = o.db.UpsertScanModule(ctx, scanID, phaseName, storage.ModuleRunning, &startedAt, nil, "")
+				o.publishPhaseStart(scanID, phaseName)
+				return startedAt
+			}
+
+			updateParallelProgress := func(module string, startedAt time.Time, err error) {
+				mu.Lock()
+				defer mu.Unlock()
+				
+				phaseName := moduleDisplayName(module)
 				completedAt := time.Now()
+				if err != nil {
+					o.publishModuleError(scanID, phaseName, err)
+					log.Printf("[Orchestrator] [WARNING] Parallel Module %s failed: %v", module, err)
+					_ = o.db.UpsertScanModule(ctx, scanID, phaseName, storage.ModuleFailed, &startedAt, &completedAt, err.Error())
+				} else {
+					_ = o.db.UpsertScanModule(ctx, scanID, phaseName, storage.ModuleSuccess, &startedAt, &completedAt, "")
+				}
+				
+				o.publishPhaseCompleted(scanID, phaseName)
+				cumulative += weights[module]
+				if cumulative > 1.0 {
+					cumulative = 1.0
+				}
+				o.publishProgress(scanID, cumulative)
+				o.updateScanStatus(scanID, scanv1.ScanStatus_SCAN_STATUS_RUNNING, cumulative)
+				
+				if isActiveScanModule(module) {
+					o.emitNewFindings(ctx, scanID)
+				}
+			}
+
+			numWorkers := 3
+			if len(parallelModules) < numWorkers {
+				numWorkers = len(parallelModules)
+			}
+
+			moduleChan := make(chan string, len(parallelModules))
+			for _, m := range parallelModules {
+				moduleChan <- m
+			}
+			close(moduleChan)
+
+			var wg sync.WaitGroup
+			for i := 0; i < numWorkers; i++ {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					for m := range moduleChan {
+						startedAt := startParallelModule(m)
+						err := o.runModule(ctx, scanID, targetURL, m, as)
+						updateParallelProgress(m, startedAt, err)
+					}
+				}()
+			}
+			wg.Wait()
+		}
+
+		// 3. Completion Phase (Sequential)
+		for _, module := range completionModules {
+			select {
+			case <-ctx.Done():
+				o.failScan(scanID, fmt.Errorf("scan context cancelled: %w", ctx.Err()))
+				return
+			default:
+			}
+
+			phaseName := moduleDisplayName(module)
+			o.publishPhaseStart(scanID, phaseName)
+			startedAt := time.Now()
+			_ = o.db.UpsertScanModule(ctx, scanID, phaseName, storage.ModuleRunning, &startedAt, nil, "")
+
+			err := o.runModule(ctx, scanID, targetURL, module, as)
+			completedAt := time.Now()
+			if err != nil {
+				o.publishModuleError(scanID, phaseName, err)
+				log.Printf("[Orchestrator] [WARNING] Completion Module %s failed: %v", module, err)
+				_ = o.db.UpsertScanModule(ctx, scanID, phaseName, storage.ModuleFailed, &startedAt, &completedAt, err.Error())
+			} else {
 				_ = o.db.UpsertScanModule(ctx, scanID, phaseName, storage.ModuleSuccess, &startedAt, &completedAt, "")
 			}
 
@@ -114,17 +248,34 @@ func (o *Orchestrator) Start(scanID string) {
 
 		// --- WORKFLOW COMPLETION ---
 		o.publishProgress(scanID, 1.0)
-		anyFailed, err := o.db.AnyModuleFailed(ctx, scanID)
-		if err != nil {
-			anyFailed = true
-		}
-		if anyFailed {
+		successCount, failedCount, summaryErr := o.db.ModuleSummary(ctx, scanID)
+		if summaryErr != nil {
+			// Fallback to old any-failed check
+			anyFailed, _ := o.db.AnyModuleFailed(ctx, scanID)
+			if anyFailed {
+				o.updateScanStatus(scanID, scanv1.ScanStatus_SCAN_STATUS_FAILED, 1.0)
+			} else {
+				o.updateScanStatus(scanID, scanv1.ScanStatus_SCAN_STATUS_COMPLETED, 1.0)
+			}
+		} else if failedCount > 0 && successCount > 0 {
+			// Some modules ran successfully, some failed — partial success
+			o.updateScanStatus(scanID, scanv1.ScanStatus_SCAN_STATUS_COMPLETED, 1.0)
+			GlobalBroker.Publish(Event{
+				ScanID:    scanID,
+				Type:      EventScanPartialSuccess,
+				Timestamp: time.Now(),
+				Data: map[string]interface{}{
+					"succeeded": float64(successCount),
+					"failed":    float64(failedCount),
+				},
+			})
+		} else if failedCount > 0 {
 			o.updateScanStatus(scanID, scanv1.ScanStatus_SCAN_STATUS_FAILED, 1.0)
 		} else {
 			o.updateScanStatus(scanID, scanv1.ScanStatus_SCAN_STATUS_COMPLETED, 1.0)
 		}
 
-		log.Printf("[Orchestrator] Scan completed successfully: %s", scanID)
+		log.Printf("[Orchestrator] Scan completed: %s (ok=%d failed=%d)", scanID, successCount, failedCount)
 
 		GlobalBroker.Publish(Event{
 			ScanID:    scanID,
@@ -256,6 +407,8 @@ func moduleDisplayName(module string) string {
 		return "Active Scan: Rate Limiting"
 	case ModuleAiHypotheses:
 		return "AI Analysis"
+	case ModuleAuthDiscovery:
+		return "Autonomous Auth Discovery"
 	case ModuleReport:
 		return "Report Generation"
 	default:
@@ -264,6 +417,18 @@ func moduleDisplayName(module string) string {
 }
 
 func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module string, as *scanner.ActiveScanner) error {
+	onLog := func(msg string) {
+		GlobalBroker.Publish(Event{
+			ScanID:    scanID,
+			Type:      EventLogInfo,
+			Timestamp: time.Now(),
+			Data: map[string]interface{}{
+				"message": msg,
+				"module":  module,
+			},
+		})
+	}
+
 	switch module {
 	case ModuleRecon:
 		reconData, err := scanner.RunRecon(ctx, targetURL)
@@ -279,7 +444,9 @@ func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module 
 			Headers:     reconData.Headers,
 			CookieNames: reconData.Cookies,
 		})
+		start := time.Now()
 		aiRes, err := o.aiClient.AnalyzeRecon(ctx, aiReq)
+		o.trackGeminiCall(ctx, scanID, time.Since(start))
 		if err != nil {
 			return err
 		}
@@ -289,7 +456,25 @@ func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module 
 			"UPDATE scans SET detected_technologies = ?, auth_model = ? WHERE id = ?",
 			detectedTechs, authModel, scanID,
 		)
-		return err
+		if err != nil {
+			return err
+		}
+
+		// Create Attack Goals from AI recommendations (Major Fix: Goal-Driven)
+		for _, rec := range aiRes.Msg.RecommendedTests {
+			goalType := storage.GoalAccessOtherUserData // default
+			lowRec := strings.ToLower(rec)
+			if strings.Contains(lowRec, "admin") {
+				goalType = storage.GoalAccessAdminFunction
+			} else if strings.Contains(lowRec, "privilege") {
+				goalType = storage.GoalEscalatePrivileges
+			} else if strings.Contains(lowRec, "data") || strings.Contains(lowRec, "export") {
+				goalType = storage.GoalExportRestrictedData
+			}
+
+			_, _ = o.db.SaveGoal(ctx, scanID, goalType, rec, "Verified through AI exploration", "Confirmed by response analysis")
+		}
+		return nil
 
 	case ModuleCrawlStatic:
 		cm := crawler.NewCrawlManager(scanID, o.proxyPort)
@@ -436,14 +621,14 @@ func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module 
 				_, _ = o.db.SaveHypothesis(ctx, scanID, res.Title, res.Reason, "csrf_heuristic", 0.6, storage.HypothesisGenerated)
 				GlobalBroker.Publish(Event{
 					ScanID:    scanID,
-					Type:      "hypothesis.generated",
+					Type:      EventHypothesisGenerated,
 					Timestamp: time.Now(),
 					Data: map[string]interface{}{
-						"title":       res.Title,
-						"confidence":  float64(0.6),
-						"source":      "csrf_heuristic",
-						"status":      "GENERATED",
-						"flow_id":     float64(flowID),
+						"title":      res.Title,
+						"confidence": float64(0.6),
+						"source":     "csrf_heuristic",
+						"status":     "GENERATED",
+						"flow_id":    float64(flowID),
 					},
 				})
 			}
@@ -462,17 +647,19 @@ func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module 
 		for _, ep := range endpoints {
 			urls = append(urls, ep.URL)
 		}
+		start := time.Now()
 		aiRes, err := o.aiClient.GenerateHypotheses(ctx, connect.NewRequest(&aiv1.GenerateHypothesesRequest{
 			TargetUrl: targetURL,
 			Endpoints: urls,
 		}))
+		o.trackGeminiCall(ctx, scanID, time.Since(start))
 		if err != nil {
 			return err
 		}
 		for _, h := range aiRes.Msg.Hypotheses {
 			GlobalBroker.Publish(Event{
 				ScanID:    scanID,
-				Type:      "hypothesis.generated",
+				Type:      EventHypothesisGenerated,
 				Timestamp: time.Now(),
 				Data: map[string]interface{}{
 					"title":       h.Title,
@@ -484,6 +671,155 @@ func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module 
 				},
 			})
 			_, _ = o.db.SaveHypothesis(ctx, scanID, h.Title, h.Description, "ai", float64(h.Confidence), storage.HypothesisGenerated)
+			
+			// Execute Hypothesis (Major Fix: Adversarial Reasoning)
+			go func(hyp *aiv1.Hypothesis) {
+				execCtx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+				defer cancel()
+				
+				endpoints, _ := o.db.ListEndpoints(execCtx, scanID)
+				if len(endpoints) == 0 {
+					return
+				}
+
+				// Focus on the first matching endpoint for now (can be expanded to all)
+				targetEp := endpoints[0]
+				
+				// 1. Ask AI for specific payload
+				payloadReq := connect.NewRequest(&aiv1.GenerateAttackPayloadRequest{
+					HypothesisTitle:       hyp.Title,
+					HypothesisDescription: hyp.Description,
+					Endpoint:              targetEp.URL,
+					Method:                targetEp.Method,
+				})
+				
+				start := time.Now()
+				payloadRes, err := o.aiClient.GenerateAttackPayload(execCtx, payloadReq)
+				o.trackGeminiCall(execCtx, scanID, time.Since(start))
+				if err != nil {
+					log.Printf("[Orchestrator] AI Payload Gen Failed for %s: %v", hyp.Title, err)
+					return
+				}
+				
+				// 2. Execute the AI-crafted attack
+				client := &http.Client{Timeout: 10 * time.Second}
+				req, err := http.NewRequestWithContext(execCtx, payloadRes.Msg.Method, payloadRes.Msg.Url, strings.NewReader(payloadRes.Msg.Body))
+				if err != nil {
+					return
+				}
+				for k, v := range payloadRes.Msg.Headers {
+					req.Header.Set(k, v)
+				}
+				
+				resp, err := client.Do(req)
+				if err != nil {
+					return
+				}
+				respBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 100*1024))
+				resp.Body.Close()
+
+				// 3. Save flow for evidence
+				flowID, _ := o.db.SaveFlow(execCtx, scanID, payloadRes.Msg.Method, payloadRes.Msg.Url, req.Header, []byte(payloadRes.Msg.Body), resp.Header, respBytes, resp.StatusCode)
+				
+				// 4. Heuristic verification (simplistic for now)
+				isVerified := false
+				if resp.StatusCode >= 500 || strings.Contains(strings.ToLower(string(respBytes)), "sql") || strings.Contains(strings.ToLower(string(respBytes)), "alert(1)") {
+					isVerified = true
+				}
+				
+				if isVerified {
+					_, _ = o.db.ExecContext(execCtx, "UPDATE hypotheses SET status = ? WHERE scan_id = ? AND title = ?", "VERIFIED", scanID, hyp.Title)
+					
+					// Save as a Finding
+					_, _ = o.db.SaveFindingWithEvidence(execCtx, storage.FindingInput{
+						ScanID:            scanID,
+						Title:             "[AI-VERIFIED] " + hyp.Title,
+						Description:       hyp.Description + "\n\nAI Explanation: " + payloadRes.Msg.Explanation,
+						Severity:          "HIGH",
+						VulnerabilityType: hyp.VulnerabilityType,
+						Endpoint:          payloadRes.Msg.Url,
+						Payload:           payloadRes.Msg.Body,
+						ResponseStatus:    resp.StatusCode,
+						Confidence:        0.9,
+						Category:          "VERIFIED_ATTACK",
+					}, storage.EvidenceInput{
+						FlowID:          flowID,
+						EvidenceType:    storage.EvidenceHTTPFlow,
+						RequestExcerpt:  fmt.Sprintf("%s %s", payloadRes.Msg.Method, payloadRes.Msg.Url),
+						ResponseExcerpt: string(respBytes),
+					})
+				} else {
+					_, _ = o.db.ExecContext(execCtx, "UPDATE hypotheses SET status = ? WHERE scan_id = ? AND title = ?", "FAILED", scanID, hyp.Title)
+				}
+			}(h)
+		}
+		return nil
+
+	case ModuleAuthDiscovery:
+		onLog("[AGENT] Starting autonomous authentication discovery...")
+		browserClient := browser.NewClient("")
+		goal := "Identify login forms, discover authentication endpoints, and attempt to find valid login paths."
+
+		maxSteps := 5
+		for step := 1; step <= maxSteps; step++ {
+			onLog(fmt.Sprintf("[AGENT] Step %d: Analyzing current page state...", step))
+
+			// 1. Get current state (navigate to seed first if just starting)
+			actionReq := browser.ActionRequest{
+				ScanID:    scanID,
+				URL:       targetURL, // Always ensure we are in scope
+				Action:    "navigate",
+				ProxyPort: o.proxyPort,
+			}
+			if step > 1 {
+				actionReq.URL = "" // Don't re-navigate, just get current source
+				actionReq.Action = "wait"
+			}
+
+			actionRes, err := browserClient.ExecuteAction(ctx, actionReq)
+			if err != nil {
+				onLog(fmt.Sprintf("[AGENT] [ERROR] Browser action failed: %v", err))
+				break
+			}
+
+			// 2. Ask AI what to do next
+			decideReq := connect.NewRequest(&aiv1.DecideBrowserActionRequest{
+				Url:         targetURL,
+				PageSource:  actionRes.PageSource,
+				CurrentGoal: goal,
+			})
+
+			start := time.Now()
+			decideRes, err := o.aiClient.DecideBrowserAction(ctx, decideReq)
+			o.trackGeminiCall(ctx, scanID, time.Since(start))
+			if err != nil {
+				onLog(fmt.Sprintf("[AGENT] [ERROR] AI Decision failed: %v", err))
+				break
+			}
+
+			onLog(fmt.Sprintf("[AGENT] AI Decision: %s (%s)", decideRes.Msg.Action, decideRes.Msg.Explanation))
+
+			if decideRes.Msg.Action == "finish" {
+				onLog("[AGENT] AI signaling discovery phase complete.")
+				break
+			}
+
+			// 3. Execute the AI decided action
+			execReq := browser.ActionRequest{
+				ScanID:    scanID,
+				Action:    decideRes.Msg.Action,
+				Selector:  decideRes.Msg.Selector,
+				Value:     decideRes.Msg.Value,
+				ProxyPort: o.proxyPort,
+			}
+
+			_, err = browserClient.ExecuteAction(ctx, execReq)
+			if err != nil {
+				onLog(fmt.Sprintf("[AGENT] [ERROR] Execution of %s failed: %v", decideRes.Msg.Action, err))
+			}
+
+			// Small delay for animations
+			time.Sleep(2 * time.Second)
 		}
 		return nil
 
@@ -518,5 +854,49 @@ func severityFromConfidence(conf float64) string {
 		return "LOW"
 	default:
 		return "INFO"
+	}
+}
+
+// isActiveScanModule returns true for modules that generate findings via HTTP probes.
+func isActiveScanModule(module string) bool {
+	switch module {
+	case ModuleHeaders, ModuleCors, ModuleXssReflected, ModuleSqliBasic, ModuleRateLimitBasic:
+		return true
+	}
+	return false
+}
+
+// emitNewFindings queries findings added since we started tracking and publishes finding.new events.
+// We use a simple approach: query the most recent findings for this scan and emit them.
+func (o *Orchestrator) emitNewFindings(ctx context.Context, scanID string) {
+	rows, err := o.db.QueryContext(ctx,
+		`SELECT id, title, severity, vulnerability_type, endpoint, confidence, category
+		 FROM findings WHERE scan_id = ? AND is_false_positive = 0
+		 ORDER BY created_at DESC LIMIT 50`, scanID)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var id, title, severity, vulnType, endpoint, category string
+		var confidence float64
+		if err := rows.Scan(&id, &title, &severity, &vulnType, &endpoint, &confidence, &category); err != nil {
+			continue
+		}
+		GlobalBroker.Publish(Event{
+			ScanID:    scanID,
+			Type:      EventFindingNew,
+			Timestamp: time.Now(),
+			Data: map[string]interface{}{
+				"id":               id,
+				"title":            title,
+				"severity":         severity,
+				"vulnerability_type": vulnType,
+				"endpoint":         endpoint,
+				"confidence":       confidence,
+				"category":         category,
+			},
+		})
 	}
 }

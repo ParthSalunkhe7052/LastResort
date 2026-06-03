@@ -59,6 +59,16 @@ class AiServiceStub(object):
                 request_serializer=ai_dot_v1_dot_ai__pb2.GenerateFindingNarrativeRequest.SerializeToString,
                 response_deserializer=ai_dot_v1_dot_ai__pb2.GenerateFindingNarrativeResponse.FromString,
                 _registered_method=True)
+        self.GenerateAttackPayload = channel.unary_unary(
+                '/ai.v1.AiService/GenerateAttackPayload',
+                request_serializer=ai_dot_v1_dot_ai__pb2.GenerateAttackPayloadRequest.SerializeToString,
+                response_deserializer=ai_dot_v1_dot_ai__pb2.GenerateAttackPayloadResponse.FromString,
+                _registered_method=True)
+        self.DecideBrowserAction = channel.unary_unary(
+                '/ai.v1.AiService/DecideBrowserAction',
+                request_serializer=ai_dot_v1_dot_ai__pb2.DecideBrowserActionRequest.SerializeToString,
+                response_deserializer=ai_dot_v1_dot_ai__pb2.DecideBrowserActionResponse.FromString,
+                _registered_method=True)
 
 
 class AiServiceServicer(object):
@@ -94,6 +104,18 @@ class AiServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def GenerateAttackPayload(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DecideBrowserAction(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_AiServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -121,6 +143,16 @@ def add_AiServiceServicer_to_server(servicer, server):
                     servicer.GenerateFindingNarrative,
                     request_deserializer=ai_dot_v1_dot_ai__pb2.GenerateFindingNarrativeRequest.FromString,
                     response_serializer=ai_dot_v1_dot_ai__pb2.GenerateFindingNarrativeResponse.SerializeToString,
+            ),
+            'GenerateAttackPayload': grpc.unary_unary_rpc_method_handler(
+                    servicer.GenerateAttackPayload,
+                    request_deserializer=ai_dot_v1_dot_ai__pb2.GenerateAttackPayloadRequest.FromString,
+                    response_serializer=ai_dot_v1_dot_ai__pb2.GenerateAttackPayloadResponse.SerializeToString,
+            ),
+            'DecideBrowserAction': grpc.unary_unary_rpc_method_handler(
+                    servicer.DecideBrowserAction,
+                    request_deserializer=ai_dot_v1_dot_ai__pb2.DecideBrowserActionRequest.FromString,
+                    response_serializer=ai_dot_v1_dot_ai__pb2.DecideBrowserActionResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -258,6 +290,60 @@ class AiService(object):
             '/ai.v1.AiService/GenerateFindingNarrative',
             ai_dot_v1_dot_ai__pb2.GenerateFindingNarrativeRequest.SerializeToString,
             ai_dot_v1_dot_ai__pb2.GenerateFindingNarrativeResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GenerateAttackPayload(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/ai.v1.AiService/GenerateAttackPayload',
+            ai_dot_v1_dot_ai__pb2.GenerateAttackPayloadRequest.SerializeToString,
+            ai_dot_v1_dot_ai__pb2.GenerateAttackPayloadResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def DecideBrowserAction(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/ai.v1.AiService/DecideBrowserAction',
+            ai_dot_v1_dot_ai__pb2.DecideBrowserActionRequest.SerializeToString,
+            ai_dot_v1_dot_ai__pb2.DecideBrowserActionResponse.FromString,
             options,
             channel_credentials,
             insecure,

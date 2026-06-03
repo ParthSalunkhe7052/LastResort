@@ -5,8 +5,8 @@ cd /d "%~dp0"
 
 set "ROOT=%CD%"
 set "AI_PY=%ROOT%\ai\.venv\Scripts\python.exe"
-set "UI_URL=http://localhost:5173"
-set "API_HEALTH=http://localhost:8443/health"
+set "UI_URL=http://127.0.0.1:5173"
+set "API_HEALTH=http://127.0.0.1:8443/health"
 set "PROXY_PORT=8080"
 set "AI_PORT=50052"
 
@@ -112,7 +112,7 @@ if not exist "%ROOT%\browser\node_modules" (
 )
 
 echo [1/4] Starting Playwright Browser Crawler service on port 3010...
-start "LastResort - Browser Crawler Service" cmd /k "cd /d ""%ROOT%\browser"" && npm start"
+start "LastResort - Browser Crawler Service" cmd /k "cd /d "%ROOT%\browser" && npm start"
 
 rem If 50052 is already in use on Windows, pick 50053 so AI can bind.
 powershell -NoProfile -ExecutionPolicy Bypass -Command "try { $l=[System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback,%AI_PORT%); $l.Start(); $l.Stop(); exit 0 } catch { exit 1 }" >nul 2>nul
@@ -123,10 +123,9 @@ if errorlevel 1 (
 
 echo [2/4] Starting Python AI service on port 50052...
 if "%AI_PY_QUOTED%"=="1" (
-  rem Robust quoting: cmd needs an extra wrapper quote when the command starts with a quoted executable path.
-  start "LastResort - Python AI Service" cmd /k "cd /d ""%ROOT%"" && set AI_PORT=%AI_PORT% && ""%AI_PY_CMD%"" ""%ROOT%\ai\src\server.py"""
+  start "LastResort - Python AI Service" cmd /k "cd /d "%ROOT%" && set AI_PORT=%AI_PORT% && "%AI_PY_CMD%" "%ROOT%\ai\src\server.py""
 ) else (
-  start "LastResort - Python AI Service" cmd /k "cd /d ""%ROOT%"" && set AI_PORT=%AI_PORT% && %AI_PY_CMD% ""%ROOT%\ai\src\server.py"""
+  start "LastResort - Python AI Service" cmd /k "cd /d "%ROOT%" && set AI_PORT=%AI_PORT% && %AI_PY_CMD% "%ROOT%\ai\src\server.py""
 )
 
 rem If 8080 is already in use on Windows, pick 8081 so backend doesn't hard-fail.
@@ -136,38 +135,31 @@ if errorlevel 1 (
   set "PROXY_PORT=8081"
 )
 
-echo [3/4] Starting Go backend on port 8443 and proxy on port %PROXY_PORT%...
-start "LastResort - Go Core Backend" cmd /k "cd /d ""%ROOT%"" && go run cmd\lastresort\main.go serve -proxy-port %PROXY_PORT% -ai-addr http://127.0.0.1:%AI_PORT%"
+echo [3/4] Building Go Core Backend binary...
+go build -o "%ROOT%\lastresort.exe" cmd\lastresort\main.go
+if errorlevel 1 (
+  echo [WARN] Failed to compile Go backend. Falling back to slow 'go run'...
+  start "LastResort - Go Core Backend" cmd /k "cd /d "%ROOT%" && go run cmd\lastresort\main.go serve -proxy-port %PROXY_PORT% -ai-addr http://127.0.0.1:%AI_PORT%"
+) else (
+  start "LastResort - Go Core Backend" cmd /k "cd /d "%ROOT%" && "%ROOT%\lastresort.exe" serve -proxy-port %PROXY_PORT% -ai-addr http://127.0.0.1:%AI_PORT%"
+)
 
 echo [4/4] Starting React UI on port 5173...
-start "LastResort - React UI" cmd /k "cd /d ""%ROOT%\ui"" && npm run dev"
+start "LastResort - React UI" cmd /k "cd /d "%ROOT%\ui" && npm run dev"
 
 echo.
-echo Waiting for Browser Crawler service health endpoint...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$deadline=(Get-Date).AddSeconds(45); do { try { $r=Invoke-WebRequest -UseBasicParsing 'http://localhost:3010/health' -TimeoutSec 2; if ($r.StatusCode -eq 200) { exit 0 } } catch {}; Start-Sleep -Seconds 1 } while ((Get-Date) -lt $deadline); exit 1"
-if errorlevel 1 (
-  echo [WARN] Browser Crawler service did not respond within 45 seconds.
-  echo Check the "LastResort - Browser Crawler Service" window for logs.
-) else (
-  echo [OK] Browser Crawler service is responding.
-)
+echo Waiting for services to activate (max 15 seconds)...
+echo.
+echo [TIP] If a window title says "Select LastResort...", press ENTER or ESC inside that window to resume it.
+echo       Windows QuickEdit mode pauses execution when console content is clicked/marked.
+echo.
 
-echo Waiting for Go backend health endpoint...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$deadline=(Get-Date).AddSeconds(45); do { try { $r=Invoke-WebRequest -UseBasicParsing '%API_HEALTH%' -TimeoutSec 2; if ($r.StatusCode -eq 200) { exit 0 } } catch {}; Start-Sleep -Seconds 1 } while ((Get-Date) -lt $deadline); exit 1"
-if errorlevel 1 (
-  echo [WARN] Go backend health endpoint did not respond within 45 seconds.
-  echo Check the "LastResort - Go Core Backend" window for logs.
-) else (
-  echo [OK] Go backend is responding.
-)
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$urls = @{ 'Browser Crawler'='http://127.0.0.1:3010/health'; 'Go Core Backend'='%API_HEALTH%'; 'Vite React UI'='%UI_URL%' }; $start = Get-Date; $timeout = 15; while (((Get-Date) - $start).TotalSeconds -lt $timeout) { $pending = 0; foreach ($name in $urls.Keys) { try { $r = Invoke-WebRequest -UseBasicParsing -Uri $urls[$name] -TimeoutSec 1 -ErrorAction SilentlyContinue; if ($r.StatusCode -ne 200) { $pending++ } } catch { $pending++ } }; if ($pending -eq 0) { exit 0 }; Start-Sleep -Milliseconds 500 }; exit 1"
 
-echo Waiting for Vite UI...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$deadline=(Get-Date).AddSeconds(45); do { try { $r=Invoke-WebRequest -UseBasicParsing '%UI_URL%' -TimeoutSec 2; if ($r.StatusCode -eq 200) { exit 0 } } catch {}; Start-Sleep -Seconds 1 } while ((Get-Date) -lt $deadline); exit 1"
 if errorlevel 1 (
-  echo [WARN] Vite UI did not respond within 45 seconds.
-  echo Check the "LastResort - React UI" window for logs.
+  echo [WARN] Some services did not respond in time, proceeding to open the UI anyway...
 ) else (
-  echo [OK] UI is responding.
+  echo [OK] All services are online!
 )
 
 echo.

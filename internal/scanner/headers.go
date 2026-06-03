@@ -11,19 +11,39 @@ import (
 
 // ScanHeaders checks for missing security headers in a given response.
 func (as *ActiveScanner) ScanHeaders(ctx context.Context, scanID, urlStr string, respHeaders http.Header, respStatus int) error {
-	securityHeaders := map[string]string{
-		"Content-Security-Policy":   "Defends against Cross-Site Scripting (XSS) and data injection attacks by restricting resources.",
-		"Strict-Transport-Security": "Forces connections over secure HTTPS, protecting against SSL stripping attacks.",
-		"X-Frame-Options":           "Defends against clickjacking attacks by preventing the page from being framed.",
-		"X-Content-Type-Options":    "Prevents browsers from MIME-sniffing the response away from the declared Content-Type.",
+	securityHeaders := []struct {
+		header string
+		risk   string
+		desc   string
+	}{
+		{
+			header: "Content-Security-Policy",
+			risk:   "Future XSS vulnerabilities may be easier to exploit due to lack of resource restriction.",
+			desc:   "The response did not contain a Content-Security-Policy header, which is used to define which dynamic resources are allowed to load.",
+		},
+		{
+			header: "Strict-Transport-Security",
+			risk:   "The application may be vulnerable to SSL stripping attacks or insecure connection downgrades.",
+			desc:   "The response did not contain a Strict-Transport-Security header, which forces the browser to use HTTPS for all future requests.",
+		},
+		{
+			header: "X-Frame-Options",
+			risk:   "The application could be embedded in an iframe, potentially leading to clickjacking attacks.",
+			desc:   "The response did not contain an X-Frame-Options header, which prevents the page from being framed by other sites.",
+		},
+		{
+			header: "X-Content-Type-Options",
+			risk:   "Browsers might try to guess the content type (MIME-sniffing), which can lead to security issues with user-uploaded files.",
+			desc:   "The response did not contain an X-Content-Type-Options: nosniff header.",
+		},
 	}
 
-	for header, desc := range securityHeaders {
-		if respHeaders.Get(header) == "" {
-			title := fmt.Sprintf("Missing Security Header: %s", header)
-			description := fmt.Sprintf("The response does not include the %s header. %s", header, desc)
+	for _, sh := range securityHeaders {
+		if respHeaders.Get(sh.header) == "" {
+			title := fmt.Sprintf("Missing Security Header: %s", sh.header)
+			description := fmt.Sprintf("%s\n\nPotential Risk: %s\n\nConfidence: Observed directly in HTTP response. No attack occurred.", sh.desc, sh.risk)
 			severity := "LOW"
-			if header == "Content-Security-Policy" || header == "Strict-Transport-Security" {
+			if sh.header == "Content-Security-Policy" || sh.header == "Strict-Transport-Security" {
 				severity = "MEDIUM"
 			}
 
@@ -41,12 +61,13 @@ func (as *ActiveScanner) ScanHeaders(ctx context.Context, scanID, urlStr string,
 				Endpoint:          urlStr,
 				Payload:           "",
 				ResponseStatus:    respStatus,
-				Confidence:        0.7,
+				Confidence:        0.9,
+				Category:          "OBSERVATION",
 			}, storage.EvidenceInput{
 				FlowID:          flowID,
 				EvidenceType:    storage.EvidenceHeader,
 				RequestExcerpt:  fmt.Sprintf("GET %s", urlStr),
-				ResponseExcerpt: fmt.Sprintf("missing header: %s", header),
+				ResponseExcerpt: fmt.Sprintf("missing header: %s", sh.header),
 			})
 			if err != nil {
 				log.Printf("[Headers Scanner] [ERROR] Failed to save security header finding: %v", err)

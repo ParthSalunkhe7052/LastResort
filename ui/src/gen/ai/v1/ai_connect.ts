@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { AnalyzeReconRequest, AnalyzeReconResponse, GenerateFindingNarrativeRequest, GenerateFindingNarrativeResponse, GenerateHypothesesRequest, GenerateHypothesesResponse, HealthRequest, HealthResponse, ScoreConfidenceRequest, ScoreConfidenceResponse } from "./ai_pb.js";
+import { AnalyzeReconRequest, AnalyzeReconResponse, DecideBrowserActionRequest, DecideBrowserActionResponse, GenerateAttackPayloadRequest, GenerateAttackPayloadResponse, GenerateFindingNarrativeRequest, GenerateFindingNarrativeResponse, GenerateHypothesesRequest, GenerateHypothesesResponse, HealthRequest, HealthResponse, ScoreConfidenceRequest, ScoreConfidenceResponse } from "./ai_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -55,6 +55,24 @@ export const AiService = {
       name: "GenerateFindingNarrative",
       I: GenerateFindingNarrativeRequest,
       O: GenerateFindingNarrativeResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * @generated from rpc ai.v1.AiService.GenerateAttackPayload
+     */
+    generateAttackPayload: {
+      name: "GenerateAttackPayload",
+      I: GenerateAttackPayloadRequest,
+      O: GenerateAttackPayloadResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * @generated from rpc ai.v1.AiService.DecideBrowserAction
+     */
+    decideBrowserAction: {
+      name: "DecideBrowserAction",
+      I: DecideBrowserActionRequest,
+      O: DecideBrowserActionResponse,
       kind: MethodKind.Unary,
     },
   }

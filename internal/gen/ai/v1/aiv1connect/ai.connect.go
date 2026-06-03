@@ -46,6 +46,12 @@ const (
 	// AiServiceGenerateFindingNarrativeProcedure is the fully-qualified name of the AiService's
 	// GenerateFindingNarrative RPC.
 	AiServiceGenerateFindingNarrativeProcedure = "/ai.v1.AiService/GenerateFindingNarrative"
+	// AiServiceGenerateAttackPayloadProcedure is the fully-qualified name of the AiService's
+	// GenerateAttackPayload RPC.
+	AiServiceGenerateAttackPayloadProcedure = "/ai.v1.AiService/GenerateAttackPayload"
+	// AiServiceDecideBrowserActionProcedure is the fully-qualified name of the AiService's
+	// DecideBrowserAction RPC.
+	AiServiceDecideBrowserActionProcedure = "/ai.v1.AiService/DecideBrowserAction"
 )
 
 // AiServiceClient is a client for the ai.v1.AiService service.
@@ -55,6 +61,8 @@ type AiServiceClient interface {
 	ScoreConfidence(context.Context, *connect.Request[v1.ScoreConfidenceRequest]) (*connect.Response[v1.ScoreConfidenceResponse], error)
 	Health(context.Context, *connect.Request[v1.HealthRequest]) (*connect.Response[v1.HealthResponse], error)
 	GenerateFindingNarrative(context.Context, *connect.Request[v1.GenerateFindingNarrativeRequest]) (*connect.Response[v1.GenerateFindingNarrativeResponse], error)
+	GenerateAttackPayload(context.Context, *connect.Request[v1.GenerateAttackPayloadRequest]) (*connect.Response[v1.GenerateAttackPayloadResponse], error)
+	DecideBrowserAction(context.Context, *connect.Request[v1.DecideBrowserActionRequest]) (*connect.Response[v1.DecideBrowserActionResponse], error)
 }
 
 // NewAiServiceClient constructs a client for the ai.v1.AiService service. By default, it uses the
@@ -98,6 +106,18 @@ func NewAiServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...c
 			connect.WithSchema(aiServiceMethods.ByName("GenerateFindingNarrative")),
 			connect.WithClientOptions(opts...),
 		),
+		generateAttackPayload: connect.NewClient[v1.GenerateAttackPayloadRequest, v1.GenerateAttackPayloadResponse](
+			httpClient,
+			baseURL+AiServiceGenerateAttackPayloadProcedure,
+			connect.WithSchema(aiServiceMethods.ByName("GenerateAttackPayload")),
+			connect.WithClientOptions(opts...),
+		),
+		decideBrowserAction: connect.NewClient[v1.DecideBrowserActionRequest, v1.DecideBrowserActionResponse](
+			httpClient,
+			baseURL+AiServiceDecideBrowserActionProcedure,
+			connect.WithSchema(aiServiceMethods.ByName("DecideBrowserAction")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -108,6 +128,8 @@ type aiServiceClient struct {
 	scoreConfidence          *connect.Client[v1.ScoreConfidenceRequest, v1.ScoreConfidenceResponse]
 	health                   *connect.Client[v1.HealthRequest, v1.HealthResponse]
 	generateFindingNarrative *connect.Client[v1.GenerateFindingNarrativeRequest, v1.GenerateFindingNarrativeResponse]
+	generateAttackPayload    *connect.Client[v1.GenerateAttackPayloadRequest, v1.GenerateAttackPayloadResponse]
+	decideBrowserAction      *connect.Client[v1.DecideBrowserActionRequest, v1.DecideBrowserActionResponse]
 }
 
 // AnalyzeRecon calls ai.v1.AiService.AnalyzeRecon.
@@ -135,6 +157,16 @@ func (c *aiServiceClient) GenerateFindingNarrative(ctx context.Context, req *con
 	return c.generateFindingNarrative.CallUnary(ctx, req)
 }
 
+// GenerateAttackPayload calls ai.v1.AiService.GenerateAttackPayload.
+func (c *aiServiceClient) GenerateAttackPayload(ctx context.Context, req *connect.Request[v1.GenerateAttackPayloadRequest]) (*connect.Response[v1.GenerateAttackPayloadResponse], error) {
+	return c.generateAttackPayload.CallUnary(ctx, req)
+}
+
+// DecideBrowserAction calls ai.v1.AiService.DecideBrowserAction.
+func (c *aiServiceClient) DecideBrowserAction(ctx context.Context, req *connect.Request[v1.DecideBrowserActionRequest]) (*connect.Response[v1.DecideBrowserActionResponse], error) {
+	return c.decideBrowserAction.CallUnary(ctx, req)
+}
+
 // AiServiceHandler is an implementation of the ai.v1.AiService service.
 type AiServiceHandler interface {
 	AnalyzeRecon(context.Context, *connect.Request[v1.AnalyzeReconRequest]) (*connect.Response[v1.AnalyzeReconResponse], error)
@@ -142,6 +174,8 @@ type AiServiceHandler interface {
 	ScoreConfidence(context.Context, *connect.Request[v1.ScoreConfidenceRequest]) (*connect.Response[v1.ScoreConfidenceResponse], error)
 	Health(context.Context, *connect.Request[v1.HealthRequest]) (*connect.Response[v1.HealthResponse], error)
 	GenerateFindingNarrative(context.Context, *connect.Request[v1.GenerateFindingNarrativeRequest]) (*connect.Response[v1.GenerateFindingNarrativeResponse], error)
+	GenerateAttackPayload(context.Context, *connect.Request[v1.GenerateAttackPayloadRequest]) (*connect.Response[v1.GenerateAttackPayloadResponse], error)
+	DecideBrowserAction(context.Context, *connect.Request[v1.DecideBrowserActionRequest]) (*connect.Response[v1.DecideBrowserActionResponse], error)
 }
 
 // NewAiServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -181,6 +215,18 @@ func NewAiServiceHandler(svc AiServiceHandler, opts ...connect.HandlerOption) (s
 		connect.WithSchema(aiServiceMethods.ByName("GenerateFindingNarrative")),
 		connect.WithHandlerOptions(opts...),
 	)
+	aiServiceGenerateAttackPayloadHandler := connect.NewUnaryHandler(
+		AiServiceGenerateAttackPayloadProcedure,
+		svc.GenerateAttackPayload,
+		connect.WithSchema(aiServiceMethods.ByName("GenerateAttackPayload")),
+		connect.WithHandlerOptions(opts...),
+	)
+	aiServiceDecideBrowserActionHandler := connect.NewUnaryHandler(
+		AiServiceDecideBrowserActionProcedure,
+		svc.DecideBrowserAction,
+		connect.WithSchema(aiServiceMethods.ByName("DecideBrowserAction")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/ai.v1.AiService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case AiServiceAnalyzeReconProcedure:
@@ -193,6 +239,10 @@ func NewAiServiceHandler(svc AiServiceHandler, opts ...connect.HandlerOption) (s
 			aiServiceHealthHandler.ServeHTTP(w, r)
 		case AiServiceGenerateFindingNarrativeProcedure:
 			aiServiceGenerateFindingNarrativeHandler.ServeHTTP(w, r)
+		case AiServiceGenerateAttackPayloadProcedure:
+			aiServiceGenerateAttackPayloadHandler.ServeHTTP(w, r)
+		case AiServiceDecideBrowserActionProcedure:
+			aiServiceDecideBrowserActionHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -220,4 +270,12 @@ func (UnimplementedAiServiceHandler) Health(context.Context, *connect.Request[v1
 
 func (UnimplementedAiServiceHandler) GenerateFindingNarrative(context.Context, *connect.Request[v1.GenerateFindingNarrativeRequest]) (*connect.Response[v1.GenerateFindingNarrativeResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("ai.v1.AiService.GenerateFindingNarrative is not implemented"))
+}
+
+func (UnimplementedAiServiceHandler) GenerateAttackPayload(context.Context, *connect.Request[v1.GenerateAttackPayloadRequest]) (*connect.Response[v1.GenerateAttackPayloadResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("ai.v1.AiService.GenerateAttackPayload is not implemented"))
+}
+
+func (UnimplementedAiServiceHandler) DecideBrowserAction(context.Context, *connect.Request[v1.DecideBrowserActionRequest]) (*connect.Response[v1.DecideBrowserActionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("ai.v1.AiService.DecideBrowserAction is not implemented"))
 }

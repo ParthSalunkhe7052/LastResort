@@ -977,6 +977,7 @@ type FindingRecord struct {
 	Confidence        float32                `protobuf:"fixed32,10,opt,name=confidence,proto3" json:"confidence,omitempty"`
 	IsFalsePositive   bool                   `protobuf:"varint,11,opt,name=is_false_positive,json=isFalsePositive,proto3" json:"is_false_positive,omitempty"`
 	CreatedAt         string                 `protobuf:"bytes,12,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	Category          string                 `protobuf:"bytes,13,opt,name=category,proto3" json:"category,omitempty"` // OBSERVATION, HYPOTHESIS, ATTEMPT, VERIFIED_ATTACK
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -1091,6 +1092,13 @@ func (x *FindingRecord) GetIsFalsePositive() bool {
 func (x *FindingRecord) GetCreatedAt() string {
 	if x != nil {
 		return x.CreatedAt
+	}
+	return ""
+}
+
+func (x *FindingRecord) GetCategory() string {
+	if x != nil {
+		return x.Category
 	}
 	return ""
 }
@@ -1773,7 +1781,7 @@ const file_scan_v1_scan_proto_rawDesc = "" +
 	"\x11ListFlowsResponse\x12)\n" +
 	"\x05flows\x18\x01 \x03(\v2\x13.scan.v1.FlowRecordR\x05flows\".\n" +
 	"\x13ListFindingsRequest\x12\x17\n" +
-	"\ascan_id\x18\x01 \x01(\tR\x06scanId\"\x85\x03\n" +
+	"\ascan_id\x18\x01 \x01(\tR\x06scanId\"\xa1\x03\n" +
 	"\rFindingRecord\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\ascan_id\x18\x02 \x01(\tR\x06scanId\x12\x14\n" +
@@ -1790,7 +1798,8 @@ const file_scan_v1_scan_proto_rawDesc = "" +
 	"confidence\x12*\n" +
 	"\x11is_false_positive\x18\v \x01(\bR\x0fisFalsePositive\x12\x1d\n" +
 	"\n" +
-	"created_at\x18\f \x01(\tR\tcreatedAt\"J\n" +
+	"created_at\x18\f \x01(\tR\tcreatedAt\x12\x1a\n" +
+	"\bcategory\x18\r \x01(\tR\bcategory\"J\n" +
 	"\x14ListFindingsResponse\x122\n" +
 	"\bfindings\x18\x01 \x03(\v2\x16.scan.v1.FindingRecordR\bfindings\"w\n" +
 	"\x1aSendRepeaterRequestRequest\x12\x1f\n" +

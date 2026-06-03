@@ -681,6 +681,278 @@ func (x *GenerateFindingNarrativeResponse) GetRemediation() string {
 	return ""
 }
 
+type GenerateAttackPayloadRequest struct {
+	state                 protoimpl.MessageState `protogen:"open.v1"`
+	HypothesisTitle       string                 `protobuf:"bytes,1,opt,name=hypothesis_title,json=hypothesisTitle,proto3" json:"hypothesis_title,omitempty"`
+	HypothesisDescription string                 `protobuf:"bytes,2,opt,name=hypothesis_description,json=hypothesisDescription,proto3" json:"hypothesis_description,omitempty"`
+	Endpoint              string                 `protobuf:"bytes,3,opt,name=endpoint,proto3" json:"endpoint,omitempty"`
+	Method                string                 `protobuf:"bytes,4,opt,name=method,proto3" json:"method,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *GenerateAttackPayloadRequest) Reset() {
+	*x = GenerateAttackPayloadRequest{}
+	mi := &file_ai_v1_ai_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GenerateAttackPayloadRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GenerateAttackPayloadRequest) ProtoMessage() {}
+
+func (x *GenerateAttackPayloadRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_v1_ai_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GenerateAttackPayloadRequest.ProtoReflect.Descriptor instead.
+func (*GenerateAttackPayloadRequest) Descriptor() ([]byte, []int) {
+	return file_ai_v1_ai_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *GenerateAttackPayloadRequest) GetHypothesisTitle() string {
+	if x != nil {
+		return x.HypothesisTitle
+	}
+	return ""
+}
+
+func (x *GenerateAttackPayloadRequest) GetHypothesisDescription() string {
+	if x != nil {
+		return x.HypothesisDescription
+	}
+	return ""
+}
+
+func (x *GenerateAttackPayloadRequest) GetEndpoint() string {
+	if x != nil {
+		return x.Endpoint
+	}
+	return ""
+}
+
+func (x *GenerateAttackPayloadRequest) GetMethod() string {
+	if x != nil {
+		return x.Method
+	}
+	return ""
+}
+
+type GenerateAttackPayloadResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Method        string                 `protobuf:"bytes,1,opt,name=method,proto3" json:"method,omitempty"`
+	Url           string                 `protobuf:"bytes,2,opt,name=url,proto3" json:"url,omitempty"`
+	Body          string                 `protobuf:"bytes,3,opt,name=body,proto3" json:"body,omitempty"`
+	Headers       map[string]string      `protobuf:"bytes,4,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Explanation   string                 `protobuf:"bytes,5,opt,name=explanation,proto3" json:"explanation,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GenerateAttackPayloadResponse) Reset() {
+	*x = GenerateAttackPayloadResponse{}
+	mi := &file_ai_v1_ai_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GenerateAttackPayloadResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GenerateAttackPayloadResponse) ProtoMessage() {}
+
+func (x *GenerateAttackPayloadResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_v1_ai_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GenerateAttackPayloadResponse.ProtoReflect.Descriptor instead.
+func (*GenerateAttackPayloadResponse) Descriptor() ([]byte, []int) {
+	return file_ai_v1_ai_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *GenerateAttackPayloadResponse) GetMethod() string {
+	if x != nil {
+		return x.Method
+	}
+	return ""
+}
+
+func (x *GenerateAttackPayloadResponse) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+func (x *GenerateAttackPayloadResponse) GetBody() string {
+	if x != nil {
+		return x.Body
+	}
+	return ""
+}
+
+func (x *GenerateAttackPayloadResponse) GetHeaders() map[string]string {
+	if x != nil {
+		return x.Headers
+	}
+	return nil
+}
+
+func (x *GenerateAttackPayloadResponse) GetExplanation() string {
+	if x != nil {
+		return x.Explanation
+	}
+	return ""
+}
+
+type DecideBrowserActionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Url           string                 `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
+	PageSource    string                 `protobuf:"bytes,2,opt,name=page_source,json=pageSource,proto3" json:"page_source,omitempty"`
+	CurrentGoal   string                 `protobuf:"bytes,3,opt,name=current_goal,json=currentGoal,proto3" json:"current_goal,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DecideBrowserActionRequest) Reset() {
+	*x = DecideBrowserActionRequest{}
+	mi := &file_ai_v1_ai_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DecideBrowserActionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DecideBrowserActionRequest) ProtoMessage() {}
+
+func (x *DecideBrowserActionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_v1_ai_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DecideBrowserActionRequest.ProtoReflect.Descriptor instead.
+func (*DecideBrowserActionRequest) Descriptor() ([]byte, []int) {
+	return file_ai_v1_ai_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *DecideBrowserActionRequest) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+func (x *DecideBrowserActionRequest) GetPageSource() string {
+	if x != nil {
+		return x.PageSource
+	}
+	return ""
+}
+
+func (x *DecideBrowserActionRequest) GetCurrentGoal() string {
+	if x != nil {
+		return x.CurrentGoal
+	}
+	return ""
+}
+
+type DecideBrowserActionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Action        string                 `protobuf:"bytes,1,opt,name=action,proto3" json:"action,omitempty"` // "click", "fill", "type", "navigate", "wait", "finish"
+	Selector      string                 `protobuf:"bytes,2,opt,name=selector,proto3" json:"selector,omitempty"`
+	Value         string                 `protobuf:"bytes,3,opt,name=value,proto3" json:"value,omitempty"`
+	Explanation   string                 `protobuf:"bytes,4,opt,name=explanation,proto3" json:"explanation,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DecideBrowserActionResponse) Reset() {
+	*x = DecideBrowserActionResponse{}
+	mi := &file_ai_v1_ai_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DecideBrowserActionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DecideBrowserActionResponse) ProtoMessage() {}
+
+func (x *DecideBrowserActionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_v1_ai_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DecideBrowserActionResponse.ProtoReflect.Descriptor instead.
+func (*DecideBrowserActionResponse) Descriptor() ([]byte, []int) {
+	return file_ai_v1_ai_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *DecideBrowserActionResponse) GetAction() string {
+	if x != nil {
+		return x.Action
+	}
+	return ""
+}
+
+func (x *DecideBrowserActionResponse) GetSelector() string {
+	if x != nil {
+		return x.Selector
+	}
+	return ""
+}
+
+func (x *DecideBrowserActionResponse) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
+}
+
+func (x *DecideBrowserActionResponse) GetExplanation() string {
+	if x != nil {
+		return x.Explanation
+	}
+	return ""
+}
+
 var File_ai_v1_ai_proto protoreflect.FileDescriptor
 
 const file_ai_v1_ai_proto_rawDesc = "" +
@@ -743,13 +1015,39 @@ const file_ai_v1_ai_proto_rawDesc = "" +
 	"confidence\"f\n" +
 	" GenerateFindingNarrativeResponse\x12 \n" +
 	"\vdescription\x18\x01 \x01(\tR\vdescription\x12 \n" +
-	"\vremediation\x18\x02 \x01(\tR\vremediation2\xa5\x03\n" +
+	"\vremediation\x18\x02 \x01(\tR\vremediation\"\xb4\x01\n" +
+	"\x1cGenerateAttackPayloadRequest\x12)\n" +
+	"\x10hypothesis_title\x18\x01 \x01(\tR\x0fhypothesisTitle\x125\n" +
+	"\x16hypothesis_description\x18\x02 \x01(\tR\x15hypothesisDescription\x12\x1a\n" +
+	"\bendpoint\x18\x03 \x01(\tR\bendpoint\x12\x16\n" +
+	"\x06method\x18\x04 \x01(\tR\x06method\"\x88\x02\n" +
+	"\x1dGenerateAttackPayloadResponse\x12\x16\n" +
+	"\x06method\x18\x01 \x01(\tR\x06method\x12\x10\n" +
+	"\x03url\x18\x02 \x01(\tR\x03url\x12\x12\n" +
+	"\x04body\x18\x03 \x01(\tR\x04body\x12K\n" +
+	"\aheaders\x18\x04 \x03(\v21.ai.v1.GenerateAttackPayloadResponse.HeadersEntryR\aheaders\x12 \n" +
+	"\vexplanation\x18\x05 \x01(\tR\vexplanation\x1a:\n" +
+	"\fHeadersEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"r\n" +
+	"\x1aDecideBrowserActionRequest\x12\x10\n" +
+	"\x03url\x18\x01 \x01(\tR\x03url\x12\x1f\n" +
+	"\vpage_source\x18\x02 \x01(\tR\n" +
+	"pageSource\x12!\n" +
+	"\fcurrent_goal\x18\x03 \x01(\tR\vcurrentGoal\"\x89\x01\n" +
+	"\x1bDecideBrowserActionResponse\x12\x16\n" +
+	"\x06action\x18\x01 \x01(\tR\x06action\x12\x1a\n" +
+	"\bselector\x18\x02 \x01(\tR\bselector\x12\x14\n" +
+	"\x05value\x18\x03 \x01(\tR\x05value\x12 \n" +
+	"\vexplanation\x18\x04 \x01(\tR\vexplanation2\xe7\x04\n" +
 	"\tAiService\x12G\n" +
 	"\fAnalyzeRecon\x12\x1a.ai.v1.AnalyzeReconRequest\x1a\x1b.ai.v1.AnalyzeReconResponse\x12Y\n" +
 	"\x12GenerateHypotheses\x12 .ai.v1.GenerateHypothesesRequest\x1a!.ai.v1.GenerateHypothesesResponse\x12P\n" +
 	"\x0fScoreConfidence\x12\x1d.ai.v1.ScoreConfidenceRequest\x1a\x1e.ai.v1.ScoreConfidenceResponse\x125\n" +
 	"\x06Health\x12\x14.ai.v1.HealthRequest\x1a\x15.ai.v1.HealthResponse\x12k\n" +
-	"\x18GenerateFindingNarrative\x12&.ai.v1.GenerateFindingNarrativeRequest\x1a'.ai.v1.GenerateFindingNarrativeResponseB5Z3github.com/parth/lastresort/internal/gen/ai/v1;aiv1b\x06proto3"
+	"\x18GenerateFindingNarrative\x12&.ai.v1.GenerateFindingNarrativeRequest\x1a'.ai.v1.GenerateFindingNarrativeResponse\x12b\n" +
+	"\x15GenerateAttackPayload\x12#.ai.v1.GenerateAttackPayloadRequest\x1a$.ai.v1.GenerateAttackPayloadResponse\x12\\\n" +
+	"\x13DecideBrowserAction\x12!.ai.v1.DecideBrowserActionRequest\x1a\".ai.v1.DecideBrowserActionResponseB5Z3github.com/parth/lastresort/internal/gen/ai/v1;aiv1b\x06proto3"
 
 var (
 	file_ai_v1_ai_proto_rawDescOnce sync.Once
@@ -763,7 +1061,7 @@ func file_ai_v1_ai_proto_rawDescGZIP() []byte {
 	return file_ai_v1_ai_proto_rawDescData
 }
 
-var file_ai_v1_ai_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_ai_v1_ai_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_ai_v1_ai_proto_goTypes = []any{
 	(*HealthRequest)(nil),                    // 0: ai.v1.HealthRequest
 	(*HealthResponse)(nil),                   // 1: ai.v1.HealthResponse
@@ -776,26 +1074,36 @@ var file_ai_v1_ai_proto_goTypes = []any{
 	(*ScoreConfidenceResponse)(nil),          // 8: ai.v1.ScoreConfidenceResponse
 	(*GenerateFindingNarrativeRequest)(nil),  // 9: ai.v1.GenerateFindingNarrativeRequest
 	(*GenerateFindingNarrativeResponse)(nil), // 10: ai.v1.GenerateFindingNarrativeResponse
-	nil,                                      // 11: ai.v1.AnalyzeReconRequest.HeadersEntry
+	(*GenerateAttackPayloadRequest)(nil),     // 11: ai.v1.GenerateAttackPayloadRequest
+	(*GenerateAttackPayloadResponse)(nil),    // 12: ai.v1.GenerateAttackPayloadResponse
+	(*DecideBrowserActionRequest)(nil),       // 13: ai.v1.DecideBrowserActionRequest
+	(*DecideBrowserActionResponse)(nil),      // 14: ai.v1.DecideBrowserActionResponse
+	nil,                                      // 15: ai.v1.AnalyzeReconRequest.HeadersEntry
+	nil,                                      // 16: ai.v1.GenerateAttackPayloadResponse.HeadersEntry
 }
 var file_ai_v1_ai_proto_depIdxs = []int32{
-	11, // 0: ai.v1.AnalyzeReconRequest.headers:type_name -> ai.v1.AnalyzeReconRequest.HeadersEntry
+	15, // 0: ai.v1.AnalyzeReconRequest.headers:type_name -> ai.v1.AnalyzeReconRequest.HeadersEntry
 	5,  // 1: ai.v1.GenerateHypothesesResponse.hypotheses:type_name -> ai.v1.Hypothesis
-	2,  // 2: ai.v1.AiService.AnalyzeRecon:input_type -> ai.v1.AnalyzeReconRequest
-	4,  // 3: ai.v1.AiService.GenerateHypotheses:input_type -> ai.v1.GenerateHypothesesRequest
-	7,  // 4: ai.v1.AiService.ScoreConfidence:input_type -> ai.v1.ScoreConfidenceRequest
-	0,  // 5: ai.v1.AiService.Health:input_type -> ai.v1.HealthRequest
-	9,  // 6: ai.v1.AiService.GenerateFindingNarrative:input_type -> ai.v1.GenerateFindingNarrativeRequest
-	3,  // 7: ai.v1.AiService.AnalyzeRecon:output_type -> ai.v1.AnalyzeReconResponse
-	6,  // 8: ai.v1.AiService.GenerateHypotheses:output_type -> ai.v1.GenerateHypothesesResponse
-	8,  // 9: ai.v1.AiService.ScoreConfidence:output_type -> ai.v1.ScoreConfidenceResponse
-	1,  // 10: ai.v1.AiService.Health:output_type -> ai.v1.HealthResponse
-	10, // 11: ai.v1.AiService.GenerateFindingNarrative:output_type -> ai.v1.GenerateFindingNarrativeResponse
-	7,  // [7:12] is the sub-list for method output_type
-	2,  // [2:7] is the sub-list for method input_type
-	2,  // [2:2] is the sub-list for extension type_name
-	2,  // [2:2] is the sub-list for extension extendee
-	0,  // [0:2] is the sub-list for field type_name
+	16, // 2: ai.v1.GenerateAttackPayloadResponse.headers:type_name -> ai.v1.GenerateAttackPayloadResponse.HeadersEntry
+	2,  // 3: ai.v1.AiService.AnalyzeRecon:input_type -> ai.v1.AnalyzeReconRequest
+	4,  // 4: ai.v1.AiService.GenerateHypotheses:input_type -> ai.v1.GenerateHypothesesRequest
+	7,  // 5: ai.v1.AiService.ScoreConfidence:input_type -> ai.v1.ScoreConfidenceRequest
+	0,  // 6: ai.v1.AiService.Health:input_type -> ai.v1.HealthRequest
+	9,  // 7: ai.v1.AiService.GenerateFindingNarrative:input_type -> ai.v1.GenerateFindingNarrativeRequest
+	11, // 8: ai.v1.AiService.GenerateAttackPayload:input_type -> ai.v1.GenerateAttackPayloadRequest
+	13, // 9: ai.v1.AiService.DecideBrowserAction:input_type -> ai.v1.DecideBrowserActionRequest
+	3,  // 10: ai.v1.AiService.AnalyzeRecon:output_type -> ai.v1.AnalyzeReconResponse
+	6,  // 11: ai.v1.AiService.GenerateHypotheses:output_type -> ai.v1.GenerateHypothesesResponse
+	8,  // 12: ai.v1.AiService.ScoreConfidence:output_type -> ai.v1.ScoreConfidenceResponse
+	1,  // 13: ai.v1.AiService.Health:output_type -> ai.v1.HealthResponse
+	10, // 14: ai.v1.AiService.GenerateFindingNarrative:output_type -> ai.v1.GenerateFindingNarrativeResponse
+	12, // 15: ai.v1.AiService.GenerateAttackPayload:output_type -> ai.v1.GenerateAttackPayloadResponse
+	14, // 16: ai.v1.AiService.DecideBrowserAction:output_type -> ai.v1.DecideBrowserActionResponse
+	10, // [10:17] is the sub-list for method output_type
+	3,  // [3:10] is the sub-list for method input_type
+	3,  // [3:3] is the sub-list for extension type_name
+	3,  // [3:3] is the sub-list for extension extendee
+	0,  // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_ai_v1_ai_proto_init() }
@@ -809,7 +1117,7 @@ func file_ai_v1_ai_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ai_v1_ai_proto_rawDesc), len(file_ai_v1_ai_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   12,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

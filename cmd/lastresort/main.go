@@ -28,7 +28,7 @@ func main() {
 	dbPathOpt := serveCmd.String("db", "./data/lastresort.db", "Path to SQLite database")
 	apiPortOpt := serveCmd.Int("port", 8443, "API Server Port")
 	proxyPortOpt := serveCmd.Int("proxy-port", 8080, "MITM Proxy Port")
-	aiAddrOpt := serveCmd.String("ai-addr", "http://localhost:50052", "Python AI Server Address")
+	aiAddrOpt := serveCmd.String("ai-addr", "http://127.0.0.1:50052", "Python AI Server Address")
 
 	if len(os.Args) < 2 {
 		printUsage()
@@ -115,6 +115,13 @@ func runServe(dbPath string, apiPort int, proxyPort int, aiAddr string) {
 	path, handler := scanv1connect.NewScanServiceHandler(scanServer)
 	mux.Handle(path, handler)
 
+	// Register REST extension routes (hypotheses, scan-modules, etc.)
+	scanServer.RegisterRestRoutes(mux)
+
+	// Serve the reports directory statically
+	mux.Handle("/reports/", http.StripPrefix("/reports/", http.FileServer(http.Dir("./data/reports"))))
+
+
 	// Dynamic status check endpoint
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -140,8 +147,8 @@ func runServe(dbPath string, apiPort int, proxyPort int, aiAddr string) {
 	corsMux := corsMiddleware(mux)
 
 	// 6. Start the Server (H2C enabled for HTTP/2 support without TLS for local dev)
-	addr := fmt.Sprintf(":%d", apiPort)
-	log.Printf("[API] Server listening on http://localhost%s", addr)
+	addr := fmt.Sprintf("127.0.0.1:%d", apiPort)
+	log.Printf("[API] Server listening on http://%s", addr)
 	h2Server := &http2.Server{}
 	err = http.ListenAndServe(addr, h2c.NewHandler(corsMux, h2Server))
 	if err != nil && err != http.ErrServerClosed {

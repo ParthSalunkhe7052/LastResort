@@ -16,6 +16,7 @@ const (
 	ModuleCsrfBasic      = "csrf_basic"
 	ModuleRateLimitBasic = "rate_limit_basic"
 	ModuleAiHypotheses   = "ai_hypotheses"
+	ModuleAuthDiscovery  = "auth_discovery"
 	ModuleReport         = "report"
 )
 
@@ -31,6 +32,7 @@ var ProfileModules = map[scanv1.ScanProfile][]string{
 	},
 	scanv1.ScanProfile_SCAN_PROFILE_STANDARD: {
 		ModuleRecon,
+		ModuleAuthDiscovery,
 		ModuleCrawlStatic,
 		ModulePassive,
 		ModuleHeaders,
@@ -43,6 +45,7 @@ var ProfileModules = map[scanv1.ScanProfile][]string{
 	},
 	scanv1.ScanProfile_SCAN_PROFILE_DEEP: {
 		ModuleRecon,
+		ModuleAuthDiscovery,
 		ModuleCrawlStatic,
 		ModulePassive,
 		ModuleHeaders,

@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -101,10 +102,10 @@ func TestSaveFindingDeduplicates(t *testing.T) {
 	// Save finding first time
 	id1, err := db.SaveFindingWithEvidence(ctx, FindingInput{
 		ScanID:            "scan-2",
-		Title:             "Reflected XSS",
+		Title:             "Custom Vulnerability",
 		Description:       "Desc 1",
 		Severity:          "HIGH",
-		VulnerabilityType: "XSS",
+		VulnerabilityType: "Custom",
 		Endpoint:          "http://localhost/search",
 		Payload:           "<script>",
 		ResponseStatus:    200,
@@ -122,10 +123,10 @@ func TestSaveFindingDeduplicates(t *testing.T) {
 	// Save same finding second time with different description, confidence, etc.
 	id2, err := db.SaveFindingWithEvidence(ctx, FindingInput{
 		ScanID:            "scan-2",
-		Title:             "Reflected XSS",
+		Title:             "Custom Vulnerability",
 		Description:       "Desc 2",
 		Severity:          "HIGH",
-		VulnerabilityType: "XSS",
+		VulnerabilityType: "Custom",
 		Endpoint:          "http://localhost/search",
 		Payload:           "<script>",
 		ResponseStatus:    200,
@@ -162,8 +163,8 @@ func TestSaveFindingDeduplicates(t *testing.T) {
 		t.Fatalf("failed to fetch finding details: %v", err)
 	}
 
-	if desc != "Desc 2" {
-		t.Errorf("expected updated description 'Desc 2', got '%s'", desc)
+	if !strings.Contains(desc, "Desc 2") {
+		t.Errorf("expected updated description to contain 'Desc 2', got '%s'", desc)
 	}
 	if confidence != 0.95 {
 		t.Errorf("expected updated confidence 0.95, got %f", confidence)

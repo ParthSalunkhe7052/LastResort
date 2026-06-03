@@ -23,26 +23,21 @@ class AiServiceServicer(ai_pb2_grpc.AiServiceServicer):
     """gRPC Servicer implementing the AiService interface."""
 
     def __init__(self):
-        # Select provider based on environment variable (defaults to mock)
-        provider_type = os.getenv("AI_PROVIDER", "mock").lower()
-        if provider_type == "gemini":
-            api_key = os.getenv("GEMINI_API_KEY")
-            try:
-                print(f"[AI] Initializing Gemini LLM Provider (model: gemini-1.5-flash).")
-                self.provider = GeminiProvider(api_key=api_key)
-            except Exception as e:
-                print(f"[AI] [WARNING] Failed to initialize Gemini provider: {e}. Falling back to MockProvider.")
-                self.provider = MockProvider()
-        elif provider_type == "ollama":
-            try:
-                print(f"[AI] Initializing Ollama LLM Provider.")
-                self.provider = OllamaProvider()
-            except Exception as e:
-                print(f"[AI] [WARNING] Failed to initialize Ollama provider: {e}. Falling back to MockProvider.")
-                self.provider = MockProvider()
-        else:
-            print("[AI] Initializing Mock LLM Provider (default for IPC testing).")
+        # Select provider based on environment variable (defaults to gemini)
+        provider_type = os.getenv("AI_PROVIDER", "gemini").lower()
+        
+        if provider_type == "mock":
+            print("[AI] Initializing Mock LLM Provider (explicitly requested).")
             self.provider = MockProvider()
+        elif provider_type == "ollama":
+            print(f"[AI] Initializing Ollama LLM Provider.")
+            self.provider = OllamaProvider()
+        else:
+            api_key = os.getenv("GEMINI_API_KEY")
+            if not api_key:
+                raise ValueError("GEMINI_API_KEY environment variable must be set. Mock AI fallback is disabled.")
+            print(f"[AI] Initializing Gemini LLM Provider (model: gemini-2.5-flash).")
+            self.provider = GeminiProvider(api_key=api_key)
 
     def Health(self, request, context):
         print("[AI] Received Health request")
@@ -213,6 +208,118 @@ class AiServiceServicer(ai_pb2_grpc.AiServiceServicer):
             context.set_details(str(e))
             return ai_pb2.ScoreConfidenceResponse()
 
+    def GenerateAttackPayload(self, request, context):
+        print(f"[AI] Received GenerateAttackPayload request for: {request.hypothesis_title}")
+
+        schema = {
+            "type": "object",
+            "properties": {
+                "method": {"type": "string"},
+                "url": {"type": "string"},
+                "body": {"type": "string"},
+                "headers_json": {"type": "string"},
+                "explanation": {"type": "string"}
+            },
+            "required": ["method", "url", "body", "headers_json", "explanation"]
+        }
+
+        prompt = (
+            f"Generate a specific adversarial HTTP request to test the following hypothesis:\n"
+            f"Title: {request.hypothesis_title}\n"
+            f"Description: {request.hypothesis_description}\n"
+            f"Target Endpoint: {request.endpoint}\n"
+            f"Observed Method: {request.method}\n\n"
+            f"Provide a realistic exploit payload that proves the vulnerability exists.\n"
+            f"Return headers_json as a JSON-encoded string mapping HTTP headers to values (e.g. '{{\"Content-Type\": \"application/json\"}}')."
+        )
+
+        try:
+            if isinstance(self.provider, MockProvider):
+                return ai_pb2.GenerateAttackPayloadResponse(
+                    method=request.method,
+                    url=request.endpoint,
+                    body="",
+                    headers={"X-LR-Mock": "true"},
+                    explanation="Mock attack payload generated."
+                )
+
+            res_json = self.provider.generate_json(
+                prompt,
+                schema=schema,
+                system_instruction="You are a professional penetration tester. Create targeted HTTP exploit payloads."
+            )
+
+            headers_raw = res_json.get("headers_json", "{}")
+            headers_dict = {}
+            if headers_raw:
+                try:
+                    if isinstance(headers_raw, dict):
+                        headers_dict = headers_raw
+                    else:
+                        headers_dict = json.loads(headers_raw)
+                except Exception:
+                    headers_dict = {}
+
+            return ai_pb2.GenerateAttackPayloadResponse(
+                method=res_json.get("method", request.method),
+                url=res_json.get("url", request.endpoint),
+                body=res_json.get("body", ""),
+                headers=headers_dict,
+                explanation=res_json.get("explanation", "")
+            )
+        except Exception as e:
+            print(f"[AI] [ERROR] GenerateAttackPayload failed: {e}")
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(str(e))
+            return ai_pb2.GenerateAttackPayloadResponse()
+
+    def DecideBrowserAction(self, request, context):
+        print(f"[AI] Received DecideBrowserAction request for goal: {request.current_goal}")
+
+        schema = {
+            "type": "object",
+            "properties": {
+                "action": {"type": "string"},
+                "selector": {"type": "string"},
+                "value": {"type": "string"},
+                "explanation": {"type": "string"}
+            },
+            "required": ["action", "selector", "value", "explanation"]
+        }
+
+        prompt = (
+            f"You are a penetration tester driving a browser. Your current goal is: {request.current_goal}\n"
+            f"Current URL: {request.url}\n\n"
+            f"Page Source (truncated):\n{request.page_source[:5000]}\n\n"
+            f"Decide the next action to take. Actions: 'click', 'fill', 'type', 'navigate', 'wait', 'finish'.\n"
+            f"Return the CSS selector if clicking/filling, and the value if filling/typing."
+        )
+
+        try:
+            if isinstance(self.provider, MockProvider):
+                return ai_pb2.DecideBrowserActionResponse(
+                    action="finish",
+                    explanation="Mock action: finishing."
+                )
+
+            res_json = self.provider.generate_json(
+                prompt,
+                schema=schema,
+                system_instruction="You are an autonomous security agent. Drive the browser to achieve the security testing goal."
+            )
+
+            return ai_pb2.DecideBrowserActionResponse(
+                action=res_json.get("action", "wait"),
+                selector=res_json.get("selector", ""),
+                value=res_json.get("value", ""),
+                explanation=res_json.get("explanation", "")
+            )
+        except Exception as e:
+            print(f"[AI] [ERROR] DecideBrowserAction failed: {e}")
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(str(e))
+            return ai_pb2.DecideBrowserActionResponse()
+
     def GenerateFindingNarrative(self, request, context):
         print(f"[AI] Received GenerateFindingNarrative request for: {request.title}")
 
@@ -261,7 +368,7 @@ class AiServiceServicer(ai_pb2_grpc.AiServiceServicer):
 def serve(port: int = 50052):
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=5))
     ai_pb2_grpc.add_AiServiceServicer_to_server(AiServiceServicer(), server)
-    server.add_insecure_port(f'[::]:{port}')
+    server.add_insecure_port(f'127.0.0.1:{port}')
     print(f"[AI] Server started. Listening on gRPC port {port}...")
     server.start()
     try:

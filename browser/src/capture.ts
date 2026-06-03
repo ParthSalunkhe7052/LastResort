@@ -22,4 +22,8 @@ export class NetworkCapture {
   public getCapturedRequests(): DiscoveredRequest[] {
     return this.requests;
   }
+
+  public clear(): void {
+    this.requests = [];
+  }
 }

@@ -134,6 +134,7 @@ message FindingRecord {
   float confidence = 10;
   bool is_false_positive = 11;
   string created_at = 12;
+  string category = 13; // OBSERVATION, HYPOTHESIS, ATTEMPT, VERIFIED_ATTACK
 }
 
 message ListFindingsResponse {

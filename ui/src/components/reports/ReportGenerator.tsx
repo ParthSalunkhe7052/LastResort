@@ -63,7 +63,7 @@ export default function ReportGenerator({ activeScanId }: ReportGeneratorProps) 
   const getReportUrl = () => {
     // Convert local Windows file paths or absolute system paths to served url
     // Go server serves `./data/reports` directory on `http://localhost:8443/reports/`
-    return `http://localhost:8443/reports/${activeScanId}/report.html`
+    return `http://127.0.0.1:8443/reports/${activeScanId}/report.html`
   }
 
   return (

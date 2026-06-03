@@ -203,11 +203,33 @@ func resolveURL(base *url.URL, ref string) string {
 	return resolved.String()
 }
 
-// IsInCrawlScope checks if targetURL belongs to the same host as seedHost.
-func IsInCrawlScope(targetURL, seedHost string) bool {
+// IsInCrawlScope checks if targetURL belongs to the same host and path prefix as seedURL.
+func IsInCrawlScope(targetURL, seedURL string) bool {
 	u, err := url.Parse(targetURL)
 	if err != nil {
 		return false
 	}
-	return u.Host == seedHost
+	s, err := url.Parse(seedURL)
+	if err != nil {
+		return false
+	}
+
+	if u.Host != s.Host {
+		return false
+	}
+
+	// Restrict path-prefix if seed has a specific sub-path (like /www-project-juice-shop/)
+	sCtx := s.Path
+	if sCtx != "" && sCtx != "/" {
+		if !strings.HasSuffix(sCtx, "/") {
+			sCtx += "/"
+		}
+		uPath := u.Path
+		if !strings.HasSuffix(uPath, "/") {
+			uPath += "/"
+		}
+		return strings.HasPrefix(uPath, sCtx)
+	}
+
+	return true
 }

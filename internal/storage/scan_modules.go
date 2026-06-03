@@ -15,6 +15,16 @@ const (
 	ModuleFailed  ModuleStatus = "FAILED"
 )
 
+// ScanModuleRecord is the public representation of a scan_modules row.
+type ScanModuleRecord struct {
+	ScanID       string  `json:"scan_id"`
+	ModuleName   string  `json:"module_name"`
+	Status       string  `json:"status"`
+	StartedAt    *string `json:"started_at,omitempty"`
+	CompletedAt  *string `json:"completed_at,omitempty"`
+	ErrorMessage string  `json:"error_message,omitempty"`
+}
+
 func (db *DB) UpsertScanModule(ctx context.Context, scanID, moduleName string, status ModuleStatus, startedAt, completedAt *time.Time, errorMessage string) error {
 	if scanID == "" {
 		return fmt.Errorf("scanID is required")
@@ -61,7 +71,6 @@ func (db *DB) AnyModuleFailed(ctx context.Context, scanID string) (bool, error) 
 	}
 
 	var count int
-	// Try new schema column first.
 	err := db.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM scan_modules WHERE scan_id = ? AND status = ?`,
 		scanID, string(ModuleFailed),
@@ -69,7 +78,56 @@ func (db *DB) AnyModuleFailed(ctx context.Context, scanID string) (bool, error) 
 	if err == nil {
 		return count > 0, nil
 	}
-	// Older schema also uses `status`, so the query should still work.
 	return false, err
+}
+
+// ModuleSummary returns counts of SUCCESS and FAILED modules for partial-success detection.
+func (db *DB) ModuleSummary(ctx context.Context, scanID string) (successCount, failedCount int, err error) {
+	rows, qErr := db.QueryContext(ctx,
+		`SELECT status, COUNT(*) FROM scan_modules WHERE scan_id = ? GROUP BY status`, scanID)
+	if qErr != nil {
+		return 0, 0, qErr
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var status string
+		var cnt int
+		if sErr := rows.Scan(&status, &cnt); sErr != nil {
+			continue
+		}
+		switch ModuleStatus(status) {
+		case ModuleSuccess:
+			successCount += cnt
+		case ModuleFailed:
+			failedCount += cnt
+		}
+	}
+	return successCount, failedCount, nil
+}
+
+// ListScanModules returns all module tracking rows for a scan.
+func (db *DB) ListScanModules(ctx context.Context, scanID string) ([]ScanModuleRecord, error) {
+	rows, err := db.QueryContext(ctx,
+		`SELECT scan_id, module_name, status,
+		        strftime('%Y-%m-%dT%H:%M:%SZ', started_at),
+		        strftime('%Y-%m-%dT%H:%M:%SZ', completed_at),
+		        COALESCE(error_message,'')
+		 FROM scan_modules WHERE scan_id = ? ORDER BY rowid ASC`, scanID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []ScanModuleRecord
+	for rows.Next() {
+		var r ScanModuleRecord
+		var startedAt, completedAt *string
+		if sErr := rows.Scan(&r.ScanID, &r.ModuleName, &r.Status, &startedAt, &completedAt, &r.ErrorMessage); sErr != nil {
+			continue
+		}
+		r.StartedAt = startedAt
+		r.CompletedAt = completedAt
+		out = append(out, r)
+	}
+	return out, nil
 }
 

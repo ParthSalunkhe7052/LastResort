@@ -67,7 +67,7 @@ func (cm *CrawlManager) Crawl(ctx context.Context, scanID, seedURL string, onLog
 		// Log disallow routes as potential endpoints
 		for _, path := range disallows {
 			resolved := resolveURL(u, path)
-			if resolved != "" && IsInCrawlScope(resolved, seedHost) {
+			if resolved != "" && IsInCrawlScope(resolved, seedURL) {
 				endpointsChan <- DiscoveredEndpoint{
 					Method: "GET",
 					URL:    resolved,
@@ -157,7 +157,7 @@ func runStaticBFS(
 	// Build our BFS Queue starting with the seed URL and sitemap URLs
 	currentDepthURLs := []string{seedURL}
 	for _, smURL := range sitemapURLs {
-		if IsInCrawlScope(smURL, seedHost) {
+		if IsInCrawlScope(smURL, seedURL) {
 			currentDepthURLs = append(currentDepthURLs, smURL)
 			// Trigger HTTP page load to log through proxy
 			endpointsChan <- DiscoveredEndpoint{
@@ -219,12 +219,12 @@ func runStaticBFS(
 				defer nextDepthMutex.Unlock()
 
 				for _, link := range foundLinks {
-					if IsInCrawlScope(link, seedHost) {
+					if IsInCrawlScope(link, seedURL) {
 						nextDepthURLs = append(nextDepthURLs, link)
 					}
 				}
 				for _, link := range jsDiscoveredLinks {
-					if IsInCrawlScope(link, seedHost) {
+					if IsInCrawlScope(link, seedURL) {
 						nextDepthURLs = append(nextDepthURLs, link)
 						// Notify log of JS endpoint discovery
 						endpointsChan <- DiscoveredEndpoint{

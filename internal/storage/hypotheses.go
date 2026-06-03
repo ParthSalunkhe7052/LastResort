@@ -2,7 +2,9 @@ package storage
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -56,3 +58,46 @@ func (db *DB) SaveHypothesis(ctx context.Context, scanID, title, description, so
 	return id, nil
 }
 
+// UpdateHypothesisStatus transitions a hypothesis through its lifecycle.
+func (db *DB) UpdateHypothesisStatus(ctx context.Context, hypothesisID string, status HypothesisStatus) error {
+	if hypothesisID == "" {
+		return fmt.Errorf("hypothesisID is required")
+	}
+	_, err := db.ExecContext(ctx,
+		`UPDATE hypotheses SET status = ? WHERE id = ?`,
+		string(status), hypothesisID,
+	)
+	return err
+}
+
+// ListHypotheses returns all hypotheses for a scan, ordered newest first.
+func (db *DB) ListHypotheses(ctx context.Context, scanID string) ([]Hypothesis, error) {
+	var rows *sql.Rows
+	var err error
+
+	if scanID != "" {
+		rows, err = db.QueryContext(ctx,
+			`SELECT id, scan_id, title, description, confidence, source, status, created_at
+			 FROM hypotheses WHERE scan_id = ? ORDER BY created_at DESC`, scanID)
+	} else {
+		rows, err = db.QueryContext(ctx,
+			`SELECT id, scan_id, title, description, confidence, source, status, created_at
+			 FROM hypotheses ORDER BY created_at DESC`)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to query hypotheses: %w", err)
+	}
+	defer rows.Close()
+
+	var hyps []Hypothesis
+	for rows.Next() {
+		var h Hypothesis
+		var createdAt time.Time
+		if err := rows.Scan(&h.ID, &h.ScanID, &h.Title, &h.Description, &h.Confidence, &h.Source, &h.Status, &createdAt); err != nil {
+			return nil, fmt.Errorf("failed to scan hypothesis: %w", err)
+		}
+		h.CreatedAt = createdAt.Format(time.RFC3339)
+		hyps = append(hyps, h)
+	}
+	return hyps, nil
+}

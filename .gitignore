@@ -16,5 +16,6 @@ ai/.venv/
 *.pyc
 
 .DS_Store
-Thumbs.db
 
+main.exe
+*.lnk

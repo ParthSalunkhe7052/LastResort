@@ -73,7 +73,7 @@ class MockProvider(LLMProvider):
 class GeminiProvider(LLMProvider):
     """LLM provider utilizing the Gemini API."""
 
-    def __init__(self, api_key: str = None, model_name: str = "gemini-1.5-flash"):
+    def __init__(self, api_key: str = None, model_name: str = "gemini-2.5-flash"):
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
         self.model_name = model_name
         if genai is None:
@@ -98,6 +98,7 @@ class GeminiProvider(LLMProvider):
         # Gemini supports structured JSON output
         generation_config = {
             "response_mime_type": "application/json",
+            "response_schema": schema,
         }
         
         if system_instruction:

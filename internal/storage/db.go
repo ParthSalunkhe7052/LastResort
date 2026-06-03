@@ -48,6 +48,18 @@ func InitDB(dbPath string) (*DB, error) {
 		db.Close()
 		return nil, err
 	}
+	// Migration for category column
+	_, _ = storageDB.Exec("ALTER TABLE findings ADD COLUMN category TEXT")
+	// Phase 3: workflow intelligence tables (idempotent).
+	if err := storageDB.CreateWorkflowTables(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("workflow tables migration failed: %w", err)
+	}
+	// Phase 5: attack goals table (idempotent).
+	if err := storageDB.CreateGoalTables(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("goals table migration failed: %w", err)
+	}
 
 	return storageDB, nil
 }
@@ -96,6 +108,7 @@ func (db *DB) createTables() error {
 			payload TEXT,
 			response_status INTEGER,
 			confidence REAL,
+			category TEXT,
 			is_false_positive INTEGER DEFAULT 0,
 			fingerprint TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -169,6 +182,9 @@ func (db *DB) createTables() error {
 	_, _ = db.Exec("ALTER TABLE scans ADD COLUMN detected_technologies TEXT;")
 	_, _ = db.Exec("ALTER TABLE scans ADD COLUMN auth_model TEXT;")
 	_, _ = db.Exec("ALTER TABLE findings ADD COLUMN fingerprint TEXT;")
+	_, _ = db.Exec("ALTER TABLE scans ADD COLUMN gemini_calls INTEGER DEFAULT 0;")
+	_, _ = db.Exec("ALTER TABLE scans ADD COLUMN gemini_time_ms INTEGER DEFAULT 0;")
+	_, _ = db.Exec("ALTER TABLE findings ADD COLUMN occurrence_count INTEGER DEFAULT 1;")
 	_, _ = db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_findings_scan_fingerprint ON findings (scan_id, fingerprint);")
 	_, _ = db.Exec("CREATE INDEX IF NOT EXISTS idx_hypotheses_scan_created ON hypotheses (scan_id, created_at);")
 	_, _ = db.Exec("CREATE INDEX IF NOT EXISTS idx_evidence_finding_created ON finding_evidence (finding_id, created_at);")

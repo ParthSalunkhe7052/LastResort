@@ -10,6 +10,8 @@ service AiService {
   rpc ScoreConfidence(ScoreConfidenceRequest) returns (ScoreConfidenceResponse);
   rpc Health(HealthRequest) returns (HealthResponse);
   rpc GenerateFindingNarrative(GenerateFindingNarrativeRequest) returns (GenerateFindingNarrativeResponse);
+  rpc GenerateAttackPayload(GenerateAttackPayloadRequest) returns (GenerateAttackPayloadResponse);
+  rpc DecideBrowserAction(DecideBrowserActionRequest) returns (DecideBrowserActionResponse);
 }
 
 message HealthRequest {}
@@ -75,4 +77,32 @@ message GenerateFindingNarrativeRequest {
 message GenerateFindingNarrativeResponse {
   string description = 1;
   string remediation = 2;
+}
+
+message GenerateAttackPayloadRequest {
+  string hypothesis_title = 1;
+  string hypothesis_description = 2;
+  string endpoint = 3;
+  string method = 4;
+}
+
+message GenerateAttackPayloadResponse {
+  string method = 1;
+  string url = 2;
+  string body = 3;
+  map<string, string> headers = 4;
+  string explanation = 5;
+}
+
+message DecideBrowserActionRequest {
+  string url = 1;
+  string page_source = 2;
+  string current_goal = 3;
+}
+
+message DecideBrowserActionResponse {
+  string action = 1; // "click", "fill", "type", "navigate", "wait", "finish"
+  string selector = 2;
+  string value = 3;
+  string explanation = 4;
 }

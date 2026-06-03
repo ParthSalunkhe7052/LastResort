@@ -7,6 +7,7 @@ import (
 	"html/template"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"connectrpc.com/connect"
@@ -15,10 +16,18 @@ import (
 	"github.com/parth/lastresort/internal/storage"
 )
 
+type narrativeCacheEntry struct {
+	description string
+	remediation string
+}
+
 // Generator handles report compilation.
 type Generator struct {
 	db       *storage.DB
 	aiClient aiv1connect.AiServiceClient
+
+	cacheMu sync.RWMutex
+	cache   map[string]narrativeCacheEntry
 }
 
 // NewGenerator instantiates a report Generator.
@@ -26,6 +35,7 @@ func NewGenerator(db *storage.DB, aiClient aiv1connect.AiServiceClient) *Generat
 	return &Generator{
 		db:       db,
 		aiClient: aiClient,
+		cache:    make(map[string]narrativeCacheEntry),
 	}
 }
 
@@ -46,7 +56,7 @@ func (g *Generator) GenerateScanReport(ctx context.Context, scanID string) (stri
 
 	// 2. Fetch findings
 	rows, err := g.db.QueryContext(ctx,
-		`SELECT id, title, description, severity, vulnerability_type, endpoint, payload, response_status, confidence, is_false_positive
+		`SELECT id, title, description, severity, vulnerability_type, endpoint, payload, response_status, confidence, category, is_false_positive
 		 FROM findings WHERE scan_id = ? ORDER BY severity DESC, vulnerability_type`, scanID,
 	)
 	if err != nil {
@@ -56,28 +66,62 @@ func (g *Generator) GenerateScanReport(ctx context.Context, scanID string) (stri
 
 	var findings []storage.Finding
 	severityCounts := map[string]int{"HIGH": 0, "MEDIUM": 0, "LOW": 0, "INFO": 0}
+	categoryCounts := map[string]int{"VERIFIED_ATTACK": 0, "ATTEMPT": 0, "OBSERVATION": 0, "HYPOTHESIS": 0}
 
 	for rows.Next() {
 		var f storage.Finding
 		var isFP int
-		err := rows.Scan(&f.ID, &f.Title, &f.Description, &f.Severity, &f.VulnerabilityType, &f.Endpoint, &f.Payload, &f.ResponseStatus, &f.Confidence, &isFP)
+		var category sql.NullString
+		err := rows.Scan(&f.ID, &f.Title, &f.Description, &f.Severity, &f.VulnerabilityType, &f.Endpoint, &f.Payload, &f.ResponseStatus, &f.Confidence, &category, &isFP)
 		if err != nil {
 			return "", "", fmt.Errorf("failed to scan finding row: %w", err)
 		}
 		f.IsFalsePositive = isFP
+		f.Category = category.String
+		if f.Category == "" {
+			f.Category = "OBSERVATION"
+		}
 		findings = append(findings, f)
 
 		if isFP == 0 {
 			severityCounts[f.Severity]++
+			categoryCounts[f.Category]++
 		}
 	}
+
 
 // HTMLFinding extends storage.Finding with narrative fields for template rendering.
 type HTMLFinding struct {
 	storage.Finding
 	Description string
 	Remediation string
+	RawRequest  string
+	RawResponse string
 }
+
+	// 2b. Fetch hypotheses
+	hyps, err := g.db.ListHypotheses(ctx, scanID)
+	if err == nil {
+		for _, h := range hyps {
+			categoryCounts["HYPOTHESIS"]++
+			// Map hypothesis to finding for reporting
+			findings = append(findings, storage.Finding{
+				ID:                h.ID,
+				Title:             h.Title,
+				Description:       h.Description,
+				Severity:          "INFO",
+				VulnerabilityType: "Hypothesis",
+				Endpoint:          "N/A",
+				Confidence:        h.Confidence,
+				Category:          "HYPOTHESIS",
+				CreatedAt:         h.CreatedAt,
+			})
+		}
+	}
+
+	// 2c. Fetch exploration stats
+	var endpointCount int
+	_ = g.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM endpoints WHERE scan_id = ?", scanID).Scan(&endpointCount)
 
 	// 3. Build Markdown content and HTML findings list
 	var htmlFindings []HTMLFinding
@@ -85,11 +129,14 @@ type HTMLFinding struct {
 	md += "## Executive Summary\n"
 	md += fmt.Sprintf("- **Target URL:** %s\n", targetURL)
 	md += fmt.Sprintf("- **Scan Status:** Completed\n")
-	md += fmt.Sprintf("- **Detected Technologies:** %s\n", detectedTechs)
-	md += fmt.Sprintf("- **Authentication Model:** %s\n", authModel)
+	md += fmt.Sprintf("- **Endpoints Explored:** %d\n", endpointCount)
+	md += fmt.Sprintf("- **Attack Scenarios Attempted:** %d\n", categoryCounts["ATTEMPT"]+categoryCounts["VERIFIED_ATTACK"])
+	md += fmt.Sprintf("- **Successful Exploits:** %d\n", categoryCounts["VERIFIED_ATTACK"])
+	md += fmt.Sprintf("- **Security Observations:** %d\n", categoryCounts["OBSERVATION"])
+	md += fmt.Sprintf("- **AI Hypotheses:** %d\n", categoryCounts["HYPOTHESIS"])
+
 	if startedAtNull.Valid && finishedAtNull.Valid {
 		duration := finishedAtNull.Time.Sub(startedAtNull.Time).Truncate(time.Second)
-		md += fmt.Sprintf("- **Started At:** %s\n", startedAtNull.Time.Format(time.RFC822))
 		md += fmt.Sprintf("- **Duration:** %s\n", duration.String())
 	}
 	md += "\n"
@@ -115,21 +162,70 @@ type HTMLFinding struct {
 			descText := f.Description
 			remedText := getRemediationText(f.VulnerabilityType)
 
-			// Query AI narrative with 10s timeout
+			// Query AI narrative with 30s timeout
 			if g.aiClient != nil {
-				aiCtx, aiCancel := context.WithTimeout(ctx, 10*time.Second)
-				aiReq := &aiv1.GenerateFindingNarrativeRequest{
-					VulnerabilityType: f.VulnerabilityType,
-					Title:             f.Title,
-					Endpoint:          f.Endpoint,
-					Evidence:          f.Payload,
-					Confidence:        float32(f.Confidence),
+				cacheKey := f.VulnerabilityType + "|" + f.Title
+				g.cacheMu.RLock()
+				cached, found := g.cache[cacheKey]
+				g.cacheMu.RUnlock()
+
+				if found {
+					descText = cached.description
+					remedText = cached.remediation
+				} else {
+					aiCtx, aiCancel := context.WithTimeout(ctx, 30*time.Second)
+					aiReq := &aiv1.GenerateFindingNarrativeRequest{
+						VulnerabilityType: f.VulnerabilityType,
+						Title:             f.Title,
+						Endpoint:          f.Endpoint,
+						Evidence:          f.Payload,
+						Confidence:        float32(f.Confidence),
+					}
+					startTime := time.Now()
+					aiRes, err := g.aiClient.GenerateFindingNarrative(aiCtx, connect.NewRequest(aiReq))
+					aiCancel()
+					duration := time.Since(startTime)
+
+					if err == nil && aiRes.Msg.Description != "" && aiRes.Msg.Remediation != "" {
+						descText = aiRes.Msg.Description
+						remedText = aiRes.Msg.Remediation
+
+						g.cacheMu.Lock()
+						g.cache[cacheKey] = narrativeCacheEntry{
+							description: descText,
+							remediation: remedText,
+						}
+						g.cacheMu.Unlock()
+					}
+
+					// Track Gemini call telemetry in DB
+					_, _ = g.db.ExecContext(ctx,
+						`UPDATE scans SET
+							gemini_calls = COALESCE(gemini_calls, 0) + 1,
+							gemini_time_ms = COALESCE(gemini_time_ms, 0) + ?
+						 WHERE id = ?`,
+						duration.Milliseconds(), scanID,
+					)
 				}
-				aiRes, err := g.aiClient.GenerateFindingNarrative(aiCtx, connect.NewRequest(aiReq))
-				aiCancel()
-				if err == nil && aiRes.Msg.Description != "" && aiRes.Msg.Remediation != "" {
-					descText = aiRes.Msg.Description
-					remedText = aiRes.Msg.Remediation
+			}
+
+			// Fetch evidence flows
+			var rawReq, rawRes string
+			row := g.db.QueryRowContext(ctx, `
+				SELECT f.method, f.url, f.request_headers, f.request_body, f.response_headers, f.response_body
+				FROM finding_evidence e
+				JOIN http_flows f ON e.flow_id = f.id
+				WHERE e.finding_id = ?
+				LIMIT 1
+			`, f.ID)
+			
+			var fMethod, fUrl, fReqHeaders, fResHeaders string
+			var fReqBody, fResBody []byte
+			if err := row.Scan(&fMethod, &fUrl, &fReqHeaders, &fReqBody, &fResHeaders, &fResBody); err == nil {
+				rawReq = fmt.Sprintf("%s %s HTTP/1.1\n%s\n\n%s", fMethod, fUrl, fReqHeaders, string(fReqBody))
+				rawRes = fmt.Sprintf("HTTP/1.1 %d\n%s\n\n%s", f.ResponseStatus, fResHeaders, string(fResBody))
+				if len(rawRes) > 2000 {
+					rawRes = rawRes[:2000] + "\n...[TRUNCATED]..."
 				}
 			}
 
@@ -147,12 +243,18 @@ type HTMLFinding struct {
 			md += descText + "\n\n"
 			md += "**Remediation:**\n"
 			md += remedText + "\n\n"
+			if rawReq != "" {
+				md += "**Raw HTTP Request:**\n```http\n" + rawReq + "\n```\n\n"
+				md += "**Raw HTTP Response:**\n```http\n" + rawRes + "\n```\n\n"
+			}
 			md += "---\n\n"
 
 			htmlFindings = append(htmlFindings, HTMLFinding{
 				Finding:     f,
 				Description: descText,
 				Remediation: remedText,
+				RawRequest:  rawReq,
+				RawResponse: rawRes,
 			})
 		}
 	}
@@ -219,17 +321,17 @@ type HTMLFinding struct {
 func getRemediationText(vulnType string) string {
 	switch vulnType {
 	case "Reflected XSS":
-		return "Ensure all user-supplied input is HTML-entity encoded before being rendered in the response. Use context-aware output encoding (e.g. JavaScript, HTML attribute, CSS encoding) depending on where the parameter is placed."
+		return "Implement context-aware output encoding (e.g., HTML-entity encode user input) and deploy a strong Content-Security-Policy."
 	case "SQL Injection":
-		return "Use prepared statements (parameterized queries) for all database interactions. Implement strict input validation using white-lists where query structures must dynamically change."
+		return "Use parameterized queries (prepared statements) for all database operations and validate all user-supplied data."
 	case "CSRF":
-		return "Implement anti-CSRF token verification on all state-changing endpoints (POST/PUT/PATCH/DELETE). Ensure tokens are generated securely and associated with the user session."
+		return "Enforce anti-CSRF tokens on state-changing requests or use SameSite=Lax/Strict cookie attributes."
 	case "CORS Misconfiguration":
-		return "Restrict CORS headers by avoiding wildcard ('*') declarations when cookies or authorization headers are permitted. Explicitly validate and whitelist allowed client origin values."
+		return "Restrict Access-Control-Allow-Origin to trusted domains and avoid using wildcard '*' with credentials."
 	case "Security Misconfiguration":
-		return "Deploy security response headers (CSP, HSTS, X-Frame-Options, X-Content-Type-Options) to enforce secure loading guidelines on user browsers."
+		return "Enable missing security headers (CSP, HSTS, X-Frame-Options) to enhance browser-side protection."
 	default:
-		return "Validate and sanitize all client-controlled input. Apply the principle of least privilege on application capabilities and backend integrations."
+		return "Review the observation and apply industry-standard security hardening based on the identified risk."
 	}
 }
 
@@ -372,6 +474,14 @@ const DefaultHTMLTemplate = `<!DOCTYPE html>
             <p>{{.Description}}</p>
             <p><strong>Remediation:</strong></p>
             <p>{{.Remediation}}</p>
+            {{if .RawRequest}}
+            <p><strong>Raw HTTP Request:</strong></p>
+            <pre class="code-block">{{.RawRequest}}</pre>
+            {{end}}
+            {{if .RawResponse}}
+            <p><strong>Raw HTTP Response:</strong></p>
+            <pre class="code-block">{{.RawResponse}}</pre>
+            {{end}}
         </div>
         {{else}}
         <p>No vulnerabilities were identified during this assessment scan.</p>

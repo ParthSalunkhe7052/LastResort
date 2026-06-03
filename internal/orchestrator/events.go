@@ -9,12 +9,28 @@ import (
 type EventType string
 
 const (
-	EventScanStarted      EventType = "scan.started"
-	EventPhaseStarted     EventType = "phase.started"
-	EventPhaseCompleted   EventType = "phase.completed"
-	EventFindingNew       EventType = "finding.new"
-	EventProgress         EventType = "progress.update"
-	EventScanCompleted    EventType = "scan.completed"
+	// Lifecycle events
+	EventScanStarted       EventType = "scan.started"
+	EventScanCompleted     EventType = "scan.completed"
+	EventScanPartialSuccess EventType = "scan.partial_success"
+
+	// Phase tracking
+	EventPhaseStarted   EventType = "phase.started"
+	EventPhaseCompleted EventType = "phase.completed"
+
+	// Evidence-backed finding created by a scanner module
+	EventFindingNew EventType = "finding.new"
+
+	// AI-generated hypothesis (not yet verified)
+	EventHypothesisGenerated EventType = "hypothesis.generated"
+
+	// Progress tracking
+	EventProgress EventType = "progress.update"
+
+	// Log levels emitted by crawl/recon
+	EventLogInfo    EventType = "log.info"
+	EventLogWarning EventType = "log.warning"
+	EventLogError   EventType = "log.error"
 )
 
 // Event holds details representing a single orchestration status change

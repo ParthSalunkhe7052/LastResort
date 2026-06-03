@@ -262,9 +262,9 @@ func (s *ScanServer) ListFindings(ctx context.Context, req *connect.Request[scan
 	var err error
 
 	if scanID != "" {
-		rows, err = s.DB.QueryContext(ctx, "SELECT id, scan_id, title, description, severity, vulnerability_type, endpoint, payload, response_status, confidence, is_false_positive, created_at FROM findings WHERE scan_id = ? ORDER BY created_at DESC", scanID)
+		rows, err = s.DB.QueryContext(ctx, "SELECT id, scan_id, title, description, severity, vulnerability_type, endpoint, payload, response_status, confidence, category, is_false_positive, created_at FROM findings WHERE scan_id = ? ORDER BY created_at DESC", scanID)
 	} else {
-		rows, err = s.DB.QueryContext(ctx, "SELECT id, scan_id, title, description, severity, vulnerability_type, endpoint, payload, response_status, confidence, is_false_positive, created_at FROM findings ORDER BY created_at DESC")
+		rows, err = s.DB.QueryContext(ctx, "SELECT id, scan_id, title, description, severity, vulnerability_type, endpoint, payload, response_status, confidence, category, is_false_positive, created_at FROM findings ORDER BY created_at DESC")
 	}
 
 	if err != nil {
@@ -277,10 +277,12 @@ func (s *ScanServer) ListFindings(ctx context.Context, req *connect.Request[scan
 		var f scanv1.FindingRecord
 		var isFP int
 		var createdAt time.Time
-		err := rows.Scan(&f.Id, &f.ScanId, &f.Title, &f.Description, &f.Severity, &f.VulnerabilityType, &f.Endpoint, &f.Payload, &f.ResponseStatus, &f.Confidence, &isFP, &createdAt)
+		var category sql.NullString
+		err := rows.Scan(&f.Id, &f.ScanId, &f.Title, &f.Description, &f.Severity, &f.VulnerabilityType, &f.Endpoint, &f.Payload, &f.ResponseStatus, &f.Confidence, &category, &isFP, &createdAt)
 		if err != nil {
 			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to scan finding: %w", err))
 		}
+		f.Category = category.String
 		f.IsFalsePositive = (isFP == 1)
 		f.CreatedAt = createdAt.Format(time.RFC3339)
 		findings = append(findings, &f)
