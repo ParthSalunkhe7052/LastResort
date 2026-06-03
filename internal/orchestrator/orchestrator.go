@@ -760,7 +760,23 @@ func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module 
 		browserClient := browser.NewClient("")
 		goal := "Identify login forms, discover authentication endpoints, and attempt to find valid login paths."
 
-		maxSteps := 5
+		maxSteps := 10
+		var lastAction, lastSelector, lastActionError string
+		var lastActionSuccess bool
+		var currentURL, pageTitle, screenshotBase64 string
+		var links []*aiv1.BrowserElement
+		var buttons []*aiv1.BrowserElement
+		var forms []*aiv1.BrowserForm
+
+		defer func() {
+			// Cleanup browser session on exit
+			endReq, _ := http.NewRequest("POST", "http://127.0.0.1:3010/end-session", strings.NewReader(fmt.Sprintf(`{"scanId":"%s"}`, scanID)))
+			if endReq != nil {
+				endReq.Header.Set("Content-Type", "application/json")
+				_, _ = http.DefaultClient.Do(endReq)
+			}
+		}()
+
 		for step := 1; step <= maxSteps; step++ {
 			onLog(fmt.Sprintf("[AGENT] Step %d: Analyzing current page state...", step))
 
@@ -782,11 +798,29 @@ func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module 
 				break
 			}
 
+			// Update state from response
+			currentURL = actionRes.CurrentURL
+			pageTitle = actionRes.PageTitle
+			screenshotBase64 = actionRes.Screenshot
+			links = mapBrowserElements(actionRes.Links)
+			buttons = mapBrowserElements(actionRes.Buttons)
+			forms = mapBrowserForms(actionRes.Forms)
+
 			// 2. Ask AI what to do next
 			decideReq := connect.NewRequest(&aiv1.DecideBrowserActionRequest{
-				Url:         targetURL,
-				PageSource:  actionRes.PageSource,
-				CurrentGoal: goal,
+				Url:               targetURL,
+				PageSource:        actionRes.PageSource,
+				CurrentGoal:       goal,
+				LastActionSuccess: lastActionSuccess,
+				LastActionError:   lastActionError,
+				CurrentUrl:        currentURL,
+				PageTitle:         pageTitle,
+				Links:             links,
+				Buttons:           buttons,
+				Forms:             forms,
+				LastAction:        lastAction,
+				LastSelector:      lastSelector,
+				ScreenshotBase64:  screenshotBase64,
 			})
 
 			start := time.Now()
@@ -813,9 +847,21 @@ func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module 
 				ProxyPort: o.proxyPort,
 			}
 
-			_, err = browserClient.ExecuteAction(ctx, execReq)
+			lastAction = decideRes.Msg.Action
+			lastSelector = decideRes.Msg.Selector
+
+			execRes, err := browserClient.ExecuteAction(ctx, execReq)
 			if err != nil {
+				lastActionSuccess = false
+				lastActionError = err.Error()
 				onLog(fmt.Sprintf("[AGENT] [ERROR] Execution of %s failed: %v", decideRes.Msg.Action, err))
+			} else {
+				lastActionSuccess = execRes.Success
+				if !execRes.Success {
+					lastActionError = execRes.Error
+				} else {
+					lastActionError = ""
+				}
 			}
 
 			// Small delay for animations
@@ -899,4 +945,33 @@ func (o *Orchestrator) emitNewFindings(ctx context.Context, scanID string) {
 			},
 		})
 	}
+}
+
+func mapBrowserElements(elements []browser.BrowserElement) []*aiv1.BrowserElement {
+	res := make([]*aiv1.BrowserElement, len(elements))
+	for i, e := range elements {
+		res[i] = &aiv1.BrowserElement{
+			Text:     e.Text,
+			Selector: e.Selector,
+			Type:     e.Type,
+			Href:     e.Href,
+			Id:       e.ID,
+			Name:     e.Name,
+			Value:    e.Value,
+		}
+	}
+	return res
+}
+
+func mapBrowserForms(forms []browser.BrowserForm) []*aiv1.BrowserForm {
+	res := make([]*aiv1.BrowserForm, len(forms))
+	for i, f := range forms {
+		res[i] = &aiv1.BrowserForm{
+			Selector: f.Selector,
+			Action:   f.Action,
+			Method:   f.Method,
+			Inputs:   mapBrowserElements(f.Inputs),
+		}
+	}
+	return res
 }

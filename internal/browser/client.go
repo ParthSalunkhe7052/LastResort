@@ -47,10 +47,32 @@ type ActionRequest struct {
 }
 
 type ActionResponse struct {
-	Success    bool   `json:"success"`
-	Screenshot string `json:"screenshot"` // base64
-	PageSource string `json:"pageSource"`
-	Error      string `json:"error"`
+	Success    bool             `json:"success"`
+	Screenshot string           `json:"screenshot"` // base64
+	PageSource string           `json:"pageSource"`
+	CurrentURL string           `json:"currentUrl"`
+	PageTitle  string           `json:"pageTitle"`
+	Links      []BrowserElement `json:"links"`
+	Buttons    []BrowserElement `json:"buttons"`
+	Forms      []BrowserForm    `json:"forms"`
+	Error      string           `json:"error"`
+}
+
+type BrowserElement struct {
+	Text     string `json:"text"`
+	Selector string `json:"selector"`
+	Type     string `json:"type"`
+	Href     string `json:"href,omitempty"`
+	ID       string `json:"id,omitempty"`
+	Name     string `json:"name,omitempty"`
+	Value    string `json:"value,omitempty"`
+}
+
+type BrowserForm struct {
+	Selector string           `json:"selector"`
+	Action   string           `json:"action"`
+	Method   string           `json:"method"`
+	Inputs   []BrowserElement `json:"inputs"`
 }
 
 // NewClient instantiates a browser service HTTP client.

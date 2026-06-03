@@ -1,6 +1,8 @@
-import { chromium, Page } from 'playwright';
+import { Page } from 'playwright';
 import { NetworkCapture } from './capture';
 import { takeScreenshot } from './screenshot';
+import { Session, SessionManager } from './sessions';
+import { scrapePageContext } from './dom';
 import * as url from 'url';
 
 export interface CrawlResult {
@@ -8,7 +10,8 @@ export interface CrawlResult {
   screenshots: Array<{ url: string; path: string }>;
 }
 
-// Push scan logs and screenshots back to Go API server
+const sessionManager = SessionManager.getInstance();
+
 async function sendScanEvent(scanId: string, eventType: string, data: any) {
   try {
     await fetch('http://127.0.0.1:8443/api/v1/scan/event', {
@@ -21,39 +24,26 @@ async function sendScanEvent(scanId: string, eventType: string, data: any) {
   }
 }
 
-// Stream Base64 frames of Playwright active actions to React UI
 async function streamPageScreenshot(page: Page, scanId: string) {
   try {
     const buffer = await page.screenshot({ type: 'png' });
     const base64 = buffer.toString('base64');
     await sendScanEvent(scanId, 'browser.screenshot', { image: `data:image/png;base64,${base64}` });
-  } catch (err) {
-    // Ignore screenshot errors during fast navigation/closing
-  }
+  } catch (err) {}
 }
 
 function isInCrawlScope(urlStr: string, seedUrl: string, targetHost: string): boolean {
   try {
     const u = new URL(urlStr);
     const s = new URL(seedUrl);
-    
-    if (u.host !== targetHost) {
-      return false;
-    }
-
-    // Restrict path-prefix if seed has a specific sub-path (like /www-project-juice-shop/)
+    if (u.host !== targetHost) return false;
     let sCtx = s.pathname;
     if (sCtx && sCtx !== '/') {
-      if (!sCtx.endsWith('/')) {
-        sCtx += '/';
-      }
+      if (!sCtx.endsWith('/')) sCtx += '/';
       let uPath = u.pathname;
-      if (!uPath.endsWith('/')) {
-        uPath += '/';
-      }
+      if (!uPath.endsWith('/')) uPath += '/';
       return uPath.startsWith(sCtx);
     }
-    
     return true;
   } catch {
     return false;
@@ -64,37 +54,19 @@ export async function runBrowserCrawl(
   scanId: string,
   targetUrl: string,
   proxyPort?: number,
-  maxDepth: number = 3
+  maxDepth: number = 3,
+  providedSession?: Session
 ): Promise<CrawlResult> {
   const parsedTarget = url.parse(targetUrl);
   const targetHost = parsedTarget.host;
-  
-  if (!targetHost) {
-    throw new Error(`Invalid target URL: ${targetUrl}`);
-  }
+  if (!targetHost) throw new Error(`Invalid target URL: ${targetUrl}`);
 
-  const logMessage = `[BROWSER CRAWLER] Starting crawl for ${targetUrl} (Proxy port: ${proxyPort})`;
+  const logMessage = `[BROWSER CRAWLER] Starting crawl for ${targetUrl}`;
   console.log(logMessage);
   await sendScanEvent(scanId, 'log.info', { message: logMessage });
 
-  // Launch Playwright Chromium
-  const browser = await chromium.launch({
-    headless: false,
-    args: [
-      '--ignore-certificate-errors',
-      '--no-sandbox',
-      '--disable-setuid-sandbox'
-    ],
-    proxy: proxyPort ? { server: `http://127.0.0.1:${proxyPort}` } : undefined
-  });
-
-  const context = await browser.newContext({
-    extraHTTPHeaders: {
-      'X-LastResort-Scan-ID': scanId,
-    },
-    userAgent: 'LastResort-BrowserCrawler/0.1.0',
-    ignoreHTTPSErrors: true
-  });
+  const session = providedSession || await sessionManager.getOrCreateSession(scanId, proxyPort);
+  const page = session.page;
 
   const visited = new Set<string>();
   const queue: Array<{ url: string; depth: number }> = [{ url: targetUrl, depth: 1 }];
@@ -106,17 +78,13 @@ export async function runBrowserCrawl(
       const u = new URL(urlStr);
       u.hash = '';
       const normalized = u.toString();
-      const key = `${method}:${normalized}`;
+      const key = `${method.toUpperCase()}:${normalized}`;
       if (!discoveredEndpoints.has(key)) {
-        discoveredEndpoints.set(key, { method, url: normalized, source });
+        discoveredEndpoints.set(key, { method: method.toUpperCase(), url: normalized, source });
       }
-    } catch {
-      // Ignore invalid URLs
-    }
+    } catch {}
   };
 
-  // Reuse a single tab throughout the crawl to avoid reloads and tab closes
-  const page = await context.newPage();
   const capture = new NetworkCapture(page);
 
   try {
@@ -125,7 +93,6 @@ export async function runBrowserCrawl(
       if (!current) continue;
 
       const { url: currentUrl, depth } = current;
-
       let normalizedCurrentUrl = currentUrl;
       try {
         const u = new URL(currentUrl);
@@ -133,110 +100,62 @@ export async function runBrowserCrawl(
         normalizedCurrentUrl = u.toString();
       } catch {}
 
-      if (visited.has(normalizedCurrentUrl)) {
-        continue;
-      }
+      if (visited.has(normalizedCurrentUrl) || depth > maxDepth) continue;
       visited.add(normalizedCurrentUrl);
 
-      if (depth > maxDepth) {
-        continue;
-      }
-
-      const navLog = `[BROWSER CRAWLER] Depth ${depth} - Navigating to: ${currentUrl}`;
+      const navLog = `[BROWSER CRAWLER] Depth ${depth} - Navigating: ${currentUrl}`;
       console.log(navLog);
       await sendScanEvent(scanId, 'log.info', { message: navLog });
 
       try {
-        // Navigate in-place
         capture.clear();
         await page.goto(currentUrl, { waitUntil: 'load', timeout: 15000 });
         await streamPageScreenshot(page, scanId);
-        
-        // Let any SPA javascript run
         await page.waitForTimeout(2000);
         await streamPageScreenshot(page, scanId);
 
-        // Take a screenshot as evidence
         const screenshotPath = await takeScreenshot(page, scanId, currentUrl);
-        if (screenshotPath) {
-          screenshots.push({ url: currentUrl, path: screenshotPath });
-        }
+        if (screenshotPath) screenshots.push({ url: currentUrl, path: screenshotPath });
 
-        // Add the current URL as a GET endpoint
         addEndpoint('GET', currentUrl, 'browser_crawl');
 
-        // Extract anchor links
-        const links = await page.evaluate(() => {
-          const elements = Array.from(document.querySelectorAll('a[href]'));
-          return elements.map(el => (el as HTMLAnchorElement).href);
-        });
+        const context = await scrapePageContext(page);
 
-        // Extract form actions
-        const forms = await page.evaluate(() => {
-          const elements = Array.from(document.querySelectorAll('form[action]'));
-          return elements.map(el => {
-            const form = el as HTMLFormElement;
-            return {
-              action: form.action,
-              method: form.method || 'GET'
-            };
-          });
-        });
-
-        // Add form endpoints
-        for (const form of forms) {
-          if (form.action) {
-            addEndpoint(form.method.toUpperCase(), form.action, 'browser_form');
-            
-            // Queue form action if it matches scope and path-prefix
-            try {
-              const u = new URL(form.action);
-              if (isInCrawlScope(form.action, targetUrl, targetHost) && !visited.has(u.toString()) && depth < maxDepth) {
-                queue.push({ url: form.action, depth: depth + 1 });
-              }
-            } catch {}
+        // Process discovered links
+        for (const link of context.links) {
+          if (isInCrawlScope(link.href!, targetUrl, targetHost)) {
+            addEndpoint('GET', link.href!, 'browser_link');
+            if (!visited.has(link.href!) && depth < maxDepth) {
+              queue.push({ url: link.href!, depth: depth + 1 });
+            }
           }
         }
 
-        // Extract and process any network requests captured (XHR, fetch, etc.)
+        // Process discovered forms
+        for (const form of context.forms) {
+          addEndpoint(form.method, form.action, 'browser_form');
+          if (isInCrawlScope(form.action, targetUrl, targetHost) && !visited.has(form.action) && depth < maxDepth) {
+            queue.push({ url: form.action, depth: depth + 1 });
+          }
+        }
+
+        // Process network requests
         const captured = capture.getCapturedRequests();
         for (const req of captured) {
-          try {
-            const u = new URL(req.url);
-            if (isInCrawlScope(req.url, targetUrl, targetHost)) {
-              addEndpoint(req.method, req.url, `browser_${req.resourceType}`);
-            }
-          } catch {}
-        }
-
-        // Process found anchor links
-        for (const link of links) {
-          try {
-            const u = new URL(link);
-            // Only follow links within the scope (same host + path prefix)
-            if (isInCrawlScope(link, targetUrl, targetHost)) {
-              const cleanedUrl = u.origin + u.pathname + u.search;
-              addEndpoint('GET', cleanedUrl, 'browser_link');
-              
-              if (!visited.has(cleanedUrl) && depth < maxDepth) {
-                queue.push({ url: cleanedUrl, depth: depth + 1 });
-              }
-            }
-          } catch {
-            // Ignore invalid URLs
+          if (isInCrawlScope(req.url, targetUrl, targetHost)) {
+            addEndpoint(req.method, req.url, `browser_${req.resourceType}`);
           }
         }
-
       } catch (err) {
-        const errLog = `[BROWSER CRAWLER] [ERROR] Failed to crawl page ${currentUrl}: ${err}`;
+        const errLog = `[BROWSER CRAWLER] [ERROR] Failed ${currentUrl}: ${err}`;
         console.error(errLog);
         await sendScanEvent(scanId, 'log.error', { message: errLog });
       }
     }
   } finally {
-    await page.close();
-    await context.close();
-    await browser.close();
+    if (!providedSession) {
+      await sessionManager.closeSession(scanId);
+    }
   }
 
   return {
