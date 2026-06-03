@@ -126,6 +126,7 @@ message BrowserActionOutcome {
   bool success = 4;
   string error = 5;
   ActionResult result = 6;
+  string reasoning = 7;
 }
 
 message ActionResult {

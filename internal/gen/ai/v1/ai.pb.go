@@ -1006,6 +1006,7 @@ type BrowserActionOutcome struct {
 	Success       bool                   `protobuf:"varint,4,opt,name=success,proto3" json:"success,omitempty"`
 	Error         string                 `protobuf:"bytes,5,opt,name=error,proto3" json:"error,omitempty"`
 	Result        *ActionResult          `protobuf:"bytes,6,opt,name=result,proto3" json:"result,omitempty"`
+	Reasoning     string                 `protobuf:"bytes,7,opt,name=reasoning,proto3" json:"reasoning,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1080,6 +1081,13 @@ func (x *BrowserActionOutcome) GetResult() *ActionResult {
 		return x.Result
 	}
 	return nil
+}
+
+func (x *BrowserActionOutcome) GetReasoning() string {
+	if x != nil {
+		return x.Reasoning
+	}
+	return ""
 }
 
 type ActionResult struct {
@@ -1524,14 +1532,15 @@ const file_ai_v1_ai_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a?\n" +
 	"\x11LocalStorageEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xbd\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xdb\x01\n" +
 	"\x14BrowserActionOutcome\x12\x16\n" +
 	"\x06action\x18\x01 \x01(\tR\x06action\x12\x1a\n" +
 	"\bselector\x18\x02 \x01(\tR\bselector\x12\x14\n" +
 	"\x05value\x18\x03 \x01(\tR\x05value\x12\x18\n" +
 	"\asuccess\x18\x04 \x01(\bR\asuccess\x12\x14\n" +
 	"\x05error\x18\x05 \x01(\tR\x05error\x12+\n" +
-	"\x06result\x18\x06 \x01(\v2\x13.ai.v1.ActionResultR\x06result\"\xe5\x02\n" +
+	"\x06result\x18\x06 \x01(\v2\x13.ai.v1.ActionResultR\x06result\x12\x1c\n" +
+	"\treasoning\x18\a \x01(\tR\treasoning\"\xe5\x02\n" +
 	"\fActionResult\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12%\n" +
 	"\x0efailure_reason\x18\x02 \x01(\tR\rfailureReason\x12\x1f\n" +

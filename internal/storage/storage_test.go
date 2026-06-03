@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	aiv1 "github.com/parth/lastresort/internal/gen/ai/v1"
 )
 
 func TestStorageInitAndInserts(t *testing.T) {
@@ -245,3 +247,67 @@ func TestEndpointsPersistence(t *testing.T) {
 		t.Errorf("expected updated status code 304, got %d", eps[0].StatusCode)
 	}
 }
+
+func TestAttackJournal(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "lastresort-journal-test-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	dbPath := filepath.Join(tmpDir, "test.db")
+	db, err := InitDB(dbPath)
+	if err != nil {
+		t.Fatalf("InitDB failed: %v", err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+	scanID := "scan-journal-1"
+	_, _ = db.ExecContext(ctx, "INSERT INTO scans (id, target_url) VALUES (?, ?)", scanID, "http://localhost")
+
+	entry := &JournalEntry{
+		ScanID:    scanID,
+		Step:      1,
+		Action:    "click",
+		Selector:  "#login-btn",
+		Success:   true,
+		Reasoning: "Attempting to reach the login page.",
+		Result: &aiv1.ActionResult{
+			Success:    true,
+			CurrentUrl: "http://localhost/login",
+			PageTitle:  "Login Page",
+		},
+	}
+
+	if err := db.SaveJournalEntry(ctx, entry); err != nil {
+		t.Fatalf("SaveJournalEntry failed: %v", err)
+	}
+
+	entries, err := db.ListJournalEntries(ctx, scanID)
+	if err != nil {
+		t.Fatalf("ListJournalEntries failed: %v", err)
+	}
+
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(entries))
+	}
+
+	retrieved := entries[0]
+	if retrieved.Action != "click" || retrieved.Selector != "#login-btn" || retrieved.Reasoning != "Attempting to reach the login page." {
+		t.Errorf("retrieved entry mismatch: %+v", retrieved)
+	}
+
+	if retrieved.Result == nil || retrieved.Result.CurrentUrl != "http://localhost/login" {
+		t.Errorf("retrieved result mismatch: %+v", retrieved.Result)
+	}
+
+	lastStep, err := db.GetLastJournalStep(ctx, scanID)
+	if err != nil {
+		t.Fatalf("GetLastJournalStep failed: %v", err)
+	}
+	if lastStep != 1 {
+		t.Errorf("expected last step 1, got %d", lastStep)
+	}
+}
+

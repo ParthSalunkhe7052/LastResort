@@ -751,6 +751,21 @@ func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module 
 				} else {
 					_, _ = o.db.ExecContext(execCtx, "UPDATE hypotheses SET status = ? WHERE scan_id = ? AND title = ?", "FAILED", scanID, hyp.Title)
 				}
+
+				// Record in Journal
+				lastStep, _ := o.db.GetLastJournalStep(execCtx, scanID)
+				_ = o.db.SaveJournalEntry(execCtx, &storage.JournalEntry{
+					ScanID:    scanID,
+					Step:      lastStep + 1,
+					Action:    "http_request",
+					Value:     payloadRes.Msg.Url,
+					Success:   isVerified,
+					Reasoning: payloadRes.Msg.Explanation,
+					Result: &aiv1.ActionResult{
+						Success:    isVerified,
+						CurrentUrl: payloadRes.Msg.Url,
+					},
+				})
 			}(h)
 		}
 		return nil
@@ -767,7 +782,25 @@ func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module 
 		var links []*aiv1.BrowserElement
 		var buttons []*aiv1.BrowserElement
 		var forms []*aiv1.BrowserForm
+
+		// Load existing history from persistent journal
+		journalEntries, err := o.db.ListJournalEntries(ctx, scanID)
+		if err != nil {
+			onLog(fmt.Sprintf("[AGENT] [WARNING] Failed to load history: %v", err))
+		}
 		var history []*aiv1.BrowserActionOutcome
+		for _, je := range journalEntries {
+			history = append(history, &aiv1.BrowserActionOutcome{
+				Action:    je.Action,
+				Selector:  je.Selector,
+				Value:     je.Value,
+				Success:   je.Success,
+				Error:     je.Error,
+				Result:    je.Result,
+				Reasoning: je.Reasoning,
+			})
+		}
+		currentStep, _ := o.db.GetLastJournalStep(ctx, scanID)
 
 		defer func() {
 			// Cleanup browser session on exit
@@ -778,7 +811,7 @@ func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module 
 			}
 		}()
 
-		for step := 1; step <= maxSteps; step++ {
+		for step := currentStep + 1; step <= currentStep+maxSteps; step++ {
 			onLog(fmt.Sprintf("[AGENT] Step %d: Analyzing current page state...", step))
 
 			// 1. Get current state (navigate to seed first if just starting)
@@ -877,6 +910,7 @@ func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module 
 						Success:       false,
 						FailureReason: err.Error(),
 					},
+					Reasoning: decideRes.Msg.Explanation,
 				}
 			} else {
 				lastActionSuccess = execRes.Success
@@ -887,17 +921,29 @@ func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module 
 				}
 				
 				outcome = &aiv1.BrowserActionOutcome{
-					Action:   decideRes.Msg.Action,
-					Selector: decideRes.Msg.Selector,
-					Value:    decideRes.Msg.Value,
-					Success:  execRes.Success,
-					Error:    execRes.FailureReason,
-					Result:   mapActionResult(execRes),
+					Action:    decideRes.Msg.Action,
+					Selector:  decideRes.Msg.Selector,
+					Value:     decideRes.Msg.Value,
+					Success:   execRes.Success,
+					Error:     execRes.FailureReason,
+					Result:    mapActionResult(execRes),
+					Reasoning: decideRes.Msg.Explanation,
 				}
 			}
 
-			// Add to history
+			// Add to history and persist to journal
 			history = append(history, outcome)
+			_ = o.db.SaveJournalEntry(ctx, &storage.JournalEntry{
+				ScanID:    scanID,
+				Step:      step,
+				Action:    outcome.Action,
+				Selector:  outcome.Selector,
+				Value:     outcome.Value,
+				Success:   outcome.Success,
+				Error:     outcome.Error,
+				Reasoning: outcome.Reasoning,
+				Result:    outcome.Result,
+			})
 
 			// Small delay for animations
 			time.Sleep(2 * time.Second)

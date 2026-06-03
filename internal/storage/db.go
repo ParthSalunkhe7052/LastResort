@@ -60,6 +60,11 @@ func InitDB(dbPath string) (*DB, error) {
 		db.Close()
 		return nil, fmt.Errorf("goals table migration failed: %w", err)
 	}
+	// Phase 6: attack journal table (idempotent).
+	if err := storageDB.CreateJournalTables(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("journal tables migration failed: %w", err)
+	}
 
 	return storageDB, nil
 }

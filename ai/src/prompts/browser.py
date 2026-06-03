@@ -66,6 +66,9 @@ def get_decide_action_prompt(request) -> str:
                 if res.page_title:
                     line += f" | Title: {res.page_title}"
             
+            if outcome.reasoning:
+                line += f" | Reasoning: {outcome.reasoning}"
+            
             if not outcome.success and outcome.error:
                 line += f" (Error: {outcome.error})"
             

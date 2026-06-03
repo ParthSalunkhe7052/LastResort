@@ -208,20 +208,22 @@ class DecideBrowserActionRequest(_message.Message):
     def __init__(self, url: _Optional[str] = ..., page_source: _Optional[str] = ..., current_goal: _Optional[str] = ..., last_action_success: bool = ..., last_action_error: _Optional[str] = ..., current_url: _Optional[str] = ..., page_title: _Optional[str] = ..., links: _Optional[_Iterable[_Union[BrowserElement, _Mapping]]] = ..., buttons: _Optional[_Iterable[_Union[BrowserElement, _Mapping]]] = ..., forms: _Optional[_Iterable[_Union[BrowserForm, _Mapping]]] = ..., last_action: _Optional[str] = ..., last_selector: _Optional[str] = ..., screenshot_base64: _Optional[str] = ..., session_id: _Optional[str] = ..., cookies: _Optional[_Mapping[str, str]] = ..., local_storage: _Optional[_Mapping[str, str]] = ..., history: _Optional[_Iterable[_Union[BrowserActionOutcome, _Mapping]]] = ...) -> None: ...
 
 class BrowserActionOutcome(_message.Message):
-    __slots__ = ("action", "selector", "value", "success", "error", "result")
+    __slots__ = ("action", "selector", "value", "success", "error", "result", "reasoning")
     ACTION_FIELD_NUMBER: _ClassVar[int]
     SELECTOR_FIELD_NUMBER: _ClassVar[int]
     VALUE_FIELD_NUMBER: _ClassVar[int]
     SUCCESS_FIELD_NUMBER: _ClassVar[int]
     ERROR_FIELD_NUMBER: _ClassVar[int]
     RESULT_FIELD_NUMBER: _ClassVar[int]
+    REASONING_FIELD_NUMBER: _ClassVar[int]
     action: str
     selector: str
     value: str
     success: bool
     error: str
     result: ActionResult
-    def __init__(self, action: _Optional[str] = ..., selector: _Optional[str] = ..., value: _Optional[str] = ..., success: bool = ..., error: _Optional[str] = ..., result: _Optional[_Union[ActionResult, _Mapping]] = ...) -> None: ...
+    reasoning: str
+    def __init__(self, action: _Optional[str] = ..., selector: _Optional[str] = ..., value: _Optional[str] = ..., success: bool = ..., error: _Optional[str] = ..., result: _Optional[_Union[ActionResult, _Mapping]] = ..., reasoning: _Optional[str] = ...) -> None: ...
 
 class ActionResult(_message.Message):
     __slots__ = ("success", "failure_reason", "current_url", "page_title", "screenshot_base64", "links", "buttons", "forms", "page_source")

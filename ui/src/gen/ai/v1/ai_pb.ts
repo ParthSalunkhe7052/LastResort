@@ -834,6 +834,11 @@ export class BrowserActionOutcome extends Message<BrowserActionOutcome> {
    */
   result?: ActionResult;
 
+  /**
+   * @generated from field: string reasoning = 7;
+   */
+  reasoning = "";
+
   constructor(data?: PartialMessage<BrowserActionOutcome>) {
     super();
     proto3.util.initPartial(data, this);
@@ -848,6 +853,7 @@ export class BrowserActionOutcome extends Message<BrowserActionOutcome> {
     { no: 4, name: "success", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 5, name: "error", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 6, name: "result", kind: "message", T: ActionResult },
+    { no: 7, name: "reasoning", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): BrowserActionOutcome {
