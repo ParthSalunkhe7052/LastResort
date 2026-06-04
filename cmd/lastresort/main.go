@@ -103,6 +103,19 @@ func runServe(dbPath string, apiPort int, proxyPort int, aiAddr string) {
 		httpClient,
 		aiAddr,
 		connect.WithGRPC(), // speak standard gRPC
+		connect.WithInterceptors(connect.UnaryInterceptorFunc(func(next connect.UnaryFunc) connect.UnaryFunc {
+			return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
+				provider, err := db.GetSetting(ctx, "ai_provider")
+				if err == nil && provider != "" {
+					req.Header().Set("x-ai-provider", provider)
+				}
+				model, err := db.GetSetting(ctx, "gemini_model")
+				if err == nil && model != "" {
+					req.Header().Set("x-gemini-model", model)
+				}
+				return next(ctx, req)
+			}
+		})),
 	)
 	log.Printf("[IPC] Configured client connection to Python AI gRPC at %s", aiAddr)
 

@@ -15,6 +15,7 @@ const (
 	ModuleSqliBasic      = "sqli_basic"
 	ModuleCsrfBasic      = "csrf_basic"
 	ModuleRateLimitBasic = "rate_limit_basic"
+	ModulePathTraversal  = "path_traversal"
 	ModuleAiHypotheses   = "ai_hypotheses"
 	ModuleAuthDiscovery  = "auth_discovery"
 	ModuleReport         = "report"
@@ -40,6 +41,7 @@ var ProfileModules = map[scanv1.ScanProfile][]string{
 		ModuleXssReflected,
 		ModuleSqliBasic,
 		ModuleCsrfBasic,
+		ModulePathTraversal,
 		ModuleAiHypotheses,
 		ModuleReport,
 	},
@@ -53,8 +55,9 @@ var ProfileModules = map[scanv1.ScanProfile][]string{
 		ModuleXssReflected,
 		ModuleSqliBasic,
 		ModuleCsrfBasic,
-		ModuleAiHypotheses,
 		ModuleRateLimitBasic,
+		ModulePathTraversal,
+		ModuleAiHypotheses,
 		ModuleReport,
 	},
 }

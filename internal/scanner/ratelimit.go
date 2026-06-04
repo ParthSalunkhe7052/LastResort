@@ -10,7 +10,8 @@ import (
 	"github.com/parth/lastresort/internal/storage"
 )
 
-// ScanRateLimit sends 10 consecutive requests with a 100ms delay to check for basic rate limiting.
+// ScanRateLimit [DEPRECATED] sends 10 consecutive requests with a 100ms delay to check for basic rate limiting via direct net/http.
+// Use runAgentRateLimit in internal/orchestrator for modern, browser-aware rate limit testing.
 func (as *ActiveScanner) ScanRateLimit(ctx context.Context, scanID, urlStr string) error {
 	successCount := 0
 	throttled := false

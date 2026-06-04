@@ -15,13 +15,13 @@ func TestProfileModuleSelection(t *testing.T) {
 
 	// 2. Verify STANDARD profile maps to correct modules
 	standardMods := ProfileModules[scanv1.ScanProfile_SCAN_PROFILE_STANDARD]
-	if len(standardMods) != 11 {
-		t.Errorf("expected 11 modules for STANDARD profile, got %d", len(standardMods))
+	if len(standardMods) != 12 {
+		t.Errorf("expected 12 modules for STANDARD profile, got %d", len(standardMods))
 	}
 
 	// 3. Verify DEEP profile maps to correct modules
 	deepMods := ProfileModules[scanv1.ScanProfile_SCAN_PROFILE_DEEP]
-	if len(deepMods) != 12 {
-		t.Errorf("expected 12 modules for DEEP profile, got %d", len(deepMods))
+	if len(deepMods) != 13 {
+		t.Errorf("expected 13 modules for DEEP profile, got %d", len(deepMods))
 	}
 }

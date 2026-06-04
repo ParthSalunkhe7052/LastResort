@@ -1,6 +1,5 @@
 import { Terminal, Shield, Play, Layers, Database, Compass, Cpu, Globe, Crosshair, ShieldCheck, ShieldAlert, Sparkles, ChevronDown, ChevronUp, Microscope } from 'lucide-react'
 import { useState } from 'react'
-import { ScanProfile } from '../../gen/scan/v1/scan_pb'
 import type { FindingRecord } from '../findings/FindingsBrowser'
 
 interface ScanEventRecord {
@@ -22,8 +21,6 @@ interface ScanRecord {
 interface DashboardProps {
   targetUrl: string
   setTargetUrl: (url: string) => void
-  profile: ScanProfile
-  setProfile: (profile: ScanProfile) => void
   goDaemonStatus: string
   isStartingScan: boolean
   handleStartScan: (e: React.FormEvent) => void
@@ -183,8 +180,6 @@ const FindingDetail = ({ f, expandedReproduction, setExpandedReproduction }: { f
 export default function Dashboard({
   targetUrl,
   setTargetUrl,
-  profile,
-  setProfile,
   goDaemonStatus,
   isStartingScan,
   handleStartScan,
@@ -401,30 +396,15 @@ export default function Dashboard({
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[10px] font-mono text-zinc-500 mb-1.5 uppercase tracking-wider">Attack Profile Intensity</label>
-                <select
-                  value={profile}
-                  onChange={e => setProfile(Number(e.target.value))}
-                  className="w-full bg-zinc-950 border border-zinc-850 rounded-lg px-4 py-3 text-zinc-100 font-mono text-xs focus:outline-none focus:border-amber-500 transition cursor-pointer"
-                >
-                  <option value={ScanProfile.QUICK}>Quick Profile (Recon)</option>
-                  <option value={ScanProfile.STANDARD}>Standard Profile (Active Probes)</option>
-                  <option value={ScanProfile.DEEP}>Deep Profile (Full LLM Brain)</option>
-                </select>
-              </div>
-
-              <div className="flex flex-col justify-end">
-                <button
-                  type="submit"
-                  disabled={goDaemonStatus !== 'connected' || isStartingScan}
-                  className="w-full flex items-center justify-center space-x-2 bg-amber-500 hover:bg-amber-600 disabled:bg-zinc-850 disabled:text-zinc-600 disabled:border-transparent text-zinc-950 py-3 rounded-lg font-semibold transition tracking-wide cursor-pointer disabled:cursor-not-allowed border border-amber-400 font-mono text-xs shadow-[0_0_20px_rgba(245,158,11,0.15)]"
-                >
-                  <Play className="w-3.5 h-3.5 fill-zinc-950" />
-                  <span className="uppercase">{isStartingScan ? 'Spawning Penetration Rig...' : 'Start Attack Simulation'}</span>
-                </button>
-              </div>
+            <div className="flex justify-end pt-2">
+              <button
+                type="submit"
+                disabled={goDaemonStatus !== 'connected' || isStartingScan}
+                className="w-full flex items-center justify-center space-x-2 bg-amber-500 hover:bg-amber-600 disabled:bg-zinc-850 disabled:text-zinc-600 disabled:border-transparent text-zinc-950 py-3.5 rounded-lg font-semibold transition tracking-wide cursor-pointer disabled:cursor-not-allowed border border-amber-400 font-mono text-xs shadow-[0_0_20px_rgba(245,158,11,0.15)]"
+              >
+                <Play className="w-3.5 h-3.5 fill-zinc-950" />
+                <span className="uppercase">{isStartingScan ? 'Spawning Penetration Rig...' : 'Start Attack Simulation'}</span>
+              </button>
             </div>
           </div>
 

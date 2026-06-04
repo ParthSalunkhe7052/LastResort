@@ -8,6 +8,7 @@ import * as url from 'url';
 export interface CrawlResult {
   endpoints: Array<{ method: string; url: string; source: string }>;
   screenshots: Array<{ url: string; path: string }>;
+  forms: Array<any>;
 }
 
 const sessionManager = SessionManager.getInstance();
@@ -38,8 +39,14 @@ function isInCrawlScope(urlStr: string, seedUrl: string, targetHost: string): bo
     const s = new URL(seedUrl);
     if (u.host !== targetHost) return false;
     let sCtx = s.pathname;
+    
+    // Extract directory context by removing everything after the last slash
+    const lastSlash = sCtx.lastIndexOf('/');
+    if (lastSlash !== -1) {
+      sCtx = sCtx.slice(0, lastSlash + 1);
+    }
+    
     if (sCtx && sCtx !== '/') {
-      if (!sCtx.endsWith('/')) sCtx += '/';
       let uPath = u.pathname;
       if (!uPath.endsWith('/')) uPath += '/';
       return uPath.startsWith(sCtx);
@@ -50,11 +57,28 @@ function isInCrawlScope(urlStr: string, seedUrl: string, targetHost: string): bo
   }
 }
 
+function shouldCrawlUrl(urlStr: string): boolean {
+  try {
+    const u = new URL(urlStr);
+    const pathname = u.pathname.toLowerCase();
+    const blacklistedExtensions = [
+      '.pdf', '.xls', '.xlsx', '.doc', '.docx', '.ppt', '.pptx', 
+      '.zip', '.tar', '.gz', '.tgz', '.rar', '.7z',
+      '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.webp',
+      '.mp4', '.mp3', '.webm', '.ogg', '.wav', '.avi', '.mov',
+      '.css', '.js', '.map', '.woff', '.woff2', '.ttf', '.eot'
+    ];
+    return !blacklistedExtensions.some(ext => pathname.endsWith(ext));
+  } catch {
+    return false;
+  }
+}
+
 export async function runBrowserCrawl(
   scanId: string,
   targetUrl: string,
   proxyPort?: number,
-  maxDepth: number = 3,
+  maxDepth: number = 2,
   providedSession?: Session
 ): Promise<CrawlResult> {
   const parsedTarget = url.parse(targetUrl);
@@ -72,6 +96,7 @@ export async function runBrowserCrawl(
   const queue: Array<{ url: string; depth: number }> = [{ url: targetUrl, depth: 1 }];
   const discoveredEndpoints: Map<string, { method: string; url: string; source: string }> = new Map();
   const screenshots: Array<{ url: string; path: string }> = [];
+  const discoveredForms: Map<string, any> = new Map();
 
   const addEndpoint = (method: string, urlStr: string, source: string) => {
     try {
@@ -89,6 +114,13 @@ export async function runBrowserCrawl(
 
   try {
     while (queue.length > 0) {
+      if (visited.size >= 10) {
+        const limitLog = `[BROWSER CRAWLER] Visited page limit (10) reached. Stopping crawl.`;
+        console.log(limitLog);
+        await sendScanEvent(scanId, 'log.info', { message: limitLog });
+        break;
+      }
+
       const current = queue.shift();
       if (!current) continue;
 
@@ -100,7 +132,7 @@ export async function runBrowserCrawl(
         normalizedCurrentUrl = u.toString();
       } catch {}
 
-      if (visited.has(normalizedCurrentUrl) || depth > maxDepth) continue;
+      if (visited.has(normalizedCurrentUrl) || depth > maxDepth + 1) continue;
       visited.add(normalizedCurrentUrl);
 
       const navLog = `[BROWSER CRAWLER] Depth ${depth} - Navigating: ${currentUrl}`;
@@ -125,7 +157,7 @@ export async function runBrowserCrawl(
         for (const link of context.links) {
           if (isInCrawlScope(link.href!, targetUrl, targetHost)) {
             addEndpoint('GET', link.href!, 'browser_link');
-            if (!visited.has(link.href!) && depth < maxDepth) {
+            if (!visited.has(link.href!) && depth <= maxDepth && shouldCrawlUrl(link.href!)) {
               queue.push({ url: link.href!, depth: depth + 1 });
             }
           }
@@ -134,8 +166,20 @@ export async function runBrowserCrawl(
         // Process discovered forms
         for (const form of context.forms) {
           addEndpoint(form.method, form.action, 'browser_form');
-          if (isInCrawlScope(form.action, targetUrl, targetHost) && !visited.has(form.action) && depth < maxDepth) {
-            queue.push({ url: form.action, depth: depth + 1 });
+          if (isInCrawlScope(form.action, targetUrl, targetHost)) {
+            const formKey = `${form.method.toUpperCase()}:${form.action}:${form.selector}`;
+            if (!discoveredForms.has(formKey)) {
+              discoveredForms.set(formKey, {
+                url: currentUrl,
+                selector: form.selector,
+                action: form.action,
+                method: form.method,
+                inputs: form.inputs
+              });
+            }
+            if (!visited.has(form.action) && depth <= maxDepth && shouldCrawlUrl(form.action)) {
+              queue.push({ url: form.action, depth: depth + 1 });
+            }
           }
         }
 
@@ -160,6 +204,7 @@ export async function runBrowserCrawl(
 
   return {
     endpoints: Array.from(discoveredEndpoints.values()),
-    screenshots
+    screenshots,
+    forms: Array.from(discoveredForms.values())
   };
 }

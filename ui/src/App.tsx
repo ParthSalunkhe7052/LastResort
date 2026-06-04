@@ -3,6 +3,7 @@ import { client } from './api/client'
 import { ScanProfile, ScanStatus } from './gen/scan/v1/scan_pb'
 import MainLayout from './components/layout/MainLayout'
 import Dashboard from './components/dashboard/Dashboard'
+import Settings from './components/settings/Settings'
 import type { FindingRecord } from './components/findings/FindingsBrowser'
 
 
@@ -26,7 +27,7 @@ export default function App() {
   
   // Dashboard & Configuration States
   const [targetUrl, setTargetUrl] = useState('https://owasp.org/www-project-juice-shop/')
-  const [profile, setProfile] = useState<ScanProfile>(ScanProfile.STANDARD)
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'settings'>('dashboard')
 
   // Connection states
   const [goDaemonStatus, setGoDaemonStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting')
@@ -199,7 +200,7 @@ export default function App() {
       const createRes = await client.createScan({
         config: {
           targetUrl,
-          profile,
+          profile: ScanProfile.STANDARD,
           scopePatterns: []
         }
       })
@@ -310,32 +311,34 @@ export default function App() {
 
   return (
     <MainLayout
-      activeTab="dashboard"
-      setActiveTab={() => {}}
+      activeTab={activeTab}
+      setActiveTab={setActiveTab}
       goDaemonStatus={goDaemonStatus}
       pythonAiStatus={pythonAiStatus}
       targetUrl={targetUrl}
       onSync={syncSystem}
     >
-      <Dashboard
-        targetUrl={targetUrl}
-        setTargetUrl={setTargetUrl}
-        profile={profile}
-        setProfile={setProfile}
-        goDaemonStatus={goDaemonStatus}
-        isStartingScan={isStartingScan}
-        handleStartScan={handleStartScan}
-        events={events}
-        scans={scans}
-        setActiveScanId={setActiveScanId}
-        subscribeToEvents={subscribeToEvents}
-        scanModules={scanModules}
-        activeScanId={activeScanId}
-        findings={findings}
-        hypotheses={hypotheses}
-        liveScreenshot={liveScreenshot}
-        performanceMetrics={performanceMetrics}
-      />
+      {activeTab === 'dashboard' ? (
+        <Dashboard
+          targetUrl={targetUrl}
+          setTargetUrl={setTargetUrl}
+          goDaemonStatus={goDaemonStatus}
+          isStartingScan={isStartingScan}
+          handleStartScan={handleStartScan}
+          events={events}
+          scans={scans}
+          setActiveScanId={setActiveScanId}
+          subscribeToEvents={subscribeToEvents}
+          scanModules={scanModules}
+          activeScanId={activeScanId}
+          findings={findings}
+          hypotheses={hypotheses}
+          liveScreenshot={liveScreenshot}
+          performanceMetrics={performanceMetrics}
+        />
+      ) : (
+        <Settings />
+      )}
     </MainLayout>
   )
 }

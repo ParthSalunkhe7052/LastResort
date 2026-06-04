@@ -1,7 +1,6 @@
 import { chromium, Browser, BrowserContext, Page } from 'playwright';
 
 export interface Session {
-  browser: Browser;
   context: BrowserContext;
   page: Page;
   lastAccess: number;
@@ -10,6 +9,7 @@ export interface Session {
 export class SessionManager {
   private static instance: SessionManager;
   private sessions: Map<string, Session> = new Map();
+  private sharedBrowser: Browser | null = null;
   private readonly SESSION_TTL = 10 * 60 * 1000; // 10 minutes
 
   private constructor() {
@@ -23,12 +23,28 @@ export class SessionManager {
     return SessionManager.instance;
   }
 
+  private async getBrowser(): Promise<Browser> {
+    if (this.sharedBrowser && this.sharedBrowser.isConnected()) {
+      return this.sharedBrowser;
+    }
+    console.log('[SESSIONS] Launching shared browser instance...');
+    this.sharedBrowser = await chromium.launch({
+      headless: true,
+      args: [
+        '--ignore-certificate-errors',
+        '--no-sandbox',
+        '--disable-setuid-sandbox'
+      ]
+    });
+    return this.sharedBrowser;
+  }
+
   public async getOrCreateSession(scanId: string, proxyPort?: number): Promise<Session> {
     const existing = this.sessions.get(scanId);
     if (existing) {
       try {
         // Check if page/context is still alive
-        if (!existing.page.isClosed() && existing.browser.isConnected()) {
+        if (!existing.page.isClosed()) {
           existing.lastAccess = Date.now();
           return existing;
         }
@@ -37,25 +53,40 @@ export class SessionManager {
       }
     }
 
-    console.log(`[SESSIONS] Creating new session for scan ${scanId} (Proxy: ${proxyPort})`);
-    const browser = await chromium.launch({
-      headless: true,
-      args: [
-        '--ignore-certificate-errors',
-        '--no-sandbox',
-        '--disable-setuid-sandbox'
-      ],
-      proxy: proxyPort ? { server: `http://127.0.0.1:${proxyPort}` } : undefined
-    });
+    console.log(`[SESSIONS] Creating isolated browser context for scan ${scanId} (Proxy: ${proxyPort})`);
+    const browser = await this.getBrowser();
 
     const context = await browser.newContext({
       ignoreHTTPSErrors: true,
-      userAgent: 'LastResort-BrowserCrawler/0.1.0'
+      userAgent: 'LastResort-BrowserCrawler/0.1.0',
+      proxy: proxyPort ? { server: `http://127.0.0.1:${proxyPort}` } : undefined
     });
 
     const page = await context.newPage();
+
+    // Attach dialog handler to capture XSS alert/confirm/prompt executions and append a DOM marker (Step 5)
+    page.on('dialog', async (dialog) => {
+      console.log(`[BROWSER DIALOG DETECTED] type: ${dialog.type()} message: ${dialog.message()}`);
+      try {
+        await page.evaluate((msg) => {
+          const marker = document.createElement('div');
+          marker.id = 'lastresort-xss-alert-detected';
+          marker.setAttribute('data-dialog-message', msg || '');
+          marker.textContent = 'XSS_ALERT_TRIGGERED';
+          document.body.appendChild(marker);
+        }, dialog.message());
+      } catch (e) {
+        console.warn(`[BROWSER DIALOG] failed to inject DOM marker:`, e);
+      }
+      await dialog.dismiss().catch(() => {});
+    });
+
+    // Console error capture (Step 5)
+    page.on('pageerror', (err) => {
+      console.log(`[BROWSER CONSOLE ERROR] ${err.message}`);
+    });
+
     const session: Session = {
-      browser,
       context,
       page,
       lastAccess: Date.now()
@@ -81,12 +112,22 @@ export class SessionManager {
       try {
         await session.page.close();
         await session.context.close();
-        await session.browser.close();
       } catch (e) {
-        console.error(`[SESSIONS] Error closing session ${scanId}:`, e);
+        console.error(`[SESSIONS] Error closing context for ${scanId}:`, e);
       } finally {
         this.sessions.delete(scanId);
       }
+    }
+  }
+
+  public async shutdown() {
+    console.log('[SESSIONS] Shutting down shared browser and closing all contexts...');
+    for (const scanId of this.sessions.keys()) {
+      await this.closeSession(scanId);
+    }
+    if (this.sharedBrowser) {
+      await this.sharedBrowser.close().catch(() => {});
+      this.sharedBrowser = null;
     }
   }
 }

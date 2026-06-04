@@ -15,7 +15,7 @@ sys.path.append(proto_sub_dir)
 
 import ai_pb2
 import ai_pb2_grpc
-from llm.provider import MockProvider, GeminiProvider, OllamaProvider
+from llm.provider import LLMProvider, MockProvider, GeminiProvider, ProviderManager
 from prompts.browser import BROWSER_SYSTEM_INSTRUCTION, get_decide_action_prompt
 
 # Load environment variables
@@ -23,38 +23,55 @@ load_dotenv()
 
 
 class AiServiceServicer(ai_pb2_grpc.AiServiceServicer):
-    """gRPC Servicer implementing the AiService interface."""
+    """gRPC Servicer implementing the AiService interface with dynamic key cycling and failover."""
 
     def __init__(self):
-        # Select provider based on environment variable (defaults to gemini)
-        provider_type = os.getenv("AI_PROVIDER", "gemini").lower()
+        # Select provider based on environment variable (defaults to manager)
+        provider_type = os.getenv("AI_PROVIDER", "manager").lower()
+        
+        self.mock_provider = MockProvider()
+        self.gemini_providers = {}  # Cache by model_name
         
         if provider_type == "mock":
             print("[AI] Initializing Mock LLM Provider (explicitly requested).")
-            self.provider = MockProvider()
-        elif provider_type == "ollama":
-            print(f"[AI] Initializing Ollama LLM Provider.")
-            self.provider = OllamaProvider()
+            self.provider = self.mock_provider
         else:
-            api_key = os.getenv("GEMINI_API_KEY")
-            if not api_key:
-                raise ValueError("GEMINI_API_KEY environment variable must be set. Mock AI fallback is disabled.")
-            self.provider = GeminiProvider(api_key=api_key)
-            model_name = getattr(self.provider, "model_name", "gemini-1.5-flash")
-            print(f"[AI] Initializing Gemini LLM Provider (model: {model_name}).")
+            print("[AI] Initializing ProviderManager with failover & circuit breaker.")
+            self.provider = ProviderManager()
+
+    def _get_provider(self, context) -> LLMProvider:
+        metadata = dict(context.invocation_metadata())
+        provider_type = metadata.get('x-ai-provider')
+        model_name = metadata.get('x-gemini-model', 'gemini-3.5-flash')
+        
+        if not provider_type:
+            return self.provider
+            
+        provider_type = provider_type.lower()
+        if provider_type == "mock":
+            return self.mock_provider
+        elif provider_type == "gemini":
+            if model_name not in self.gemini_providers:
+                api_key = os.getenv("GEMINI_API_KEY")
+                self.gemini_providers[model_name] = GeminiProvider(api_key=api_key, model_name=model_name)
+            return self.gemini_providers[model_name]
+        else:
+            return self.provider
 
     def Health(self, request, context):
         print("[AI] Received Health request")
+        provider = self._get_provider(context)
         provider_name = "mock"
         model_name = "mock-model"
         initialized = True
 
-        if isinstance(self.provider, GeminiProvider):
+        if isinstance(provider, GeminiProvider):
             provider_name = "gemini"
-            model_name = getattr(self.provider, "model_name", "gemini-1.5-flash")
-        elif isinstance(self.provider, OllamaProvider):
-            provider_name = "ollama"
-            model_name = getattr(self.provider, "model_name", "llama3")
+            model_name = getattr(provider, "model_name", "gemini-3.5-flash")
+        elif isinstance(provider, ProviderManager):
+            p_name, active_p = provider._get_active_provider()
+            provider_name = f"manager({p_name})"
+            model_name = getattr(active_p, "model_name", "unknown")
         else:
             requested = os.getenv("AI_PROVIDER", "mock").lower()
             if requested != "mock":
@@ -98,7 +115,8 @@ class AiServiceServicer(ai_pb2_grpc.AiServiceServicer):
         }
 
         try:
-            if isinstance(self.provider, MockProvider):
+            provider = self._get_provider(context)
+            if isinstance(provider, MockProvider):
                 # Mock response maps directly
                 return ai_pb2.AnalyzeReconResponse(
                     detected_technologies=["Nginx", "PHP", "Laravel"],
@@ -107,7 +125,7 @@ class AiServiceServicer(ai_pb2_grpc.AiServiceServicer):
                 )
 
             # Query real provider using structured JSON generation
-            res_json = self.provider.generate_json(
+            res_json = provider.generate_json(
                 prompt, 
                 schema=schema, 
                 system_instruction=system_instruction
@@ -154,7 +172,8 @@ class AiServiceServicer(ai_pb2_grpc.AiServiceServicer):
         )
         
         try:
-            result_json = self.provider.generate_json(
+            provider = self._get_provider(context)
+            result_json = provider.generate_json(
                 prompt, 
                 schema=schema, 
                 system_instruction="Identify potential security issues and business logic flaws in endpoints."
@@ -200,7 +219,8 @@ class AiServiceServicer(ai_pb2_grpc.AiServiceServicer):
         )
         
         try:
-            res_json = self.provider.generate_json(prompt, schema=schema)
+            provider = self._get_provider(context)
+            res_json = provider.generate_json(prompt, schema=schema)
             return ai_pb2.ScoreConfidenceResponse(
                 confidence=float(res_json.get("confidence", 0.5)),
                 explanation=res_json.get("explanation", ""),
@@ -238,16 +258,52 @@ class AiServiceServicer(ai_pb2_grpc.AiServiceServicer):
         )
 
         try:
-            if isinstance(self.provider, MockProvider):
+            provider = self._get_provider(context)
+            if isinstance(provider, MockProvider):
+                title_lower = request.hypothesis_title.lower()
+                method = request.method
+                url = request.endpoint
+                body = ""
+                
+                # Check for query parameters or construct one
+                param_name = "q"
+                if "parameter:" in title_lower:
+                    parts = title_lower.split("parameter:")
+                    if len(parts) > 1:
+                        param_name = parts[1].strip().split()[0].strip("[]()")
+                elif "in " in title_lower:
+                    parts = title_lower.split("in ")
+                    if len(parts) > 1:
+                        param_name = parts[1].strip().split()[0].strip("[]()")
+                else:
+                    param_name = "q"
+
+                if "sqli" in title_lower or "sql injection" in title_lower:
+                    payload = "1' OR '1'='1"
+                elif "xss" in title_lower or "reflected xss" in title_lower:
+                    payload = "<script>alert(1)</script>"
+                elif "path traversal" in title_lower or "traversal" in title_lower:
+                    payload = "../../../../etc/passwd"
+                elif "csrf" in title_lower:
+                    payload = "csrf_exploit_val"
+                else:
+                    payload = "mock_payload"
+
+                if method.upper() == "GET":
+                    sep = "&" if "?" in url else "?"
+                    url = f"{url}{sep}{param_name}={payload}"
+                else:
+                    body = f"{param_name}={payload}"
+
                 return ai_pb2.GenerateAttackPayloadResponse(
-                    method=request.method,
-                    url=request.endpoint,
-                    body="",
-                    headers={"X-LR-Mock": "true"},
-                    explanation="Mock attack payload generated."
+                    method=method,
+                    url=url,
+                    body=body,
+                    headers={"X-LR-Mock": "true", "Content-Type": "application/x-www-form-urlencoded" if body else "text/html"},
+                    explanation=f"Mock attack payload generated for {request.hypothesis_title}."
                 )
 
-            res_json = self.provider.generate_json(
+            res_json = provider.generate_json(
                 prompt,
                 schema=schema,
                 system_instruction="You are a professional penetration tester. Create targeted HTTP exploit payloads."
@@ -306,9 +362,10 @@ class AiServiceServicer(ai_pb2_grpc.AiServiceServicer):
                 except Exception as e:
                     print(f"[AI] [WARNING] Failed to decode screenshot: {e}")
 
-            if isinstance(self.provider, MockProvider):
+            provider = self._get_provider(context)
+            if isinstance(provider, MockProvider):
                 # We can still use generate_json with MockProvider as it was updated
-                res_json = self.provider.generate_json(
+                res_json = provider.generate_json(
                     prompt,
                     schema=schema,
                     system_instruction=BROWSER_SYSTEM_INSTRUCTION,
@@ -321,7 +378,7 @@ class AiServiceServicer(ai_pb2_grpc.AiServiceServicer):
                     explanation=res_json.get("explanation", "Mock response.")
                 )
 
-            res_json = self.provider.generate_json(
+            res_json = provider.generate_json(
                 prompt,
                 schema=schema,
                 system_instruction=BROWSER_SYSTEM_INSTRUCTION,
@@ -364,13 +421,14 @@ class AiServiceServicer(ai_pb2_grpc.AiServiceServicer):
                 request.confidence
             )
 
-            if isinstance(self.provider, MockProvider):
+            provider = self._get_provider(context)
+            if isinstance(provider, MockProvider):
                 return ai_pb2.GenerateFindingNarrativeResponse(
                     description=f"This is a mock description for finding '{request.title}'. It explains how this affects {request.endpoint}.",
                     remediation=f"This is a mock remediation for {request.vulnerability_type}. Ensure proper filters are applied."
                 )
 
-            res_json = self.provider.generate_json(
+            res_json = provider.generate_json(
                 prompt,
                 schema=schema,
                 system_instruction=REPORT_SYSTEM_INSTRUCTION

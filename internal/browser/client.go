@@ -29,10 +29,19 @@ type CrawlRequest struct {
 	ProxyPort int    `json:"proxyPort"`
 }
 
+type DiscoveredForm struct {
+	URL      string           `json:"url"`
+	Selector string           `json:"selector"`
+	Action   string           `json:"action"`
+	Method   string           `json:"method"`
+	Inputs   []BrowserElement `json:"inputs"`
+}
+
 // CrawlResponse is the format returned by the browser crawler.
 type CrawlResponse struct {
 	Success   bool                 `json:"success"`
 	Endpoints []DiscoveredEndpoint `json:"endpoints"`
+	Forms     []DiscoveredForm     `json:"forms"`
 	Error     string               `json:"error"`
 }
 
@@ -118,42 +127,42 @@ func (c *Client) IsOnline(ctx context.Context) bool {
 }
 
 // Crawl sends a crawl request to the Playwright service.
-func (c *Client) Crawl(ctx context.Context, scanID, targetURL string, proxyPort int) ([]DiscoveredEndpoint, error) {
+func (c *Client) Crawl(ctx context.Context, scanID, targetURL string, proxyPort int) ([]DiscoveredEndpoint, []DiscoveredForm, error) {
 	reqBody, err := json.Marshal(CrawlRequest{
 		ScanID:    scanID,
 		TargetURL: targetURL,
 		ProxyPort: proxyPort,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
+		return nil, nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/crawl", bytes.NewBuffer(reqBody))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, nil, fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to contact browser service: %w", err)
+		return nil, nil, fmt.Errorf("failed to contact browser service: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("browser service returned non-200 status code: %d", resp.StatusCode)
+		return nil, nil, fmt.Errorf("browser service returned non-200 status code: %d", resp.StatusCode)
 	}
 
 	var crawlResp CrawlResponse
 	if err := json.NewDecoder(resp.Body).Decode(&crawlResp); err != nil {
-		return nil, fmt.Errorf("failed to decode browser crawl response: %w", err)
+		return nil, nil, fmt.Errorf("failed to decode browser crawl response: %w", err)
 	}
 
 	if !crawlResp.Success {
-		return nil, fmt.Errorf("browser crawl failed: %s", crawlResp.Error)
+		return nil, nil, fmt.Errorf("browser crawl failed: %s", crawlResp.Error)
 	}
 
-	return crawlResp.Endpoints, nil
+	return crawlResp.Endpoints, crawlResp.Forms, nil
 }
 
 // ExecuteAction sends a single browser interaction command to the Playwright service.

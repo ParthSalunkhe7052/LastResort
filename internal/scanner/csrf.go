@@ -65,7 +65,8 @@ func DetectCSRFHeuristic(method, urlStr string, reqHeaders http.Header, body []b
 	return &CSRFHeuristicResult{Suspected: false}, nil
 }
 
-// ScanCSRF is retained for compatibility but does not create findings.
+// ScanCSRF [DEPRECATED] is retained for compatibility but does not create findings.
+// Use runAgentCsrf in internal/orchestrator for modern, browser-aware CSRF testing.
 func (as *ActiveScanner) ScanCSRF(ctx context.Context, scanID, method, urlStr string, reqHeaders http.Header, body []byte, contentType string) error {
 	_ = scanID
 	_, err := DetectCSRFHeuristic(method, urlStr, reqHeaders, body, contentType)

@@ -65,6 +65,31 @@ func InitDB(dbPath string) (*DB, error) {
 		db.Close()
 		return nil, fmt.Errorf("journal tables migration failed: %w", err)
 	}
+	// Phase 2 (verification engine): attack verification table (idempotent).
+	if err := storageDB.CreateVerificationTables(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("verification tables migration failed: %w", err)
+	}
+	// Phase 2 (attack replay): replay table (idempotent).
+	if err := storageDB.CreateReplayTables(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("replay tables migration failed: %w", err)
+	}
+	// Phase 2 (runtime metrics): attack metrics table (idempotent).
+	if err := storageDB.CreateMetricsTables(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("metrics tables migration failed: %w", err)
+	}
+
+	// P0.2 forms and attack attempts tables
+	if err := storageDB.CreateFormsTable(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("forms tables migration failed: %w", err)
+	}
+	if err := storageDB.CreateAttacksTables(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("attack attempts tables migration failed: %w", err)
+	}
 
 	return storageDB, nil
 }
@@ -157,14 +182,13 @@ func (db *DB) createTables() error {
 		`CREATE TABLE IF NOT EXISTS finding_evidence (
 			id TEXT PRIMARY KEY,
 			finding_id TEXT NOT NULL,
-			flow_id INTEGER NOT NULL,
+			flow_id INTEGER,
 			evidence_type TEXT NOT NULL,
 			request_excerpt TEXT,
 			response_excerpt TEXT,
 			screenshot_path TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			FOREIGN KEY (finding_id) REFERENCES findings(id) ON DELETE CASCADE,
-			FOREIGN KEY (flow_id) REFERENCES http_flows(id) ON DELETE CASCADE
+			FOREIGN KEY (finding_id) REFERENCES findings(id) ON DELETE CASCADE
 		);`,
 		`CREATE TABLE IF NOT EXISTS reports (
 			id TEXT PRIMARY KEY,
@@ -174,6 +198,10 @@ func (db *DB) createTables() error {
 			title TEXT NOT NULL,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (scan_id) REFERENCES scans(id) ON DELETE CASCADE
+		);`,
+		`CREATE TABLE IF NOT EXISTS settings (
+			key TEXT PRIMARY KEY,
+			value TEXT NOT NULL
 		);`,
 	}
 

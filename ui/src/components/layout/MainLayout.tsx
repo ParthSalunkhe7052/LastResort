@@ -1,5 +1,5 @@
 import React from 'react'
-import { ShieldAlert, RefreshCw } from 'lucide-react'
+import { ShieldAlert, RefreshCw, LayoutDashboard, Sliders } from 'lucide-react'
 
 interface MainLayoutProps {
   children: React.ReactNode
@@ -13,6 +13,8 @@ interface MainLayoutProps {
 
 export default function MainLayout({
   children,
+  activeTab,
+  setActiveTab,
   goDaemonStatus,
   pythonAiStatus,
   targetUrl,
@@ -22,7 +24,7 @@ export default function MainLayout({
     <div className="flex h-screen overflow-hidden bg-zinc-950 text-zinc-100 font-sans flex-col">
       
       {/* COCKPIT HEADER */}
-      <header className="h-20 border-b border-zinc-800 flex items-center justify-between px-8 bg-zinc-900/40 shrink-0">
+      <header className="h-20 border-b border-zinc-850 flex items-center justify-between px-8 bg-zinc-900/40 shrink-0">
         <div className="flex items-center space-x-3">
           <ShieldAlert className="w-8 h-8 text-amber-500 animate-pulse" />
           <div>
@@ -67,10 +69,47 @@ export default function MainLayout({
         </div>
       </header>
 
-      {/* WORKSPACE AREA */}
-      <main className="flex-1 overflow-hidden p-8 flex flex-col bg-zinc-950">
-        {children}
-      </main>
+      {/* WORKSPACE CONTAINER */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* SIDEBAR */}
+        <aside className="w-64 border-r border-zinc-900 bg-zinc-900/10 p-6 flex flex-col justify-between shrink-0">
+          <nav className="space-y-2">
+            <button
+              onClick={() => setActiveTab('dashboard')}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-xs font-mono tracking-wider transition-all duration-200 cursor-pointer ${
+                activeTab === 'dashboard'
+                  ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20 font-bold'
+                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/40 border border-transparent'
+              }`}
+            >
+              <LayoutDashboard className="w-4 h-4" />
+              <span>DASHBOARD</span>
+            </button>
+            
+            <button
+              onClick={() => setActiveTab('settings')}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-xs font-mono tracking-wider transition-all duration-200 cursor-pointer ${
+                activeTab === 'settings'
+                  ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20 font-bold'
+                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/40 border border-transparent'
+              }`}
+            >
+              <Sliders className="w-4 h-4" />
+              <span>AI & SETTINGS</span>
+            </button>
+          </nav>
+          
+          <div className="border-t border-zinc-900 pt-6 text-[10px] text-zinc-500 font-mono space-y-1">
+            <div>API Key Cycle: Active</div>
+            <div>Failover mode: Auto</div>
+          </div>
+        </aside>
+
+        {/* MAIN WORKSPACE CONTENT */}
+        <main className="flex-1 overflow-y-auto p-8 bg-zinc-950 flex flex-col">
+          {children}
+        </main>
+      </div>
 
     </div>
   )

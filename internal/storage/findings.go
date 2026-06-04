@@ -9,6 +9,53 @@ import (
 	"github.com/google/uuid"
 )
 
+// ─── Finding State Machine ──────────────────────────────────────────────────
+// Findings can only advance forward through these states.
+const (
+	StateObservation       = "OBSERVATION"
+	StatePotentialFinding   = "POTENTIAL_FINDING"
+	StateVerifiedFinding   = "VERIFIED_FINDING"
+	StateNeedsReview       = "NEEDS_REVIEW"
+	StateFalsePositive     = "FALSE_POSITIVE"
+)
+
+func stateWeight(state string) int {
+	switch state {
+	case StateObservation:
+		return 1
+	case StatePotentialFinding:
+		return 2
+	case StateNeedsReview:
+		return 3
+	case StateVerifiedFinding:
+		return 4
+	case StateFalsePositive:
+		return 4 // FalsePositive is also terminal/highest weight
+	default:
+		return 0
+	}
+}
+
+func isValidTransition(from, to string) bool {
+	return stateWeight(to) >= stateWeight(from)
+}
+
+// Map compatibility strings from old database schemas (HYPOTHESIS, ATTEMPT, VERIFIED_ATTACK)
+func mapCategoryForCompatibility(category string) string {
+	switch category {
+	case "VERIFIED_ATTACK":
+		return StateVerifiedFinding
+	case "HYPOTHESIS":
+		return StatePotentialFinding
+	case "ATTEMPT":
+		return StateFalsePositive
+	case "":
+		return StateObservation
+	default:
+		return category
+	}
+}
+
 // Finding represents a saved security finding
 type Finding struct {
 	ID                string  `json:"id"`
@@ -36,11 +83,13 @@ type FindingInput struct {
 	Payload           string
 	ResponseStatus    int
 	Confidence        float64
+	// Category must be one of the State constants.
 	Category          string
+	// VerificationID links to attack_verifications table. Required for StateVerifiedFinding.
+	VerificationID    string
 }
 
 // SaveFinding is deprecated and intentionally blocked.
-// Findings must never be created without evidence (see SaveFindingWithEvidence).
 func (db *DB) SaveFinding(ctx context.Context, scanID, title, description, severity, vulnType, endpoint, payload string, respStatus int, confidence float64) (string, error) {
 	_ = ctx
 	_ = scanID
@@ -56,9 +105,10 @@ func (db *DB) SaveFinding(ctx context.Context, scanID, title, description, sever
 }
 
 // SaveFindingWithEvidence inserts or updates (upserts) a security finding and attaches evidence.
-// If evidence is missing, it fails hard.
-// SaveFindingWithEvidence inserts or updates (upserts) a security finding and attaches evidence.
-// If evidence is missing, it fails hard.
+//
+// STATE MACHINE ENFORCEMENT:
+//   - StateVerifiedFinding requires: RequestExcerpt, ResponseExcerpt, screenshot/DOM snapshot and a valid VerificationID.
+//   - A finding's state can only advance, never retreat via this call.
 func (db *DB) SaveFindingWithEvidence(ctx context.Context, in FindingInput, ev EvidenceInput) (string, error) {
 	if in.ScanID == "" {
 		return "", fmt.Errorf("scanID is required")
@@ -78,17 +128,28 @@ func (db *DB) SaveFindingWithEvidence(ctx context.Context, in FindingInput, ev E
 	if in.Endpoint == "" {
 		return "", fmt.Errorf("endpoint is required")
 	}
-	if ev.FlowID <= 0 {
-		return "", fmt.Errorf("evidence.flow_id is required")
-	}
 	if ev.EvidenceType == "" {
 		return "", fmt.Errorf("evidence.evidence_type is required")
 	}
+	
+	// Normalize Category
+	in.Category = mapCategoryForCompatibility(in.Category)
+
+	// State machine: VERIFIED_FINDING requires actual evidence content and verification details
+	if in.Category == StateVerifiedFinding {
+		if ev.RequestExcerpt == "" || ev.ResponseExcerpt == "" {
+			return "", fmt.Errorf("VERIFIED_FINDING state requires request and response excerpts")
+		}
+		if in.VerificationID == "" {
+			return "", fmt.Errorf("VERIFIED_FINDING state requires a valid VerificationID linked to successful verification")
+		}
+	}
+	
 	if in.Category == "" {
-		in.Category = "OBSERVATION"
+		in.Category = StateObservation
 	}
 
-	// 1. Run audit verification to demote false/unverified attacks to HYPOTHESIS
+	// 1. Run audit verification to demote unverified attacks to Potential Finding
 	auditFinding(&in, &ev)
 
 	// 2. Format description into the structured sections (Risk/Evidence/Fix/Confidence or Result/Impact/Evidence/Confidence)
@@ -97,9 +158,15 @@ func (db *DB) SaveFindingWithEvidence(ctx context.Context, in FindingInput, ev E
 	fp := GenerateFingerprint(in.VulnerabilityType, in.Endpoint, in.Title)
 
 	// Check if a finding with this fingerprint already exists for the scan
-	var existingID string
-	err := db.QueryRowContext(ctx, "SELECT id FROM findings WHERE scan_id = ? AND fingerprint = ?", in.ScanID, fp).Scan(&existingID)
+	var existingID, existingCategory string
+	err := db.QueryRowContext(ctx, "SELECT id, category FROM findings WHERE scan_id = ? AND fingerprint = ?", in.ScanID, fp).Scan(&existingID, &existingCategory)
 	if err == nil {
+		existingCategory = mapCategoryForCompatibility(existingCategory)
+		// Enforce transitions: only allow transition if valid
+		if !isValidTransition(existingCategory, in.Category) {
+			in.Category = existingCategory // Retain the higher existing state
+		}
+
 		// Update the existing finding and increment its occurrence count
 		_, err = db.ExecContext(ctx,
 			`UPDATE findings SET
@@ -139,26 +206,43 @@ func (db *DB) SaveFindingWithEvidence(ctx context.Context, in FindingInput, ev E
 	return findingID, nil
 }
 
+// auditFinding decides if a VERIFIED_FINDING claim is legitimate.
+// If the evidence doesn't support verification, the finding is demoted to StatePotentialFinding.
 func auditFinding(in *FindingInput, ev *EvidenceInput) {
-	if in.Category != "VERIFIED_ATTACK" {
+	if in.Category != StateVerifiedFinding {
 		return
 	}
 
-	// Bypass audit for AI-verified findings as they use higher-level adversarial reasoning
-	if strings.Contains(in.Title, "[AI-VERIFIED]") {
+	// VerificationID set means the new verification engine already validated this finding.
+	if in.VerificationID != "" {
 		return
 	}
 
+	// Browser-verified XSS DOM marker checks
+	if strings.Contains(ev.ResponseExcerpt, "lastresort-xss-alert-detected") {
+		return
+	}
+
+	// Browser-verified rate limit check
+	if strings.Contains(ev.ResponseExcerpt, "lastresort-ratelimit-results") {
+		return
+	}
+
+	// Check for un-escaped canary reflection inside body
 	respLower := strings.ToLower(ev.ResponseExcerpt)
-	isSQLi := in.VulnerabilityType == "SQL Injection" || strings.Contains(strings.ToLower(in.Title), "sqli") || strings.Contains(strings.ToLower(in.Title), "sql injection")
-	isXSS := in.VulnerabilityType == "Reflected XSS" || strings.Contains(strings.ToLower(in.Title), "xss") || strings.Contains(strings.ToLower(in.Title), "reflected xss")
-	
+	isSQLi := in.VulnerabilityType == "SQL Injection" || strings.Contains(strings.ToLower(in.Title), "sql injection")
+	isXSS := in.VulnerabilityType == "Reflected XSS" || strings.Contains(strings.ToLower(in.Title), "xss")
+
 	isVerified := false
 	if isSQLi {
-		isTimeBased := strings.Contains(strings.ToLower(in.Description), "time-based") || strings.Contains(strings.ToLower(in.Title), "time-based")
-		isErrorBased := strings.Contains(respLower, "sqlite_master") || strings.Contains(respLower, "sqlite_version") || strings.Contains(respLower, "mysql_query") || strings.Contains(respLower, "pg_catalog")
-		isBypass := in.ResponseStatus == 200 && (strings.Contains(respLower, "welcome") || strings.Contains(respLower, "admin") || strings.Contains(respLower, "user") || strings.Contains(respLower, "session"))
-		
+		isTimeBased := strings.Contains(strings.ToLower(in.Description), "time-based")
+		isErrorBased := strings.Contains(respLower, "sqlite_master") ||
+			strings.Contains(respLower, "syntax error") ||
+			strings.Contains(respLower, "unclosed quotation") ||
+			strings.Contains(respLower, "you have an error in your sql")
+		isBypass := in.ResponseStatus == 200 &&
+			(strings.Contains(respLower, "welcome") || strings.Contains(respLower, "admin") ||
+				strings.Contains(respLower, "dashboard") || strings.Contains(respLower, "logged in"))
 		if isTimeBased || isErrorBased || isBypass {
 			isVerified = true
 		}
@@ -172,16 +256,14 @@ func auditFinding(in *FindingInput, ev *EvidenceInput) {
 			isVerified = true
 		}
 	}
-	
+
 	if !isVerified {
-		in.Category = "HYPOTHESIS"
-		in.Title = strings.Replace(in.Title, "[AI-VERIFIED]", "[AI-HYPOTHESIS]", -1)
-		in.Title = strings.Replace(in.Title, "[VERIFIED]", "[HYPOTHESIS]", -1)
+		in.Category = StatePotentialFinding
 	}
 }
 
 func formatDescription(in *FindingInput, ev *EvidenceInput) string {
-	if strings.Contains(in.Description, "Risk:") || strings.Contains(in.Description, "Result:") {
+	if strings.Contains(in.Description, "Result:") || strings.Contains(in.Description, "Risk:") {
 		return in.Description
 	}
 
@@ -234,7 +316,7 @@ func formatDescription(in *FindingInput, ev *EvidenceInput) string {
 		evidence = "Endpoint accepted consecutive bulk requests without throttling."
 		fix = "Implement rate limiting and throttling on sensitive endpoints."
 	} else if strings.Contains(vulnLower, "sqli") || strings.Contains(vulnLower, "sql injection") || strings.Contains(titleLower, "sql injection") {
-		if in.Category == "VERIFIED_ATTACK" {
+		if in.Category == StateVerifiedFinding {
 			result = "Database query structure was successfully modified using SQL injection."
 			impact = "Attacker can read, modify, or delete database records without authorization."
 			evidence = "Injected payload returned modified query results or database errors."
@@ -244,7 +326,7 @@ func formatDescription(in *FindingInput, ev *EvidenceInput) string {
 			fix = "Use parameterized queries (prepared statements) for all database operations."
 		}
 	} else if strings.Contains(vulnLower, "xss") || strings.Contains(vulnLower, "reflected xss") || strings.Contains(titleLower, "xss") {
-		if in.Category == "VERIFIED_ATTACK" {
+		if in.Category == StateVerifiedFinding {
 			result = "Reflected input payload executed successfully in the browser."
 			impact = "Attacker can execute arbitrary scripts in the context of the user's session."
 			evidence = "Input payload was reflected in response body without proper encoding."
@@ -255,7 +337,7 @@ func formatDescription(in *FindingInput, ev *EvidenceInput) string {
 		}
 	} else {
 		sentences := splitIntoSentences(in.Description)
-		if in.Category == "VERIFIED_ATTACK" {
+		if in.Category == StateVerifiedFinding {
 			result = "Exploit payload executed successfully against the target."
 			impact = "Attacker can perform unauthorized actions or access restricted resources."
 			evidence = "Response behavior was different from the normal baseline response."
@@ -284,7 +366,7 @@ func formatDescription(in *FindingInput, ev *EvidenceInput) string {
 		}
 	}
 
-	if in.Category == "VERIFIED_ATTACK" {
+	if in.Category == StateVerifiedFinding {
 		return fmt.Sprintf("Result:\n- %s\n\nImpact:\n- %s\n\nEvidence:\n- %s\n\nConfidence:\n- %s", result, impact, evidence, confidenceLabel)
 	} else {
 		return fmt.Sprintf("Risk:\n- %s\n\nEvidence:\n- %s\n\nFix:\n- %s\n\nConfidence:\n- %s", risk, evidence, fix, confidenceLabel)
@@ -315,4 +397,5 @@ func truncateSentence(s string) string {
 	}
 	return s
 }
+
 

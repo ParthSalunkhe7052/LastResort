@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -28,6 +29,7 @@ type Orchestrator struct {
 	aiClient      aiv1connect.AiServiceClient
 	browserClient *browser.Client
 	proxyPort     int
+	verification  *VerificationEngine
 }
 
 // NewOrchestrator instantiates a new Orchestrator
@@ -37,6 +39,7 @@ func NewOrchestrator(db *storage.DB, aiClient aiv1connect.AiServiceClient, proxy
 		aiClient:      aiClient,
 		browserClient: browser.NewClient(""),
 		proxyPort:     proxyPort,
+		verification:  NewVerificationEngine(aiClient),
 	}
 }
 
@@ -417,83 +420,771 @@ func moduleDisplayName(module string) string {
 	}
 }
 
-func (o *Orchestrator) runAgentSqli(ctx context.Context, scanID, targetURL string) error {
+type AttackSurface struct {
+	URL         string
+	Method      string
+	BaseBody    []byte
+	ContentType string
+	Point       scanner.InsertionPoint
+	IsForm      bool
+	FormSel     string
+}
+
+func (o *Orchestrator) getAttackSurfaces(ctx context.Context, scanID string) ([]AttackSurface, error) {
+	var surfaces []AttackSurface
+
+	// 1. Fetch static/recon endpoints
 	endpoints, err := o.db.ListEndpoints(ctx, scanID)
+	if err != nil {
+		return nil, fmt.Errorf("list endpoints: %w", err)
+	}
+
+	for _, ep := range endpoints {
+		points, _ := scanner.ExtractInsertionPoints(ep.Method, ep.URL, nil, "")
+		for _, pt := range points {
+			surfaces = append(surfaces, AttackSurface{
+				URL:         ep.URL,
+				Method:      ep.Method,
+				ContentType: "application/x-www-form-urlencoded",
+				Point:       pt,
+				IsForm:      false,
+			})
+		}
+	}
+
+	// 2. Fetch discovered forms
+	forms, err := o.db.ListForms(ctx, scanID)
+	if err != nil {
+		log.Printf("[Orchestrator] ListForms error: %v", err)
+		return surfaces, nil
+	}
+
+	for _, f := range forms {
+		var inputs []browser.BrowserElement
+		if err := json.Unmarshal([]byte(f.InputsJSON), &inputs); err != nil {
+			continue
+		}
+
+		for _, in := range inputs {
+			tLower := strings.ToLower(in.Type)
+			if tLower == "submit" || tLower == "button" || tLower == "image" {
+				continue
+			}
+
+			paramName := in.Name
+			if paramName == "" {
+				paramName = in.ID
+			}
+			if paramName == "" {
+				paramName = in.Selector
+			}
+			if paramName == "" {
+				continue
+			}
+
+			paramType := scanner.ParamQuery
+			if strings.ToUpper(f.Method) == "POST" {
+				paramType = scanner.ParamForm
+			}
+
+			pt := scanner.InsertionPoint{
+				Name:  paramName,
+				Type:  paramType,
+				Value: in.Value,
+			}
+
+			var baseBody []byte
+			if strings.ToUpper(f.Method) == "POST" {
+				vals := url.Values{}
+				for _, otherIn := range inputs {
+					otherName := otherIn.Name
+					if otherName == "" {
+						otherName = otherIn.ID
+					}
+					if otherName != "" && otherIn.Type != "submit" && otherIn.Type != "button" {
+						vals.Set(otherName, otherIn.Value)
+					}
+				}
+				baseBody = []byte(vals.Encode())
+			}
+
+			surfaces = append(surfaces, AttackSurface{
+				URL:         f.URL,
+				Method:      f.Method,
+				BaseBody:    baseBody,
+				ContentType: "application/x-www-form-urlencoded",
+				Point:       pt,
+				IsForm:      true,
+				FormSel:     f.Selector,
+			})
+		}
+	}
+
+	return surfaces, nil
+}
+
+func makeFormSubmitScript(actionURL, method string, body []byte) string {
+	vals, err := url.ParseQuery(string(body))
+	if err != nil {
+		return fmt.Sprintf(`
+			fetch("%s", {
+				method: "%s",
+				body: %q
+			}).then(r => r.text()).then(html => {
+				document.open();
+				document.write(html);
+				document.close();
+			});
+		`, actionURL, method, string(body))
+	}
+
+	js := fmt.Sprintf(`
+		(function() {
+			const form = document.createElement('form');
+			form.method = %q;
+			form.action = %q;
+	`, method, actionURL)
+
+	for k, vs := range vals {
+		for _, v := range vs {
+			js += fmt.Sprintf(`
+				{
+					const inp = document.createElement('input');
+					inp.type = 'hidden';
+					inp.name = %q;
+					inp.value = %q;
+					form.appendChild(inp);
+				}
+			`, k, v)
+		}
+	}
+
+	js += `
+			document.body.appendChild(form);
+			form.submit();
+		})();
+	`
+	return js
+}
+
+func (o *Orchestrator) executeDeterministicAttack(
+	ctx context.Context,
+	scanID string,
+	method string,
+	urlStr string,
+	body []byte,
+) (*browser.ActionResult, error) {
+	methodUpper := strings.ToUpper(method)
+	if methodUpper == "GET" || len(body) == 0 {
+		actionReq := browser.ActionRequest{
+			ScanID:    scanID,
+			URL:       urlStr,
+			Action:    "navigate",
+			ProxyPort: o.proxyPort,
+		}
+		return o.browserClient.ExecuteAction(ctx, actionReq)
+	}
+
+	_, _ = o.browserClient.ExecuteAction(ctx, browser.ActionRequest{
+		ScanID:    scanID,
+		URL:       urlStr,
+		Action:    "navigate",
+		ProxyPort: o.proxyPort,
+	})
+
+	script := makeFormSubmitScript(urlStr, methodUpper, body)
+
+	actionReq := browser.ActionRequest{
+		ScanID:    scanID,
+		Action:    "evaluate",
+		Value:     script,
+		ProxyPort: o.proxyPort,
+	}
+	return o.browserClient.ExecuteAction(ctx, actionReq)
+}
+
+func (o *Orchestrator) runAgentSqli(ctx context.Context, scanID, targetURL string) error {
+	surfaces, err := o.getAttackSurfaces(ctx, scanID)
 	if err != nil {
 		return err
 	}
 
-	for _, ep := range endpoints {
-		// Only meaningful when there are insertion points.
-		points, _ := scanner.ExtractInsertionPoints(ep.Method, ep.URL, nil, "")
-		if len(points) == 0 {
+	for _, surf := range surfaces {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		payloadReq := connect.NewRequest(&aiv1.GenerateAttackPayloadRequest{
+			HypothesisTitle:       fmt.Sprintf("SQL Injection in %s", surf.Point.Name),
+			HypothesisDescription: fmt.Sprintf("Potential SQL injection vulnerability detected in parameter %s at %s.", surf.Point.Name, surf.URL),
+			Endpoint:              surf.URL,
+			Method:                surf.Method,
+		})
+
+		start := time.Now()
+		payloadRes, err := o.aiClient.GenerateAttackPayload(ctx, payloadReq)
+		o.trackGeminiCall(ctx, scanID, time.Since(start))
+		if err != nil {
 			continue
 		}
 
-		for _, pt := range points {
+		_ = o.db.IncrementAttackExecuted(ctx, scanID)
+
+		injectedURL, injectedBody := scanner.BuildInjectedRequest(surf.Method, surf.URL, surf.BaseBody, surf.ContentType, surf.Point, payloadRes.Msg.Body)
+
+		attemptID, _ := o.db.SaveAttackAttempt(ctx, storage.AttackAttemptInput{
+			ScanID:           scanID,
+			AttackType:       "SQL Injection",
+			Endpoint:         injectedURL,
+			Payload:          payloadRes.Msg.Body,
+			RequestCaptured:  fmt.Sprintf("%s %s\nContent-Type: %s\n\n%s", surf.Method, injectedURL, surf.ContentType, string(injectedBody)),
+			ResponseCaptured: "",
+			EvidenceFound:    "",
+			Result:           "failed",
+		})
+
+		actionRes, err := o.executeDeterministicAttack(ctx, scanID, surf.Method, injectedURL, injectedBody)
+		if err != nil || actionRes == nil {
+			_ = o.db.IncrementAttackFailed(ctx, scanID)
+			continue
+		}
+
+		if attemptID != "" && actionRes.PageSource != "" {
+			resExcerpt := actionRes.PageSource
+			if len(resExcerpt) > 1000 {
+				resExcerpt = resExcerpt[:1000]
+			}
+			_, _ = o.db.ExecContext(ctx, "UPDATE attack_attempts SET response_captured = ? WHERE id = ?", resExcerpt, attemptID)
+		}
+
+		vr := o.verification.VerifySQLi(ctx, injectedURL, payloadRes.Msg.Body, actionRes.PageSource, actionRes.ScreenshotBase64)
+
+		if !vr.Verified {
+			_ = o.db.IncrementAttackFailed(ctx, scanID)
+			continue
+		}
+
+		_ = o.db.IncrementAttackVerified(ctx, scanID)
+		_, _ = o.db.ExecContext(ctx, "UPDATE attack_attempts SET result = ?, evidence_found = ? WHERE id = ?", "verified", vr.EvidenceSummary, attemptID)
+
+		findingID, err := o.db.SaveFindingWithEvidence(ctx, storage.FindingInput{
+			ScanID:            scanID,
+			Title:             "[AI-VERIFIED] SQL Injection in Parameter: " + surf.Point.Name,
+			Description:       payloadRes.Msg.Explanation + "\n\nVerification: " + vr.EvidenceSummary,
+			Severity:          "HIGH",
+			VulnerabilityType: "SQL Injection",
+			Endpoint:          injectedURL,
+			Payload:           payloadRes.Msg.Body,
+			ResponseStatus:    200,
+			Confidence:        vr.Confidence,
+			Category:          storage.StatePotentialFinding,
+		}, storage.EvidenceInput{
+			FlowID:          0,
+			EvidenceType:    storage.EvidenceScreenshot,
+			RequestExcerpt:  fmt.Sprintf("%s %s\n\n%s", surf.Method, injectedURL, string(injectedBody)),
+			ResponseExcerpt: actionRes.PageSource,
+			ScreenshotB64:   actionRes.ScreenshotBase64,
+		})
+
+		if err == nil {
+			verifID, verifErr := o.db.SaveVerification(ctx, findingID, scanID, vr)
+			if verifErr == nil {
+				_, _ = o.db.ExecContext(ctx, "UPDATE findings SET category = ?, verification_id = ? WHERE id = ?", storage.StateVerifiedFinding, verifID, findingID)
+			}
+		}
+	}
+	return nil
+}
+
+func (o *Orchestrator) runAgentXss(ctx context.Context, scanID, targetURL string) error {
+	surfaces, err := o.getAttackSurfaces(ctx, scanID)
+	if err != nil {
+		return err
+	}
+
+	for _, surf := range surfaces {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		payloadReq := connect.NewRequest(&aiv1.GenerateAttackPayloadRequest{
+			HypothesisTitle:       fmt.Sprintf("Cross-Site Scripting in %s", surf.Point.Name),
+			HypothesisDescription: fmt.Sprintf("Potential XSS vulnerability detected in parameter %s at %s.", surf.Point.Name, surf.URL),
+			Endpoint:              surf.URL,
+			Method:                surf.Method,
+		})
+
+		start := time.Now()
+		payloadRes, err := o.aiClient.GenerateAttackPayload(ctx, payloadReq)
+		o.trackGeminiCall(ctx, scanID, time.Since(start))
+		if err != nil {
+			continue
+		}
+
+		_ = o.db.IncrementAttackExecuted(ctx, scanID)
+
+		injectedURL, injectedBody := scanner.BuildInjectedRequest(surf.Method, surf.URL, surf.BaseBody, surf.ContentType, surf.Point, payloadRes.Msg.Body)
+
+		attemptID, _ := o.db.SaveAttackAttempt(ctx, storage.AttackAttemptInput{
+			ScanID:           scanID,
+			AttackType:       "XSS",
+			Endpoint:         injectedURL,
+			Payload:          payloadRes.Msg.Body,
+			RequestCaptured:  fmt.Sprintf("%s %s\nContent-Type: %s\n\n%s", surf.Method, injectedURL, surf.ContentType, string(injectedBody)),
+			ResponseCaptured: "",
+			EvidenceFound:    "",
+			Result:           "failed",
+		})
+
+		actionRes, err := o.executeDeterministicAttack(ctx, scanID, surf.Method, injectedURL, injectedBody)
+		if err != nil || actionRes == nil {
+			_ = o.db.IncrementAttackFailed(ctx, scanID)
+			continue
+		}
+
+		if attemptID != "" && actionRes.PageSource != "" {
+			resExcerpt := actionRes.PageSource
+			if len(resExcerpt) > 1000 {
+				resExcerpt = resExcerpt[:1000]
+			}
+			_, _ = o.db.ExecContext(ctx, "UPDATE attack_attempts SET response_captured = ? WHERE id = ?", resExcerpt, attemptID)
+		}
+
+		vr := o.verification.VerifyXSS(ctx, "Reflected XSS", injectedURL, payloadRes.Msg.Body, actionRes.PageSource, actionRes.ScreenshotBase64)
+
+		if !vr.Verified {
+			_ = o.db.IncrementAttackFailed(ctx, scanID)
+			continue
+		}
+
+		_ = o.db.IncrementAttackVerified(ctx, scanID)
+		_, _ = o.db.ExecContext(ctx, "UPDATE attack_attempts SET result = ?, evidence_found = ? WHERE id = ?", "verified", vr.EvidenceSummary, attemptID)
+
+		findingID, err := o.db.SaveFindingWithEvidence(ctx, storage.FindingInput{
+			ScanID:            scanID,
+			Title:             "[AI-VERIFIED] Cross-Site Scripting in Parameter: " + surf.Point.Name,
+			Description:       payloadRes.Msg.Explanation + "\n\nVerification: " + vr.EvidenceSummary,
+			Severity:          "HIGH",
+			VulnerabilityType: "XSS",
+			Endpoint:          injectedURL,
+			Payload:           payloadRes.Msg.Body,
+			ResponseStatus:    200,
+			Confidence:        vr.Confidence,
+			Category:          storage.StatePotentialFinding,
+		}, storage.EvidenceInput{
+			FlowID:          0,
+			EvidenceType:    storage.EvidenceScreenshot,
+			RequestExcerpt:  fmt.Sprintf("%s %s\n\n%s", surf.Method, injectedURL, string(injectedBody)),
+			ResponseExcerpt: actionRes.PageSource,
+			ScreenshotB64:   actionRes.ScreenshotBase64,
+		})
+
+		if err == nil {
+			verifID, verifErr := o.db.SaveVerification(ctx, findingID, scanID, vr)
+			if verifErr == nil {
+				_, _ = o.db.ExecContext(ctx, "UPDATE findings SET category = ?, verification_id = ? WHERE id = ?", storage.StateVerifiedFinding, verifID, findingID)
+			}
+		}
+	}
+	return nil
+}
+
+func (o *Orchestrator) runAgentPathTraversal(ctx context.Context, scanID, targetURL string) error {
+	surfaces, err := o.getAttackSurfaces(ctx, scanID)
+	if err != nil {
+		return err
+	}
+
+	for _, surf := range surfaces {
+		pLower := strings.ToLower(surf.Point.Name)
+		if !strings.Contains(pLower, "file") && !strings.Contains(pLower, "path") &&
+			!strings.Contains(pLower, "doc") && !strings.Contains(pLower, "page") &&
+			!strings.Contains(pLower, "url") {
+			continue
+		}
+
+		for _, payload := range scanner.PathTraversalPayloads {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
 			default:
 			}
 
-			// 1. Generate Attack Payload for SQLi
-			payloadReq := connect.NewRequest(&aiv1.GenerateAttackPayloadRequest{
-				HypothesisTitle:       fmt.Sprintf("SQL Injection in %s", pt.Name),
-				HypothesisDescription: fmt.Sprintf("Potential SQL injection vulnerability detected in parameter %s at %s.", pt.Name, ep.URL),
-				Endpoint:              ep.URL,
-				Method:                ep.Method,
+			injectedURL, injectedBody := scanner.BuildInjectedRequest(surf.Method, surf.URL, surf.BaseBody, surf.ContentType, surf.Point, payload.Value)
+
+			_ = o.db.IncrementAttackExecuted(ctx, scanID)
+
+			attemptID, _ := o.db.SaveAttackAttempt(ctx, storage.AttackAttemptInput{
+				ScanID:           scanID,
+				AttackType:       "Path Traversal",
+				Endpoint:         injectedURL,
+				Payload:          payload.Value,
+				RequestCaptured:  fmt.Sprintf("%s %s\nContent-Type: %s\n\n%s", surf.Method, injectedURL, surf.ContentType, string(injectedBody)),
+				ResponseCaptured: "",
+				EvidenceFound:    "",
+				Result:           "failed",
 			})
 
-			start := time.Now()
-			payloadRes, err := o.aiClient.GenerateAttackPayload(ctx, payloadReq)
-			o.trackGeminiCall(ctx, scanID, time.Since(start))
-			if err != nil {
-				continue
-			}
-
-			// 2. Execute Attack (Agent-Driven)
-			actionRes, err := o.executeBrowserAttack(ctx, scanID, payloadRes.Msg)
+			actionRes, err := o.executeDeterministicAttack(ctx, scanID, surf.Method, injectedURL, injectedBody)
 			if err != nil || actionRes == nil {
+				_ = o.db.IncrementAttackFailed(ctx, scanID)
 				continue
 			}
 
-			// 3. Score confidence using AI verification
-			scoreReq := connect.NewRequest(&aiv1.ScoreConfidenceRequest{
-				VulnerabilityType: "SQL Injection",
-				Endpoint:          payloadRes.Msg.Url,
-				Payload:           payloadRes.Msg.Body,
-				ResponseBody:      actionRes.PageSource,
+			if attemptID != "" && actionRes.PageSource != "" {
+				resExcerpt := actionRes.PageSource
+				if len(resExcerpt) > 1000 {
+					resExcerpt = resExcerpt[:1000]
+				}
+				_, _ = o.db.ExecContext(ctx, "UPDATE attack_attempts SET response_captured = ? WHERE id = ?", resExcerpt, attemptID)
+			}
+
+			vr := o.verification.VerifyPathTraversal(ctx, injectedURL, payload.Value, actionRes.PageSource, actionRes.ScreenshotBase64)
+
+			if !vr.Verified {
+				_ = o.db.IncrementAttackFailed(ctx, scanID)
+				continue
+			}
+
+			_ = o.db.IncrementAttackVerified(ctx, scanID)
+			_, _ = o.db.ExecContext(ctx, "UPDATE attack_attempts SET result = ?, evidence_found = ? WHERE id = ?", "verified", vr.EvidenceSummary, attemptID)
+
+			findingID, err := o.db.SaveFindingWithEvidence(ctx, storage.FindingInput{
+				ScanID:            scanID,
+				Title:             "[AI-VERIFIED] Path Traversal in Parameter: " + surf.Point.Name,
+				Description:       payload.Description + "\n\nVerification: " + vr.EvidenceSummary,
+				Severity:          "HIGH",
+				VulnerabilityType: "Path Traversal",
+				Endpoint:          injectedURL,
+				Payload:           payload.Value,
 				ResponseStatus:    200,
+				Confidence:        vr.Confidence,
+				Category:          storage.StatePotentialFinding,
+			}, storage.EvidenceInput{
+				FlowID:          0,
+				EvidenceType:    storage.EvidenceScreenshot,
+				RequestExcerpt:  fmt.Sprintf("%s %s\n\n%s", surf.Method, injectedURL, string(injectedBody)),
+				ResponseExcerpt: actionRes.PageSource,
+				ScreenshotB64:   actionRes.ScreenshotBase64,
 			})
-			scoreRes, err := o.aiClient.ScoreConfidence(ctx, scoreReq)
-			if err != nil {
-				continue
-			}
 
-			// 4. Save finding if verified
-			if scoreRes.Msg.Confidence > 0.7 && !scoreRes.Msg.IsFalsePositive {
-				_, _ = o.db.SaveFindingWithEvidence(ctx, storage.FindingInput{
-					ScanID:            scanID,
-					Title:             "[AI-VERIFIED] SQL Injection in Parameter: " + pt.Name,
-					Description:       payloadRes.Msg.Explanation + "\n\nVerification: " + scoreRes.Msg.Explanation,
-					Severity:          severityFromConfidence(float64(scoreRes.Msg.Confidence)),
-					VulnerabilityType: "SQL Injection",
-					Endpoint:          payloadRes.Msg.Url,
-					Payload:           payloadRes.Msg.Body,
-					ResponseStatus:    200,
-					Confidence:        float64(scoreRes.Msg.Confidence),
-					Category:          "VERIFIED_ATTACK",
-				}, storage.EvidenceInput{
-					FlowID:          0,
-					EvidenceType:    storage.EvidenceScreenshot,
-					RequestExcerpt:  fmt.Sprintf("%s %s (param: %s)", ep.Method, payloadRes.Msg.Url, pt.Name),
-					ResponseExcerpt: actionRes.PageSource,
-				})
+			if err == nil {
+				verifID, verifErr := o.db.SaveVerification(ctx, findingID, scanID, vr)
+				if verifErr == nil {
+					_, _ = o.db.ExecContext(ctx, "UPDATE findings SET category = ?, verification_id = ? WHERE id = ?", storage.StateVerifiedFinding, verifID, findingID)
+				}
 			}
 		}
 	}
 	return nil
+}
+
+func (o *Orchestrator) runAgentCsrf(ctx context.Context, scanID, targetURL string) error {
+	rows, err := o.db.QueryContext(ctx, "SELECT id, method, url, request_headers, request_body FROM http_flows WHERE scan_id = ? ORDER BY id DESC", scanID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		var flowID int64
+		var method, urlStr string
+		var headersJSON string
+		var body []byte
+		if err := rows.Scan(&flowID, &method, &urlStr, &headersJSON, &body); err != nil {
+			continue
+		}
+
+		reqHeaders := make(http.Header)
+		var hdrMap map[string][]string
+		if json.Unmarshal([]byte(headersJSON), &hdrMap) == nil {
+			for k, v := range hdrMap {
+				for _, vv := range v {
+					reqHeaders.Add(k, vv)
+				}
+			}
+		}
+		contentType := reqHeaders.Get("Content-Type")
+
+		// 1. Heuristically check if this POST/PUT request might lack CSRF tokens
+		res, err := scanner.DetectCSRFHeuristic(method, urlStr, reqHeaders, body, contentType)
+		if err != nil || res == nil || !res.Suspected {
+			continue
+		}
+
+		// 2. Execute Attack (deterministic browser execution)
+		_ = o.db.IncrementAttackExecuted(ctx, scanID)
+
+		attemptID, _ := o.db.SaveAttackAttempt(ctx, storage.AttackAttemptInput{
+			ScanID:           scanID,
+			AttackType:       "CSRF",
+			Endpoint:         urlStr,
+			Payload:          string(body),
+			RequestCaptured:  fmt.Sprintf("%s %s\nContent-Type: %s\n\n%s", method, urlStr, contentType, string(body)),
+			ResponseCaptured: "",
+			EvidenceFound:    "",
+			Result:           "failed",
+		})
+
+		actionRes, err := o.executeDeterministicAttack(ctx, scanID, method, urlStr, body)
+		if err != nil || actionRes == nil {
+			_ = o.db.IncrementAttackFailed(ctx, scanID)
+			continue
+		}
+
+		if attemptID != "" && actionRes.PageSource != "" {
+			resExcerpt := actionRes.PageSource
+			if len(resExcerpt) > 1000 {
+				resExcerpt = resExcerpt[:1000]
+			}
+			_, _ = o.db.ExecContext(ctx, "UPDATE attack_attempts SET response_captured = ? WHERE id = ?", resExcerpt, attemptID)
+		}
+
+		// 3. Run Verification Engine
+		vr := o.verification.VerifyCSRF(ctx, urlStr, string(body), actionRes.PageSource, actionRes.ScreenshotBase64)
+
+		if !vr.Verified {
+			_ = o.db.IncrementAttackFailed(ctx, scanID)
+			continue
+		}
+
+		_ = o.db.IncrementAttackVerified(ctx, scanID)
+		_, _ = o.db.ExecContext(ctx, "UPDATE attack_attempts SET result = ?, evidence_found = ? WHERE id = ?", "verified", vr.EvidenceSummary, attemptID)
+
+		// 4. Save finding
+		findingID, err := o.db.SaveFindingWithEvidence(ctx, storage.FindingInput{
+			ScanID:            scanID,
+			Title:             "[AI-VERIFIED] CSRF Vulnerability on " + urlStr,
+			Description:       res.Reason + "\n\nVerification: " + vr.EvidenceSummary,
+			Severity:          "HIGH",
+			VulnerabilityType: "CSRF",
+			Endpoint:          urlStr,
+			Payload:           string(body),
+			ResponseStatus:    200,
+			Confidence:        vr.Confidence,
+			Category:          storage.StatePotentialFinding,
+		}, storage.EvidenceInput{
+			FlowID:          0,
+			EvidenceType:    storage.EvidenceScreenshot,
+			RequestExcerpt:  fmt.Sprintf("%s %s\n\n%s", method, urlStr, string(body)),
+			ResponseExcerpt: actionRes.PageSource,
+			ScreenshotB64:   actionRes.ScreenshotBase64,
+		})
+
+		if err == nil {
+			verifID, verifErr := o.db.SaveVerification(ctx, findingID, scanID, vr)
+			if verifErr == nil {
+				_, _ = o.db.ExecContext(ctx, "UPDATE findings SET category = ?, verification_id = ? WHERE id = ?", storage.StateVerifiedFinding, verifID, findingID)
+			}
+		}
+	}
+	return nil
+}
+
+func (o *Orchestrator) decideDeterministicAuthAction(
+	ctx context.Context,
+	scanID string,
+	actionRes *browser.ActionResult,
+	targetURL string,
+	history []*storage.JournalEntry,
+) (action string, selector string, value string, reason string, finish bool, needsReview bool) {
+
+	currentURLStr := actionRes.CurrentURL
+
+	// Helper to check if we already tried a selector (allowing max 2 retries, i.e. 3 total attempts)
+	hasTried := func(act, sel, val string) bool {
+		totalAttempts := 0
+		for _, h := range history {
+			if h.Action == act && h.Selector == sel && (val == "" || h.Value == val) {
+				totalAttempts++
+			}
+		}
+		if totalAttempts >= 3 {
+			return true
+		}
+
+		// If the input already contains the target value, consider it tried (no need to refill)
+		if act == "fill" {
+			if actionRes != nil {
+				for _, f := range actionRes.Forms {
+					for _, in := range f.Inputs {
+						if in.Selector == sel && in.Value == val {
+							return true
+						}
+					}
+				}
+			}
+			// Also check if we already filled this selector after the last click in history
+			lastClickIdx := -1
+			for i := len(history) - 1; i >= 0; i-- {
+				if history[i].Action == "click" {
+					lastClickIdx = i
+					break
+				}
+			}
+			for i := lastClickIdx + 1; i < len(history); i++ {
+				h := history[i]
+				if h.Action == "fill" && h.Selector == sel && (val == "" || h.Value == val) {
+					return true
+				}
+			}
+			return false
+		}
+
+		// For click, check if we already clicked this selector after the last fill in history
+		if act == "click" {
+			lastFillIdx := -1
+			for i := len(history) - 1; i >= 0; i-- {
+				if history[i].Action == "fill" {
+					lastFillIdx = i
+					break
+				}
+			}
+			for i := lastFillIdx + 1; i < len(history); i++ {
+				h := history[i]
+				if h.Action == "click" && h.Selector == sel {
+					return true
+				}
+			}
+			return false
+		}
+
+		// Fallback to checking success status of previous attempts
+		for _, h := range history {
+			if h.Action == act && h.Selector == sel && (val == "" || h.Value == val) {
+				if h.Success {
+					return true
+				}
+			}
+		}
+		return false
+	}
+
+	// 1. Check for external domain / OAuth redirect
+	targetParsed, errT := url.Parse(targetURL)
+	currentParsed, errC := url.Parse(currentURLStr)
+	if errT == nil && errC == nil {
+		if currentParsed.Host != targetParsed.Host && currentParsed.Host != "" {
+			// External domain or OAuth redirect
+			reason = fmt.Sprintf("Redirected to external domain / OAuth provider: %s", currentParsed.Host)
+			needsReview = true
+			return "", "", "", reason, true, true
+		}
+	}
+
+	var loginFormFound bool
+	var usernameSel, passwordSel, submitSel string
+	defaultUser, defaultPass := "admin", "admin"
+
+	if strings.Contains(targetURL, "testfire.net") {
+		defaultUser = "admin"
+		defaultPass = "admin"
+	}
+
+	// Scan forms for login fields
+	for _, f := range actionRes.Forms {
+		var uInput, pInput, sInput browser.BrowserElement
+		var hasUser, hasPass bool
+		for _, in := range f.Inputs {
+			tLower := strings.ToLower(in.Type)
+			nLower := strings.ToLower(in.Name)
+			idLower := strings.ToLower(in.ID)
+
+			if tLower == "password" || strings.Contains(nLower, "pass") || strings.Contains(idLower, "pass") || strings.Contains(nLower, "pwd") {
+				pInput = in
+				hasPass = true
+			}
+			if tLower == "email" || tLower == "text" ||
+				strings.Contains(nLower, "user") || strings.Contains(idLower, "user") ||
+				strings.Contains(nLower, "email") || strings.Contains(idLower, "email") ||
+				strings.Contains(nLower, "login") || strings.Contains(idLower, "login") ||
+				strings.Contains(nLower, "uname") ||
+				strings.Contains(nLower, "uid") || strings.Contains(idLower, "uid") ||
+				strings.Contains(nLower, "userid") || strings.Contains(idLower, "userid") ||
+				strings.Contains(nLower, "loginid") || strings.Contains(idLower, "loginid") ||
+				strings.Contains(nLower, "customer") || strings.Contains(idLower, "customer") {
+				if tLower != "password" {
+					uInput = in
+					hasUser = true
+				}
+			}
+			if tLower == "submit" {
+				sInput = in
+			}
+		}
+
+		if hasPass {
+			loginFormFound = true
+			if hasUser {
+				usernameSel = uInput.Selector
+			}
+			passwordSel = pInput.Selector
+			if sInput.Selector != "" {
+				submitSel = sInput.Selector
+			}
+			break
+		}
+	}
+
+	if !loginFormFound {
+		for _, f := range actionRes.Forms {
+			for _, in := range f.Inputs {
+				if strings.ToLower(in.Type) == "password" {
+					passwordSel = in.Selector
+					loginFormFound = true
+					break
+				}
+			}
+			if loginFormFound {
+				break
+			}
+		}
+	}
+
+	if loginFormFound {
+		if usernameSel != "" && !hasTried("fill", usernameSel, defaultUser) {
+			return "fill", usernameSel, defaultUser, "Filling username field", false, false
+		}
+		if passwordSel != "" && !hasTried("fill", passwordSel, defaultPass) {
+			return "fill", passwordSel, defaultPass, "Filling password field", false, false
+		}
+		if submitSel != "" && !hasTried("click", submitSel, "") {
+			return "click", submitSel, "", "Clicking submit button", false, false
+		}
+
+		for _, b := range actionRes.Buttons {
+			bText := strings.ToLower(b.Text)
+			if strings.Contains(bText, "login") || strings.Contains(bText, "sign in") || strings.Contains(bText, "submit") || strings.Contains(bText, "log in") {
+				if !hasTried("click", b.Selector, "") {
+					return "click", b.Selector, "", "Clicking login button", false, false
+				}
+			}
+		}
+	}
+
+	// 6. If no form is found, try navigating to a login page if a link exists
+	for _, l := range actionRes.Links {
+		lText := strings.ToLower(l.Text)
+		lHref := strings.ToLower(l.Href)
+		if strings.Contains(lText, "login") || strings.Contains(lText, "sign in") || strings.Contains(lText, "log in") ||
+			strings.Contains(lHref, "login") || strings.Contains(lHref, "signin") {
+			if !hasTried("click", l.Selector, "") {
+				return "click", l.Selector, "", "Navigating to login page via link click", false, false
+			}
+		}
+	}
+
+	return "finish", "", "", "No login fields or links found. Auth discovery complete.", true, false
 }
 
 func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module string, as *scanner.ActiveScanner) error {
@@ -573,6 +1264,18 @@ func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module 
 			if err != nil {
 				log.Printf("[Orchestrator] [ERROR] Failed to save endpoint %s %s: %v", method, urlStr, err)
 			}
+		}, func(form browser.DiscoveredForm) {
+			_, err := o.db.SaveForm(ctx, storage.FormInput{
+				ScanID:   scanID,
+				URL:      form.URL,
+				Action:   form.Action,
+				Method:   form.Method,
+				Selector: form.Selector,
+				Inputs:   form.Inputs,
+			})
+			if err != nil {
+				log.Printf("[Orchestrator] [ERROR] Failed to save form %s: %v", form.Action, err)
+			}
 		})
 
 	case ModulePassive:
@@ -613,70 +1316,16 @@ func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module 
 		return as.ScanRateLimit(ctx, scanID, targetURL)
 
 	case ModuleXssReflected:
-		endpoints, err := o.db.ListEndpoints(ctx, scanID)
-		if err != nil {
-			return err
-		}
-		for _, ep := range endpoints {
-			// Only meaningful when there are insertion points.
-			points, _ := scanner.ExtractInsertionPoints(ep.Method, ep.URL, nil, "")
-			if len(points) == 0 {
-				continue
-			}
-			_ = as.ScanXSS(ctx, scanID, ep.Method, ep.URL, nil, "")
-		}
-		return nil
+		return o.runAgentXss(ctx, scanID, targetURL)
 
 	case ModuleSqliBasic:
 		return o.runAgentSqli(ctx, scanID, targetURL)
 
 	case ModuleCsrfBasic:
-		rows, err := o.db.QueryContext(ctx, "SELECT id, method, url, request_headers, request_body FROM http_flows WHERE scan_id = ? ORDER BY id DESC", scanID)
-		if err != nil {
-			return err
-		}
-		defer rows.Close()
+		return o.runAgentCsrf(ctx, scanID, targetURL)
 
-		for rows.Next() {
-			var flowID int64
-			var method, urlStr string
-			var headersJSON string
-			var body []byte
-			if err := rows.Scan(&flowID, &method, &urlStr, &headersJSON, &body); err != nil {
-				continue
-			}
-
-			reqHeaders := make(http.Header)
-			var hdrMap map[string][]string
-			if json.Unmarshal([]byte(headersJSON), &hdrMap) == nil {
-				for k, v := range hdrMap {
-					for _, vv := range v {
-						reqHeaders.Add(k, vv)
-					}
-				}
-			}
-			contentType := reqHeaders.Get("Content-Type")
-			res, err := scanner.DetectCSRFHeuristic(method, urlStr, reqHeaders, body, contentType)
-			if err != nil {
-				continue
-			}
-			if res != nil && res.Suspected {
-				_, _ = o.db.SaveHypothesis(ctx, scanID, res.Title, res.Reason, "csrf_heuristic", 0.6, storage.HypothesisGenerated)
-				GlobalBroker.Publish(Event{
-					ScanID:    scanID,
-					Type:      EventHypothesisGenerated,
-					Timestamp: time.Now(),
-					Data: map[string]interface{}{
-						"title":      res.Title,
-						"confidence": float64(0.6),
-						"source":     "csrf_heuristic",
-						"status":     "GENERATED",
-						"flow_id":    float64(flowID),
-					},
-				})
-			}
-		}
-		return nil
+	case ModulePathTraversal:
+		return o.runAgentPathTraversal(ctx, scanID, targetURL)
 
 	case ModuleAiHypotheses:
 		if o.aiClient == nil {
@@ -810,35 +1459,16 @@ func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module 
 
 	case ModuleAuthDiscovery:
 		onLog("[AGENT] Starting autonomous authentication discovery...")
-		browserClient := browser.NewClient("")
-		goal := "Identify login forms, discover authentication endpoints, and attempt to find valid login paths."
+		browserClient := o.browserClient
+
+		// Prioritize 30-second total budget context for authentication discovery
+		authCtx, authCancel := context.WithTimeout(ctx, 30*time.Second)
+		defer authCancel()
 
 		maxSteps := 10
-		var lastAction, lastSelector, lastActionError string
-		var lastActionSuccess bool
-		var currentURL, pageTitle, screenshotBase64 string
-		var links []*aiv1.BrowserElement
-		var buttons []*aiv1.BrowserElement
-		var forms []*aiv1.BrowserForm
-
-		// Load existing history from persistent journal
-		journalEntries, err := o.db.ListJournalEntries(ctx, scanID)
-		if err != nil {
-			onLog(fmt.Sprintf("[AGENT] [WARNING] Failed to load history: %v", err))
-		}
-		var history []*aiv1.BrowserActionOutcome
-		for _, je := range journalEntries {
-			history = append(history, &aiv1.BrowserActionOutcome{
-				Action:    je.Action,
-				Selector:  je.Selector,
-				Value:     je.Value,
-				Success:   je.Success,
-				Error:     je.Error,
-				Result:    je.Result,
-				Reasoning: je.Reasoning,
-			})
-		}
-		currentStep, _ := o.db.GetLastJournalStep(ctx, scanID)
+		consecutiveFailures := 0
+		
+		currentStep, _ := o.db.GetLastJournalStep(authCtx, scanID)
 
 		defer func() {
 			// Cleanup browser session on exit
@@ -850,6 +1480,18 @@ func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module 
 		}()
 
 		for step := currentStep + 1; step <= currentStep+maxSteps; step++ {
+			select {
+			case <-authCtx.Done():
+				onLog("[AGENT] Auth discovery budget timeout reached (30s). Halting module.")
+				return nil
+			default:
+			}
+
+			if consecutiveFailures >= 3 {
+				onLog("[AGENT] [CIRCUIT BREAKER] 3 consecutive action failures detected. Aborting auth discovery.")
+				break
+			}
+
 			onLog(fmt.Sprintf("[AGENT] Step %d: Analyzing current page state...", step))
 
 			// 1. Get current state (navigate to seed first if just starting)
@@ -864,114 +1506,79 @@ func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module 
 				actionReq.Action = "wait"
 			}
 
-			actionRes, err := browserClient.ExecuteAction(ctx, actionReq)
+			actionRes, err := browserClient.ExecuteAction(authCtx, actionReq)
 			if err != nil {
 				onLog(fmt.Sprintf("[AGENT] [ERROR] Browser action failed: %v", err))
+				consecutiveFailures++
+				continue
+			}
+
+			// Retrieve updated journal history
+			history, _ := o.db.ListJournalEntries(authCtx, scanID)
+
+			// 2. Deterministically decide what to do next
+			decideAction, decideSelector, decideValue, decideReason, finish, _ := o.decideDeterministicAuthAction(
+				authCtx,
+				scanID,
+				actionRes,
+				targetURL,
+				history,
+			)
+
+			onLog(fmt.Sprintf("[AGENT] Deterministic Decision: %s (%s)", decideAction, decideReason))
+
+			if finish {
+				onLog("[AGENT] Deterministic signaling discovery phase complete.")
 				break
 			}
 
-			// Update state from response
-			currentURL = actionRes.CurrentURL
-			pageTitle = actionRes.PageTitle
-			screenshotBase64 = actionRes.ScreenshotBase64
-			links = mapBrowserElements(actionRes.Links)
-			buttons = mapBrowserElements(actionRes.Buttons)
-			forms = mapBrowserForms(actionRes.Forms)
-
-			cookiesMap := make(map[string]string)
-			for _, c := range actionRes.Cookies {
-				cookiesMap[c.Name] = c.Value
-			}
-
-			// 2. Ask AI what to do next
-			decideReq := connect.NewRequest(&aiv1.DecideBrowserActionRequest{
-				Url:               targetURL,
-				PageSource:        actionRes.PageSource,
-				CurrentGoal:       goal,
-				LastActionSuccess: lastActionSuccess,
-				LastActionError:   lastActionError,
-				CurrentUrl:        currentURL,
-				PageTitle:         pageTitle,
-				Links:             links,
-				Buttons:           buttons,
-				Forms:             forms,
-				LastAction:        lastAction,
-				LastSelector:      lastSelector,
-				ScreenshotBase64:  screenshotBase64,
-				SessionId:         scanID,
-				Cookies:           cookiesMap,
-				LocalStorage:      actionRes.LocalStorage,
-				History:           history,
-			})
-
-			start := time.Now()
-			decideRes, err := o.aiClient.DecideBrowserAction(ctx, decideReq)
-			o.trackGeminiCall(ctx, scanID, time.Since(start))
-			if err != nil {
-				onLog(fmt.Sprintf("[AGENT] [ERROR] AI Decision failed: %v", err))
-				break
-			}
-
-			onLog(fmt.Sprintf("[AGENT] AI Decision: %s (%s)", decideRes.Msg.Action, decideRes.Msg.Explanation))
-
-			if decideRes.Msg.Action == "finish" {
-				onLog("[AGENT] AI signaling discovery phase complete.")
-				break
-			}
-
-			// 3. Execute the AI decided action
+			// 3. Execute the deterministic action
 			execReq := browser.ActionRequest{
 				ScanID:    scanID,
-				Action:    decideRes.Msg.Action,
-				Selector:  decideRes.Msg.Selector,
-				Value:     decideRes.Msg.Value,
+				Action:    decideAction,
+				Selector:  decideSelector,
+				Value:     decideValue,
 				ProxyPort: o.proxyPort,
 			}
 
-			lastAction = decideRes.Msg.Action
-			lastSelector = decideRes.Msg.Selector
-
-			execRes, err := browserClient.ExecuteAction(ctx, execReq)
+			execRes, err := browserClient.ExecuteAction(authCtx, execReq)
 			var outcome *aiv1.BrowserActionOutcome
 			if err != nil {
-				lastActionSuccess = false
-				lastActionError = err.Error()
-				onLog(fmt.Sprintf("[AGENT] [ERROR] Execution of %s failed: %v", decideRes.Msg.Action, err))
+				consecutiveFailures++
+				onLog(fmt.Sprintf("[AGENT] [ERROR] Execution of %s failed: %v", decideAction, err))
 				
 				outcome = &aiv1.BrowserActionOutcome{
-					Action:   decideRes.Msg.Action,
-					Selector: decideRes.Msg.Selector,
-					Value:    decideRes.Msg.Value,
+					Action:   decideAction,
+					Selector: decideSelector,
+					Value:    decideValue,
 					Success:  false,
 					Error:    err.Error(),
 					Result: &aiv1.ActionResult{
 						Success:       false,
 						FailureReason: err.Error(),
 					},
-					Reasoning: decideRes.Msg.Explanation,
+					Reasoning: decideReason,
 				}
 			} else {
-				lastActionSuccess = execRes.Success
 				if !execRes.Success {
-					lastActionError = execRes.FailureReason
+					consecutiveFailures++
 				} else {
-					lastActionError = ""
+					consecutiveFailures = 0 // reset on success
 				}
 				
 				outcome = &aiv1.BrowserActionOutcome{
-					Action:    decideRes.Msg.Action,
-					Selector:  decideRes.Msg.Selector,
-					Value:     decideRes.Msg.Value,
+					Action:    decideAction,
+					Selector:  decideSelector,
+					Value:     decideValue,
 					Success:   execRes.Success,
 					Error:     execRes.FailureReason,
 					Result:    mapActionResult(execRes),
-					Reasoning: decideRes.Msg.Explanation,
+					Reasoning: decideReason,
 				}
 			}
 
 			// Add to history and persist to journal
-			history = append(history, outcome)
-			_ = o.db.SaveJournalEntry(ctx, &storage.JournalEntry{
+			_ = o.db.SaveJournalEntry(authCtx, &storage.JournalEntry{
 				ScanID:    scanID,
 				Step:      step,
 				Action:    outcome.Action,

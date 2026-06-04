@@ -28,7 +28,7 @@ func NewCrawlManager(scanID string, proxyPort int) *CrawlManager {
 
 // Crawl executes the complete crawl phase for a target URL.
 // It uses a callback function to send discovery logs back to the orchestrator.
-func (cm *CrawlManager) Crawl(ctx context.Context, scanID, seedURL string, onLog func(msg string), onEndpoint func(method, urlStr, source string)) error {
+func (cm *CrawlManager) Crawl(ctx context.Context, scanID, seedURL string, onLog func(msg string), onEndpoint func(method, urlStr, source string), onForm func(form browser.DiscoveredForm)) error {
 	u, err := url.Parse(seedURL)
 	if err != nil {
 		return fmt.Errorf("invalid seed URL: %w", err)
@@ -49,7 +49,7 @@ func (cm *CrawlManager) Crawl(ctx context.Context, scanID, seedURL string, onLog
 		SeedURL:    seedURL,
 		SeedHost:   seedHost,
 		Client:     cm.client,
-		MaxDepth:   3,
+		MaxDepth:   2,
 		Endpoints:  endpointsChan,
 		ErrorLogs:  errorsChan,
 		CancelFunc: cancel,
@@ -115,17 +115,22 @@ func (cm *CrawlManager) Crawl(ctx context.Context, scanID, seedURL string, onLog
 	browserClient := browser.NewClient("")
 	if browserClient.IsOnline(sessionCtx) {
 		onLog("[CRAWLER] Browser crawling service is online. Running Playwright dynamic crawler...")
-		endpoints, err := browserClient.Crawl(sessionCtx, scanID, seedURL, cm.proxyPort)
+		endpoints, forms, err := browserClient.Crawl(sessionCtx, scanID, seedURL, cm.proxyPort)
 		if err != nil {
 			onLog(fmt.Sprintf("[CRAWLER] [ERROR] Browser crawl failed, falling back to static crawl: %v", err))
 			runStaticBFS(sessionCtx, session, endpointsChan, errorsChan, seedURL, sitemapURLs, seedHost, onLog, cm)
 		} else {
-			onLog(fmt.Sprintf("[CRAWLER] Browser crawl succeeded. Processing %d discovered routes.", len(endpoints)))
+			onLog(fmt.Sprintf("[CRAWLER] Browser crawl succeeded. Processing %d discovered routes and %d forms.", len(endpoints), len(forms)))
 			for _, ep := range endpoints {
 				endpointsChan <- DiscoveredEndpoint{
 					Method: ep.Method,
 					URL:    ep.URL,
 					Source: ep.Source,
+				}
+			}
+			for _, f := range forms {
+				if onForm != nil {
+					onForm(f)
 				}
 			}
 		}
