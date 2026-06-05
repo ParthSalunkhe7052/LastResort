@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/parth/lastresort/internal/browser"
+	"github.com/parth/lastresort/internal/attack"
 )
 
 // CrawlManager orchestrates sitemap parsing, link crawling, and JS analysis.
@@ -81,6 +82,15 @@ func (cm *CrawlManager) Crawl(ctx context.Context, scanID, seedURL string, onLog
 			urls, err := ParseSitemap(sessionCtx, cm.client, sm)
 			if err == nil {
 				sitemapURLs = append(sitemapURLs, urls...)
+				for _, smURL := range urls {
+					if IsInCrawlScope(smURL, seedURL) {
+						endpointsChan <- DiscoveredEndpoint{
+							Method: "GET",
+							URL:    smURL,
+							Source: "sitemap",
+						}
+					}
+				}
 			}
 		}
 	}
@@ -111,7 +121,27 @@ func (cm *CrawlManager) Crawl(ctx context.Context, scanID, seedURL string, onLog
 		}
 	}()
 
-	// 2. Try browser crawl if browser service is online; otherwise, fallback to static BFS
+	// 2. Try Katana crawler if available; otherwise try browser crawl if online; fallback to static BFS
+	if attack.ToolAvailable("katana") {
+		onLog("[CRAWLER] Katana crawler binary is available. Running Katana crawl...")
+		err := attack.RunKatanaCrawl(sessionCtx, seedURL, cm.proxyPort, func(method, urlStr, source string) {
+			endpointsChan <- DiscoveredEndpoint{
+				Method: method,
+				URL:    urlStr,
+				Source: source,
+			}
+		})
+		if err == nil {
+			onLog("[CRAWLER] Katana crawler crawl completed successfully.")
+			close(endpointsChan)
+			close(errorsChan)
+			wg.Wait()
+			onLog(fmt.Sprintf("[CRAWLER] Crawl phase completed for Scan ID: %s", scanID))
+			return nil
+		}
+		onLog(fmt.Sprintf("[CRAWLER] [ERROR] Katana crawl failed, falling back: %v", err))
+	}
+
 	browserClient := browser.NewClient("")
 	if browserClient.IsOnline(sessionCtx) {
 		onLog("[CRAWLER] Browser crawling service is online. Running Playwright dynamic crawler...")

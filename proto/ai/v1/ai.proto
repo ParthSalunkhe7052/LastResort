@@ -5,13 +5,8 @@ package ai.v1;
 option go_package = "github.com/parth/lastresort/internal/gen/ai/v1;aiv1";
 
 service AiService {
-  rpc AnalyzeRecon(AnalyzeReconRequest) returns (AnalyzeReconResponse);
-  rpc GenerateHypotheses(GenerateHypothesesRequest) returns (GenerateHypothesesResponse);
-  rpc ScoreConfidence(ScoreConfidenceRequest) returns (ScoreConfidenceResponse);
   rpc Health(HealthRequest) returns (HealthResponse);
-  rpc GenerateFindingNarrative(GenerateFindingNarrativeRequest) returns (GenerateFindingNarrativeResponse);
-  rpc GenerateAttackPayload(GenerateAttackPayloadRequest) returns (GenerateAttackPayloadResponse);
-  rpc DecideBrowserAction(DecideBrowserActionRequest) returns (DecideBrowserActionResponse);
+  rpc GenerateExecutiveSummary(GenerateExecutiveSummaryRequest) returns (GenerateExecutiveSummaryResponse);
 }
 
 message HealthRequest {}
@@ -23,144 +18,27 @@ message HealthResponse {
   bool initialized = 4;
 }
 
-message AnalyzeReconRequest {
-  string target_url = 1;
-  map<string, string> headers = 2;
-  repeated string cookie_names = 3;
-}
-
-message AnalyzeReconResponse {
-  repeated string detected_technologies = 1;
-  string authentication_model = 2;
-  repeated string recommended_tests = 3;
-}
-
-message GenerateHypothesesRequest {
-  string target_url = 1;
-  repeated string endpoints = 2;
-}
-
-message Hypothesis {
-  string id = 1;
-  string title = 2;
-  string description = 3;
-  float confidence = 4; // 0.0 to 1.0
-  string vulnerability_type = 5;
-}
-
-message GenerateHypothesesResponse {
-  repeated Hypothesis hypotheses = 1;
-}
-
-message ScoreConfidenceRequest {
-  string vulnerability_type = 1;
-  string endpoint = 2;
-  string payload = 3;
-  string response_body = 4;
-  int32 response_status = 5;
-}
-
-message ScoreConfidenceResponse {
-  float confidence = 1; // 0.0 to 1.0
-  string explanation = 2;
-  bool is_false_positive = 3;
-}
-
-message GenerateFindingNarrativeRequest {
-  string vulnerability_type = 1;
-  string title = 2;
-  string endpoint = 3;
-  string evidence = 4;
+message FindingSummary {
+  string title = 1;
+  string severity = 2;
+  string vulnerability_type = 3;
+  string endpoint = 4;
   float confidence = 5;
 }
 
-message GenerateFindingNarrativeResponse {
-  string description = 1;
-  string remediation = 2;
+message GenerateExecutiveSummaryRequest {
+  string target_url = 1;
+  int32 high_count = 2;
+  int32 medium_count = 3;
+  int32 low_count = 4;
+  int32 info_count = 5;
+  repeated FindingSummary findings = 6;
+  string duration = 7;
+  string detected_technologies = 8;
 }
 
-message GenerateAttackPayloadRequest {
-  string hypothesis_title = 1;
-  string hypothesis_description = 2;
-  string endpoint = 3;
-  string method = 4;
-}
-
-message GenerateAttackPayloadResponse {
-  string method = 1;
-  string url = 2;
-  string body = 3;
-  map<string, string> headers = 4;
-  string explanation = 5;
-}
-
-message DecideBrowserActionRequest {
-  string url = 1;
-  string page_source = 2;
-  string current_goal = 3;
-
-  bool last_action_success = 4;
-  string last_action_error = 5;
-  string current_url = 6;
-  string page_title = 7;
-
-  repeated BrowserElement links = 8;
-  repeated BrowserElement buttons = 9;
-  repeated BrowserForm forms = 10;
-
-  string last_action = 11;
-  string last_selector = 12;
-  string screenshot_base64 = 13;
-
-  // Browser Attack Context
-  string session_id = 14;
-  map<string, string> cookies = 15;
-  map<string, string> local_storage = 16;
-  repeated BrowserActionOutcome history = 17;
-}
-
-message BrowserActionOutcome {
-  string action = 1;
-  string selector = 2;
-  string value = 3;
-  bool success = 4;
-  string error = 5;
-  ActionResult result = 6;
-  string reasoning = 7;
-}
-
-message ActionResult {
-  bool success = 1;
-  string failure_reason = 2;
-  string current_url = 3;
-  string page_title = 4;
-  string screenshot_base64 = 5;
-  repeated BrowserElement links = 6;
-  repeated BrowserElement buttons = 7;
-  repeated BrowserForm forms = 8;
-  string page_source = 9;
-}
-
-message BrowserElement {
-  string text = 1;
-  string selector = 2;
-  string type = 3;
-  string href = 4;
-  string id = 5;
-  string name = 6;
-  string value = 7;
-}
-
-message BrowserForm {
-  string selector = 1;
-  string action = 2;
-  string method = 3;
-  repeated BrowserElement inputs = 4;
-}
-
-message DecideBrowserActionResponse {
-  string action = 1; // "click", "fill", "type", "navigate", "wait", "finish"
-  string selector = 2;
-  string value = 3;
-  string explanation = 4;
+message GenerateExecutiveSummaryResponse {
+  string summary = 1;
+  string risk_rating = 2;
+  repeated string key_recommendations = 3;
 }

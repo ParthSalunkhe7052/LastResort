@@ -13,6 +13,7 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/parth/lastresort/internal/api"
+	"github.com/parth/lastresort/internal/attack"
 	aiv1 "github.com/parth/lastresort/internal/gen/ai/v1"
 	"github.com/parth/lastresort/internal/gen/ai/v1/aiv1connect"
 	"github.com/parth/lastresort/internal/gen/scan/v1/scanv1connect"
@@ -64,6 +65,9 @@ func runServe(dbPath string, apiPort int, proxyPort int, aiAddr string) {
 	}
 	defer db.Close()
 	log.Printf("[DB] Database initialized at %s", dbPath)
+
+	// Initialize Nuclei Templates if nuclei binary is available
+	go attack.InitNucleiTemplates()
 
 	// 2. Setup certificate storage structures
 	certDir := "./data/certs"

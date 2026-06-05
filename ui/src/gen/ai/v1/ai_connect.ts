@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { AnalyzeReconRequest, AnalyzeReconResponse, DecideBrowserActionRequest, DecideBrowserActionResponse, GenerateAttackPayloadRequest, GenerateAttackPayloadResponse, GenerateFindingNarrativeRequest, GenerateFindingNarrativeResponse, GenerateHypothesesRequest, GenerateHypothesesResponse, HealthRequest, HealthResponse, ScoreConfidenceRequest, ScoreConfidenceResponse } from "./ai_pb.js";
+import { GenerateExecutiveSummaryRequest, GenerateExecutiveSummaryResponse, HealthRequest, HealthResponse } from "./ai_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -12,33 +12,6 @@ import { MethodKind } from "@bufbuild/protobuf";
 export const AiService = {
   typeName: "ai.v1.AiService",
   methods: {
-    /**
-     * @generated from rpc ai.v1.AiService.AnalyzeRecon
-     */
-    analyzeRecon: {
-      name: "AnalyzeRecon",
-      I: AnalyzeReconRequest,
-      O: AnalyzeReconResponse,
-      kind: MethodKind.Unary,
-    },
-    /**
-     * @generated from rpc ai.v1.AiService.GenerateHypotheses
-     */
-    generateHypotheses: {
-      name: "GenerateHypotheses",
-      I: GenerateHypothesesRequest,
-      O: GenerateHypothesesResponse,
-      kind: MethodKind.Unary,
-    },
-    /**
-     * @generated from rpc ai.v1.AiService.ScoreConfidence
-     */
-    scoreConfidence: {
-      name: "ScoreConfidence",
-      I: ScoreConfidenceRequest,
-      O: ScoreConfidenceResponse,
-      kind: MethodKind.Unary,
-    },
     /**
      * @generated from rpc ai.v1.AiService.Health
      */
@@ -49,30 +22,12 @@ export const AiService = {
       kind: MethodKind.Unary,
     },
     /**
-     * @generated from rpc ai.v1.AiService.GenerateFindingNarrative
+     * @generated from rpc ai.v1.AiService.GenerateExecutiveSummary
      */
-    generateFindingNarrative: {
-      name: "GenerateFindingNarrative",
-      I: GenerateFindingNarrativeRequest,
-      O: GenerateFindingNarrativeResponse,
-      kind: MethodKind.Unary,
-    },
-    /**
-     * @generated from rpc ai.v1.AiService.GenerateAttackPayload
-     */
-    generateAttackPayload: {
-      name: "GenerateAttackPayload",
-      I: GenerateAttackPayloadRequest,
-      O: GenerateAttackPayloadResponse,
-      kind: MethodKind.Unary,
-    },
-    /**
-     * @generated from rpc ai.v1.AiService.DecideBrowserAction
-     */
-    decideBrowserAction: {
-      name: "DecideBrowserAction",
-      I: DecideBrowserActionRequest,
-      O: DecideBrowserActionResponse,
+    generateExecutiveSummary: {
+      name: "GenerateExecutiveSummary",
+      I: GenerateExecutiveSummaryRequest,
+      O: GenerateExecutiveSummaryResponse,
       kind: MethodKind.Unary,
     },
   }

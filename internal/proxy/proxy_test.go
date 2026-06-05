@@ -3,6 +3,8 @@ package proxy
 import (
 	"context"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
@@ -86,5 +88,67 @@ func TestPassiveAnalyzer(t *testing.T) {
 	}
 	if corsCount != 1 {
 		t.Errorf("expected 1 CORS misconfiguration finding, got %d", corsCount)
+	}
+}
+
+func TestProxyRedirectHandling(t *testing.T) {
+	// 1. Setup Mock Backend Server that returns a redirect
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/redirect" {
+			http.Redirect(w, r, "/target", http.StatusFound)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer backend.Close()
+
+	// 2. Setup Proxy Infrastructure
+	tmpDir, _ := os.MkdirTemp("", "lastresort-proxy-redirect-*")
+	defer os.RemoveAll(tmpDir)
+	dbPath := filepath.Join(tmpDir, "test.db")
+	db, _ := storage.InitDB(dbPath)
+	defer db.Close()
+
+	// Use port 0 to get a random free port
+	p := NewProxyServer(db, nil, 0)
+	err := p.Start()
+	if err != nil {
+		t.Fatalf("failed to start proxy: %v", err)
+	}
+	defer p.Stop()
+
+	// Get the actual port assigned
+	proxyAddr := p.listener.Addr().String()
+
+	// 3. Send a request through the proxy to the backend redirect endpoint
+	proxyURL, _ := url.Parse("http://" + proxyAddr)
+	client := &http.Client{
+		Transport: &http.Transport{
+			Proxy: http.ProxyURL(proxyURL),
+		},
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	// We use the backend URL but the proxy will intercept it
+	// Note: For a plain HTTP proxy request, the URL should be absolute
+	targetURL := backend.URL + "/redirect"
+	req, _ := http.NewRequest("GET", targetURL, nil)
+	
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("failed to send request through proxy: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// 4. Verify that the proxy returned 302 instead of following to 200
+	if resp.StatusCode != http.StatusFound {
+		t.Errorf("expected status 302 (Found) from proxy, got %d. This means the proxy followed the redirect internally!", resp.StatusCode)
+	}
+
+	location := resp.Header.Get("Location")
+	if location != "/target" {
+		t.Errorf("expected Location header '/target', got '%s'", location)
 	}
 }

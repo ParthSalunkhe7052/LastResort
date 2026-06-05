@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	aiv1 "github.com/parth/lastresort/internal/gen/ai/v1"
+	"github.com/parth/lastresort/internal/browser"
 )
 
 // JournalEntry represents a single step in an attack workflow.
@@ -16,14 +16,13 @@ type JournalEntry struct {
 	ID        string                `json:"id"`
 	ScanID    string                `json:"scan_id"`
 	Step      int                   `json:"step"`
-	GoalID    string                `json:"goal_id,omitempty"`
 	Action    string                `json:"action"`
 	Selector  string                `json:"selector,omitempty"`
 	Value     string                `json:"value,omitempty"`
 	Success   bool                  `json:"success"`
 	Error     string                `json:"error,omitempty"`
 	Reasoning string                `json:"reasoning,omitempty"`
-	Result    *aiv1.ActionResult    `json:"result,omitempty"`
+	Result    *browser.ActionResult `json:"result,omitempty"`
 	CreatedAt time.Time             `json:"created_at"`
 }
 
@@ -33,7 +32,6 @@ func (db *DB) CreateJournalTables() error {
 		id          TEXT PRIMARY KEY,
 		scan_id     TEXT NOT NULL,
 		step        INTEGER NOT NULL,
-		goal_id     TEXT,
 		action      TEXT NOT NULL,
 		selector    TEXT,
 		value       TEXT,
@@ -42,8 +40,7 @@ func (db *DB) CreateJournalTables() error {
 		reasoning   TEXT,
 		result_json TEXT,
 		created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
-		FOREIGN KEY (scan_id) REFERENCES scans(id) ON DELETE CASCADE,
-		FOREIGN KEY (goal_id) REFERENCES attack_goals(id) ON DELETE SET NULL
+		FOREIGN KEY (scan_id) REFERENCES scans(id) ON DELETE CASCADE
 	)`)
 	if err != nil {
 		return err
@@ -77,15 +74,10 @@ func (db *DB) SaveJournalEntry(ctx context.Context, entry *JournalEntry) error {
 		successInt = 1
 	}
 
-	var goalID interface{}
-	if entry.GoalID != "" {
-		goalID = entry.GoalID
-	}
-
 	_, err := db.ExecContext(ctx,
-		`INSERT INTO attack_journal (id, scan_id, step, goal_id, action, selector, value, success, error, reasoning, result_json, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		entry.ID, entry.ScanID, entry.Step, goalID, entry.Action, entry.Selector, entry.Value, successInt, entry.Error, entry.Reasoning, string(resultJSON), entry.CreatedAt,
+		`INSERT INTO attack_journal (id, scan_id, step, action, selector, value, success, error, reasoning, result_json, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		entry.ID, entry.ScanID, entry.Step, entry.Action, entry.Selector, entry.Value, successInt, entry.Error, entry.Reasoning, string(resultJSON), entry.CreatedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to save journal entry: %w", err)
@@ -96,7 +88,7 @@ func (db *DB) SaveJournalEntry(ctx context.Context, entry *JournalEntry) error {
 // ListJournalEntries returns the full history for a scan.
 func (db *DB) ListJournalEntries(ctx context.Context, scanID string) ([]*JournalEntry, error) {
 	rows, err := db.QueryContext(ctx,
-		`SELECT id, scan_id, step, COALESCE(goal_id, ''), action, COALESCE(selector, ''), COALESCE(value, ''), success, COALESCE(error, ''), COALESCE(reasoning, ''), COALESCE(result_json, ''), created_at
+		`SELECT id, scan_id, step, action, COALESCE(selector, ''), COALESCE(value, ''), success, COALESCE(error, ''), COALESCE(reasoning, ''), COALESCE(result_json, ''), created_at
 		 FROM attack_journal WHERE scan_id = ? ORDER BY step ASC`, scanID)
 	if err != nil {
 		return nil, err
@@ -108,12 +100,12 @@ func (db *DB) ListJournalEntries(ctx context.Context, scanID string) ([]*Journal
 		var e JournalEntry
 		var resultJSON string
 		var successInt int
-		if err := rows.Scan(&e.ID, &e.ScanID, &e.Step, &e.GoalID, &e.Action, &e.Selector, &e.Value, &successInt, &e.Error, &e.Reasoning, &resultJSON, &e.CreatedAt); err != nil {
+		if err := rows.Scan(&e.ID, &e.ScanID, &e.Step, &e.Action, &e.Selector, &e.Value, &successInt, &e.Error, &e.Reasoning, &resultJSON, &e.CreatedAt); err != nil {
 			continue
 		}
 		e.Success = successInt == 1
 		if resultJSON != "" {
-			var res aiv1.ActionResult
+			var res browser.ActionResult
 			if err := json.Unmarshal([]byte(resultJSON), &res); err == nil {
 				e.Result = &res
 			}

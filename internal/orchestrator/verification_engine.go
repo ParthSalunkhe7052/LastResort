@@ -11,15 +11,15 @@ import (
 )
 
 // VerificationEngine evaluates browser attack results and produces a VerificationResult.
-type VerificationEngine struct {
-	// AI client interface is retained for structure compatibility, but we do NOT call it.
-	aiClient interface{}
-}
+// This engine is fully deterministic — it uses regex patterns, DOM markers, and
+// heuristics. No AI calls are made here.
+type VerificationEngine struct{}
 
 // NewVerificationEngine constructs a VerificationEngine.
-func NewVerificationEngine(aiClient interface{}) *VerificationEngine {
-	return &VerificationEngine{aiClient: aiClient}
+func NewVerificationEngine() *VerificationEngine {
+	return &VerificationEngine{}
 }
+
 
 // VerifyXSS checks whether an XSS payload was executed.
 func (ve *VerificationEngine) VerifyXSS(ctx context.Context, vulnType, endpoint, payload, pageSource, screenshotB64 string) *storage.VerificationResult {

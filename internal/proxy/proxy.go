@@ -10,7 +10,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"net/http/httputil"
 	"strings"
 	"sync"
 	"time"
@@ -20,13 +19,14 @@ import (
 
 // ProxyServer is the intercepting MITM HTTP/HTTPS proxy
 type ProxyServer struct {
-	db          *storage.DB
-	certManager *CertManager
-	analyzer    *PassiveAnalyzer
-	port        int
-	listener    net.Listener
-	wg          sync.WaitGroup
-	shutdown    chan struct{}
+	db            *storage.DB
+	certManager   *CertManager
+	analyzer      *PassiveAnalyzer
+	port          int
+	listener      net.Listener
+	wg            sync.WaitGroup
+	shutdown      chan struct{}
+	forwardClient *http.Client
 }
 
 // NewProxyServer creates a new ProxyServer instance.
@@ -37,6 +37,24 @@ func NewProxyServer(db *storage.DB, cm *CertManager, port int) *ProxyServer {
 		analyzer:    NewPassiveAnalyzer(db),
 		port:        port,
 		shutdown:    make(chan struct{}),
+		forwardClient: &http.Client{
+			Transport: &http.Transport{
+				Proxy: http.ProxyFromEnvironment,
+				DialContext: (&net.Dialer{
+					Timeout:   30 * time.Second,
+					KeepAlive: 30 * time.Second,
+				}).DialContext,
+				ForceAttemptHTTP2:     true,
+				MaxIdleConns:          100,
+				IdleConnTimeout:       90 * time.Second,
+				TLSHandshakeTimeout:   10 * time.Second,
+				ExpectContinueTimeout: 1 * time.Second,
+			},
+			Timeout: 15 * time.Second,
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		},
 	}
 }
 
@@ -119,27 +137,22 @@ func (p *ProxyServer) handleHTTP(conn net.Conn, req *http.Request) {
 	req.Header.Del("Proxy-Connection")
 
 	// Perform standard roundtrip to destination
-	client := &http.Client{
-		Transport: &http.Transport{},
-		Timeout:   15 * time.Second,
-	}
-
-	resp, err := client.Do(req)
+	resp, err := p.forwardClient.Do(req)
 	if err != nil {
 		respError(conn, http.StatusBadGateway, fmt.Sprintf("Bad Gateway: %v", err))
 		return
 	}
 	defer resp.Body.Close()
 
-	respBody, _ := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("[Proxy] [ERROR] Failed to read response body: %v", err)
+	}
 	resp.Body = io.NopCloser(bytes.NewReader(respBody))
 
 	// Write response back to client
-	respBytes, err := httputil.DumpResponse(resp, true)
-	if err == nil {
-		conn.Write(respBytes)
-	} else {
-		resp.Write(conn)
+	if err := resp.Write(conn); err != nil {
+		log.Printf("[Proxy] [ERROR] Failed to write response to client: %v", err)
 	}
 
 	// Log in background if in scope
@@ -209,7 +222,11 @@ func (p *ProxyServer) handleHTTPS(clientConn net.Conn, req *http.Request) {
 
 		var reqBody []byte
 		if innerReq.Body != nil {
-			reqBody, _ = io.ReadAll(innerReq.Body)
+			var err error
+			reqBody, err = io.ReadAll(innerReq.Body)
+			if err != nil {
+				log.Printf("[Proxy] [ERROR] Failed to read HTTPS request body: %v", err)
+			}
 			innerReq.Body = io.NopCloser(bytes.NewReader(reqBody))
 		}
 
@@ -233,7 +250,10 @@ func (p *ProxyServer) handleHTTPS(clientConn net.Conn, req *http.Request) {
 			return
 		}
 
-		respBody, _ := io.ReadAll(innerResp.Body)
+		respBody, err := io.ReadAll(innerResp.Body)
+		if err != nil {
+			log.Printf("[Proxy] [ERROR] Failed to read HTTPS response body: %v", err)
+		}
 		innerResp.Body = io.NopCloser(bytes.NewReader(respBody))
 
 		// Write response back to TLS client

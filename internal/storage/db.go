@@ -50,16 +50,7 @@ func InitDB(dbPath string) (*DB, error) {
 	}
 	// Migration for category column
 	_, _ = storageDB.Exec("ALTER TABLE findings ADD COLUMN category TEXT")
-	// Phase 3: workflow intelligence tables (idempotent).
-	if err := storageDB.CreateWorkflowTables(); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("workflow tables migration failed: %w", err)
-	}
-	// Phase 5: attack goals table (idempotent).
-	if err := storageDB.CreateGoalTables(); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("goals table migration failed: %w", err)
-	}
+
 	// Phase 6: attack journal table (idempotent).
 	if err := storageDB.CreateJournalTables(); err != nil {
 		db.Close()
@@ -168,17 +159,6 @@ func (db *DB) createTables() error {
 			FOREIGN KEY (scan_id) REFERENCES scans(id) ON DELETE CASCADE,
 			UNIQUE(scan_id, fingerprint)
 		);`,
-		`CREATE TABLE IF NOT EXISTS hypotheses (
-			id TEXT PRIMARY KEY,
-			scan_id TEXT NOT NULL,
-			title TEXT NOT NULL,
-			description TEXT NOT NULL,
-			confidence REAL,
-			source TEXT NOT NULL,
-			status TEXT NOT NULL,
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			FOREIGN KEY (scan_id) REFERENCES scans(id) ON DELETE CASCADE
-		);`,
 		`CREATE TABLE IF NOT EXISTS finding_evidence (
 			id TEXT PRIMARY KEY,
 			finding_id TEXT NOT NULL,
@@ -219,7 +199,7 @@ func (db *DB) createTables() error {
 	_, _ = db.Exec("ALTER TABLE scans ADD COLUMN gemini_time_ms INTEGER DEFAULT 0;")
 	_, _ = db.Exec("ALTER TABLE findings ADD COLUMN occurrence_count INTEGER DEFAULT 1;")
 	_, _ = db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_findings_scan_fingerprint ON findings (scan_id, fingerprint);")
-	_, _ = db.Exec("CREATE INDEX IF NOT EXISTS idx_hypotheses_scan_created ON hypotheses (scan_id, created_at);")
+
 	_, _ = db.Exec("CREATE INDEX IF NOT EXISTS idx_evidence_finding_created ON finding_evidence (finding_id, created_at);")
 
 	// Best-effort compatibility for older scan_modules schemas.
@@ -229,8 +209,7 @@ func (db *DB) createTables() error {
 	_, _ = db.Exec("ALTER TABLE scan_modules ADD COLUMN module TEXT;")
 	_, _ = db.Exec("ALTER TABLE scan_modules ADD COLUMN finished_at DATETIME;")
 	_, _ = db.Exec("ALTER TABLE scan_modules ADD COLUMN error TEXT;")
-	_, _ = db.Exec("ALTER TABLE hypotheses ADD COLUMN source TEXT;")
-	_, _ = db.Exec("ALTER TABLE hypotheses ADD COLUMN status TEXT;")
+
 
 	return nil
 }

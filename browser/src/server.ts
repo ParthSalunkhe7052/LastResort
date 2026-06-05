@@ -54,8 +54,143 @@ function cleanSelector(selector: string): string {
   return selector.replace(/:contains\((["']?)(.*?)\1\)/g, ':has-text("$2")');
 }
 
+async function sendScanEvent(scanId: string, eventType: string, data: any) {
+  try {
+    await fetch('http://127.0.0.1:8443/api/v1/scan/event', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scan_id: scanId, event_type: eventType, data })
+    });
+  } catch (err) {
+    console.error(`[BROWSER SERVER] Failed to push event ${eventType}:`, err);
+  }
+}
+
+async function streamPageScreenshot(page: any, scanId: string) {
+  try {
+    const buffer = await page.screenshot({ type: 'png' });
+    const base64 = buffer.toString('base64');
+    await sendScanEvent(scanId, 'browser.screenshot', { image: `data:image/png;base64,${base64}` });
+  } catch (err) {}
+}
+
+async function injectOverlayAndStream(page: any, scanId: string, action: string, selector: string, value: string) {
+  try {
+    if (!selector) return;
+    
+    await page.evaluate(({ action, selector, value }: { action: string, selector: string, value: string }) => {
+      let style = document.getElementById('lastresort-overlay-style');
+      if (!style) {
+        style = document.createElement('style');
+        style.id = 'lastresort-overlay-style';
+        style.innerHTML = `
+          @keyframes lr-ripple {
+            0% { transform: scale(0); opacity: 0.8; }
+            100% { transform: scale(3); opacity: 0; }
+          }
+          @keyframes lr-pulse {
+            0%, 100% { box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.4); }
+            50% { box-shadow: 0 0 0 6px rgba(245, 158, 11, 0.8); }
+          }
+          .lr-cursor {
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            background: rgba(245, 158, 11, 0.9);
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 10000000;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            transition: all 0.3s ease-in-out;
+          }
+          .lr-ripple {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            background: rgba(245, 158, 11, 0.6);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 10000000;
+            animation: lr-ripple 0.5s ease-out forwards;
+          }
+          .lr-highlight {
+            outline: 3px dashed #f59e0b !important;
+            animation: lr-pulse 1.5s infinite;
+          }
+          .lr-keystroke-banner {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(9, 9, 11, 0.95);
+            border: 1px solid #f59e0b;
+            color: #f59e0b;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 13px;
+            z-index: 10000001;
+            pointer-events: none;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+          }
+        `;
+        document.head.appendChild(style);
+      }
+
+      const el = document.querySelector(selector) as HTMLElement;
+      if (!el) return;
+
+      el.classList.add('lr-highlight');
+
+      const rect = el.getBoundingClientRect();
+      const x = rect.left + window.scrollX + rect.width / 2;
+      const y = rect.top + window.scrollY + rect.height / 2;
+
+      if (action === 'click') {
+        const cursor = document.createElement('div');
+        cursor.id = 'lr-active-cursor';
+        cursor.className = 'lr-cursor';
+        cursor.style.left = (x - 12) + 'px';
+        cursor.style.top = (y - 12) + 'px';
+        document.body.appendChild(cursor);
+
+        const ripple = document.createElement('div');
+        ripple.id = 'lr-active-ripple';
+        ripple.className = 'lr-ripple';
+        ripple.style.left = (x - 15) + 'px';
+        ripple.style.top = (y - 15) + 'px';
+        document.body.appendChild(ripple);
+      } else if (action === 'fill' || action === 'type') {
+        const banner = document.createElement('div');
+        banner.id = 'lr-active-banner';
+        banner.className = 'lr-keystroke-banner';
+        banner.innerText = `[TYPING] "${value}"`;
+        document.body.appendChild(banner);
+      }
+    }, { action, selector, value });
+
+    await streamPageScreenshot(page, scanId);
+    await page.waitForTimeout(500);
+
+    await page.evaluate(() => {
+      const cursor = document.getElementById('lr-active-cursor');
+      if (cursor) cursor.remove();
+      const ripple = document.getElementById('lr-active-ripple');
+      if (ripple) ripple.remove();
+      const banner = document.getElementById('lr-active-banner');
+      if (banner) banner.remove();
+      
+      const highlighted = document.querySelectorAll('.lr-highlight');
+      highlighted.forEach(el => el.classList.remove('lr-highlight'));
+    });
+  } catch (err) {
+    console.error('[BROWSER] Failed to render action overlay:', err);
+  }
+}
+
 app.post('/action', async (req: Request, res: Response) => {
-  let { scanId, url, action, selector, value, proxyPort } = req.body;
+  let { scanId, workerId, url, action, selector, value, proxyPort } = req.body;
 
   if (!scanId) {
     return res.status(400).json({ error: 'scanId is required.' });
@@ -65,7 +200,7 @@ app.post('/action', async (req: Request, res: Response) => {
     selector = cleanSelector(selector);
   }
 
-  console.log(`[SERVER] Received action: ${action} on ${url || 'current page'} (scan: ${scanId}) with selector: ${selector}`);
+  console.log(`[SERVER] Received action: ${action} on ${url || 'current page'} (scan: ${scanId}, worker: ${workerId || 'default'}) with selector: ${selector}`);
 
   let preScreenshotBase64 = '';
   let preDom = '';
@@ -74,8 +209,7 @@ app.post('/action', async (req: Request, res: Response) => {
   const domsDir = path.join(__dirname, '..', '..', 'data', 'doms', scanId);
 
   try {
-    const session = await sessionManager.getOrCreateSession(scanId, proxyPort ? Number(proxyPort) : undefined);
-    const page = session.page;
+    const page = await sessionManager.getPageForWorker(scanId, workerId, proxyPort ? Number(proxyPort) : undefined);
 
     if (!fs.existsSync(screenshotsDir)) {
       fs.mkdirSync(screenshotsDir, { recursive: true });
@@ -85,7 +219,8 @@ app.post('/action', async (req: Request, res: Response) => {
     }
 
     if (url) {
-      await page.goto(url, { waitUntil: 'networkidle' });
+      await page.goto(url, { waitUntil: 'load' });
+      await streamPageScreenshot(page, scanId);
     }
 
     // Capture pre-action
@@ -101,6 +236,8 @@ app.post('/action', async (req: Request, res: Response) => {
 
     // Perform action
     try {
+      await injectOverlayAndStream(page, scanId, action, selector, value);
+
       if (action === 'click') {
         await page.click(selector);
       } else if (action === 'fill') {
@@ -124,6 +261,7 @@ app.post('/action', async (req: Request, res: Response) => {
         postScreenshotBase64 = buffer.toString('base64');
         postDom = await page.content();
         fs.writeFileSync(path.join(domsDir, `${prefix}_post.html`), postDom);
+        await sendScanEvent(scanId, 'browser.screenshot', { image: `data:image/png;base64,${postScreenshotBase64}` });
       } catch (err) {}
 
       // Return 200 success: false on failure
@@ -143,6 +281,7 @@ app.post('/action', async (req: Request, res: Response) => {
 
     // Capture post-action on success
     const postScreenshot = await page.screenshot({ type: 'png' });
+    await streamPageScreenshot(page, scanId);
     const postDom = await page.content();
     fs.writeFileSync(path.join(screenshotsDir, `${prefix}_post.png`), postScreenshot);
     fs.writeFileSync(path.join(domsDir, `${prefix}_post.html`), postDom);

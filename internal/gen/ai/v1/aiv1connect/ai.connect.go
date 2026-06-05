@@ -33,36 +33,17 @@ const (
 // reflection-formatted method names, remove the leading slash and convert the remaining slash to a
 // period.
 const (
-	// AiServiceAnalyzeReconProcedure is the fully-qualified name of the AiService's AnalyzeRecon RPC.
-	AiServiceAnalyzeReconProcedure = "/ai.v1.AiService/AnalyzeRecon"
-	// AiServiceGenerateHypothesesProcedure is the fully-qualified name of the AiService's
-	// GenerateHypotheses RPC.
-	AiServiceGenerateHypothesesProcedure = "/ai.v1.AiService/GenerateHypotheses"
-	// AiServiceScoreConfidenceProcedure is the fully-qualified name of the AiService's ScoreConfidence
-	// RPC.
-	AiServiceScoreConfidenceProcedure = "/ai.v1.AiService/ScoreConfidence"
 	// AiServiceHealthProcedure is the fully-qualified name of the AiService's Health RPC.
 	AiServiceHealthProcedure = "/ai.v1.AiService/Health"
-	// AiServiceGenerateFindingNarrativeProcedure is the fully-qualified name of the AiService's
-	// GenerateFindingNarrative RPC.
-	AiServiceGenerateFindingNarrativeProcedure = "/ai.v1.AiService/GenerateFindingNarrative"
-	// AiServiceGenerateAttackPayloadProcedure is the fully-qualified name of the AiService's
-	// GenerateAttackPayload RPC.
-	AiServiceGenerateAttackPayloadProcedure = "/ai.v1.AiService/GenerateAttackPayload"
-	// AiServiceDecideBrowserActionProcedure is the fully-qualified name of the AiService's
-	// DecideBrowserAction RPC.
-	AiServiceDecideBrowserActionProcedure = "/ai.v1.AiService/DecideBrowserAction"
+	// AiServiceGenerateExecutiveSummaryProcedure is the fully-qualified name of the AiService's
+	// GenerateExecutiveSummary RPC.
+	AiServiceGenerateExecutiveSummaryProcedure = "/ai.v1.AiService/GenerateExecutiveSummary"
 )
 
 // AiServiceClient is a client for the ai.v1.AiService service.
 type AiServiceClient interface {
-	AnalyzeRecon(context.Context, *connect.Request[v1.AnalyzeReconRequest]) (*connect.Response[v1.AnalyzeReconResponse], error)
-	GenerateHypotheses(context.Context, *connect.Request[v1.GenerateHypothesesRequest]) (*connect.Response[v1.GenerateHypothesesResponse], error)
-	ScoreConfidence(context.Context, *connect.Request[v1.ScoreConfidenceRequest]) (*connect.Response[v1.ScoreConfidenceResponse], error)
 	Health(context.Context, *connect.Request[v1.HealthRequest]) (*connect.Response[v1.HealthResponse], error)
-	GenerateFindingNarrative(context.Context, *connect.Request[v1.GenerateFindingNarrativeRequest]) (*connect.Response[v1.GenerateFindingNarrativeResponse], error)
-	GenerateAttackPayload(context.Context, *connect.Request[v1.GenerateAttackPayloadRequest]) (*connect.Response[v1.GenerateAttackPayloadResponse], error)
-	DecideBrowserAction(context.Context, *connect.Request[v1.DecideBrowserActionRequest]) (*connect.Response[v1.DecideBrowserActionResponse], error)
+	GenerateExecutiveSummary(context.Context, *connect.Request[v1.GenerateExecutiveSummaryRequest]) (*connect.Response[v1.GenerateExecutiveSummaryResponse], error)
 }
 
 // NewAiServiceClient constructs a client for the ai.v1.AiService service. By default, it uses the
@@ -76,46 +57,16 @@ func NewAiServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...c
 	baseURL = strings.TrimRight(baseURL, "/")
 	aiServiceMethods := v1.File_ai_v1_ai_proto.Services().ByName("AiService").Methods()
 	return &aiServiceClient{
-		analyzeRecon: connect.NewClient[v1.AnalyzeReconRequest, v1.AnalyzeReconResponse](
-			httpClient,
-			baseURL+AiServiceAnalyzeReconProcedure,
-			connect.WithSchema(aiServiceMethods.ByName("AnalyzeRecon")),
-			connect.WithClientOptions(opts...),
-		),
-		generateHypotheses: connect.NewClient[v1.GenerateHypothesesRequest, v1.GenerateHypothesesResponse](
-			httpClient,
-			baseURL+AiServiceGenerateHypothesesProcedure,
-			connect.WithSchema(aiServiceMethods.ByName("GenerateHypotheses")),
-			connect.WithClientOptions(opts...),
-		),
-		scoreConfidence: connect.NewClient[v1.ScoreConfidenceRequest, v1.ScoreConfidenceResponse](
-			httpClient,
-			baseURL+AiServiceScoreConfidenceProcedure,
-			connect.WithSchema(aiServiceMethods.ByName("ScoreConfidence")),
-			connect.WithClientOptions(opts...),
-		),
 		health: connect.NewClient[v1.HealthRequest, v1.HealthResponse](
 			httpClient,
 			baseURL+AiServiceHealthProcedure,
 			connect.WithSchema(aiServiceMethods.ByName("Health")),
 			connect.WithClientOptions(opts...),
 		),
-		generateFindingNarrative: connect.NewClient[v1.GenerateFindingNarrativeRequest, v1.GenerateFindingNarrativeResponse](
+		generateExecutiveSummary: connect.NewClient[v1.GenerateExecutiveSummaryRequest, v1.GenerateExecutiveSummaryResponse](
 			httpClient,
-			baseURL+AiServiceGenerateFindingNarrativeProcedure,
-			connect.WithSchema(aiServiceMethods.ByName("GenerateFindingNarrative")),
-			connect.WithClientOptions(opts...),
-		),
-		generateAttackPayload: connect.NewClient[v1.GenerateAttackPayloadRequest, v1.GenerateAttackPayloadResponse](
-			httpClient,
-			baseURL+AiServiceGenerateAttackPayloadProcedure,
-			connect.WithSchema(aiServiceMethods.ByName("GenerateAttackPayload")),
-			connect.WithClientOptions(opts...),
-		),
-		decideBrowserAction: connect.NewClient[v1.DecideBrowserActionRequest, v1.DecideBrowserActionResponse](
-			httpClient,
-			baseURL+AiServiceDecideBrowserActionProcedure,
-			connect.WithSchema(aiServiceMethods.ByName("DecideBrowserAction")),
+			baseURL+AiServiceGenerateExecutiveSummaryProcedure,
+			connect.WithSchema(aiServiceMethods.ByName("GenerateExecutiveSummary")),
 			connect.WithClientOptions(opts...),
 		),
 	}
@@ -123,28 +74,8 @@ func NewAiServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...c
 
 // aiServiceClient implements AiServiceClient.
 type aiServiceClient struct {
-	analyzeRecon             *connect.Client[v1.AnalyzeReconRequest, v1.AnalyzeReconResponse]
-	generateHypotheses       *connect.Client[v1.GenerateHypothesesRequest, v1.GenerateHypothesesResponse]
-	scoreConfidence          *connect.Client[v1.ScoreConfidenceRequest, v1.ScoreConfidenceResponse]
 	health                   *connect.Client[v1.HealthRequest, v1.HealthResponse]
-	generateFindingNarrative *connect.Client[v1.GenerateFindingNarrativeRequest, v1.GenerateFindingNarrativeResponse]
-	generateAttackPayload    *connect.Client[v1.GenerateAttackPayloadRequest, v1.GenerateAttackPayloadResponse]
-	decideBrowserAction      *connect.Client[v1.DecideBrowserActionRequest, v1.DecideBrowserActionResponse]
-}
-
-// AnalyzeRecon calls ai.v1.AiService.AnalyzeRecon.
-func (c *aiServiceClient) AnalyzeRecon(ctx context.Context, req *connect.Request[v1.AnalyzeReconRequest]) (*connect.Response[v1.AnalyzeReconResponse], error) {
-	return c.analyzeRecon.CallUnary(ctx, req)
-}
-
-// GenerateHypotheses calls ai.v1.AiService.GenerateHypotheses.
-func (c *aiServiceClient) GenerateHypotheses(ctx context.Context, req *connect.Request[v1.GenerateHypothesesRequest]) (*connect.Response[v1.GenerateHypothesesResponse], error) {
-	return c.generateHypotheses.CallUnary(ctx, req)
-}
-
-// ScoreConfidence calls ai.v1.AiService.ScoreConfidence.
-func (c *aiServiceClient) ScoreConfidence(ctx context.Context, req *connect.Request[v1.ScoreConfidenceRequest]) (*connect.Response[v1.ScoreConfidenceResponse], error) {
-	return c.scoreConfidence.CallUnary(ctx, req)
+	generateExecutiveSummary *connect.Client[v1.GenerateExecutiveSummaryRequest, v1.GenerateExecutiveSummaryResponse]
 }
 
 // Health calls ai.v1.AiService.Health.
@@ -152,30 +83,15 @@ func (c *aiServiceClient) Health(ctx context.Context, req *connect.Request[v1.He
 	return c.health.CallUnary(ctx, req)
 }
 
-// GenerateFindingNarrative calls ai.v1.AiService.GenerateFindingNarrative.
-func (c *aiServiceClient) GenerateFindingNarrative(ctx context.Context, req *connect.Request[v1.GenerateFindingNarrativeRequest]) (*connect.Response[v1.GenerateFindingNarrativeResponse], error) {
-	return c.generateFindingNarrative.CallUnary(ctx, req)
-}
-
-// GenerateAttackPayload calls ai.v1.AiService.GenerateAttackPayload.
-func (c *aiServiceClient) GenerateAttackPayload(ctx context.Context, req *connect.Request[v1.GenerateAttackPayloadRequest]) (*connect.Response[v1.GenerateAttackPayloadResponse], error) {
-	return c.generateAttackPayload.CallUnary(ctx, req)
-}
-
-// DecideBrowserAction calls ai.v1.AiService.DecideBrowserAction.
-func (c *aiServiceClient) DecideBrowserAction(ctx context.Context, req *connect.Request[v1.DecideBrowserActionRequest]) (*connect.Response[v1.DecideBrowserActionResponse], error) {
-	return c.decideBrowserAction.CallUnary(ctx, req)
+// GenerateExecutiveSummary calls ai.v1.AiService.GenerateExecutiveSummary.
+func (c *aiServiceClient) GenerateExecutiveSummary(ctx context.Context, req *connect.Request[v1.GenerateExecutiveSummaryRequest]) (*connect.Response[v1.GenerateExecutiveSummaryResponse], error) {
+	return c.generateExecutiveSummary.CallUnary(ctx, req)
 }
 
 // AiServiceHandler is an implementation of the ai.v1.AiService service.
 type AiServiceHandler interface {
-	AnalyzeRecon(context.Context, *connect.Request[v1.AnalyzeReconRequest]) (*connect.Response[v1.AnalyzeReconResponse], error)
-	GenerateHypotheses(context.Context, *connect.Request[v1.GenerateHypothesesRequest]) (*connect.Response[v1.GenerateHypothesesResponse], error)
-	ScoreConfidence(context.Context, *connect.Request[v1.ScoreConfidenceRequest]) (*connect.Response[v1.ScoreConfidenceResponse], error)
 	Health(context.Context, *connect.Request[v1.HealthRequest]) (*connect.Response[v1.HealthResponse], error)
-	GenerateFindingNarrative(context.Context, *connect.Request[v1.GenerateFindingNarrativeRequest]) (*connect.Response[v1.GenerateFindingNarrativeResponse], error)
-	GenerateAttackPayload(context.Context, *connect.Request[v1.GenerateAttackPayloadRequest]) (*connect.Response[v1.GenerateAttackPayloadResponse], error)
-	DecideBrowserAction(context.Context, *connect.Request[v1.DecideBrowserActionRequest]) (*connect.Response[v1.DecideBrowserActionResponse], error)
+	GenerateExecutiveSummary(context.Context, *connect.Request[v1.GenerateExecutiveSummaryRequest]) (*connect.Response[v1.GenerateExecutiveSummaryResponse], error)
 }
 
 // NewAiServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -185,64 +101,24 @@ type AiServiceHandler interface {
 // and JSON codecs. They also support gzip compression.
 func NewAiServiceHandler(svc AiServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
 	aiServiceMethods := v1.File_ai_v1_ai_proto.Services().ByName("AiService").Methods()
-	aiServiceAnalyzeReconHandler := connect.NewUnaryHandler(
-		AiServiceAnalyzeReconProcedure,
-		svc.AnalyzeRecon,
-		connect.WithSchema(aiServiceMethods.ByName("AnalyzeRecon")),
-		connect.WithHandlerOptions(opts...),
-	)
-	aiServiceGenerateHypothesesHandler := connect.NewUnaryHandler(
-		AiServiceGenerateHypothesesProcedure,
-		svc.GenerateHypotheses,
-		connect.WithSchema(aiServiceMethods.ByName("GenerateHypotheses")),
-		connect.WithHandlerOptions(opts...),
-	)
-	aiServiceScoreConfidenceHandler := connect.NewUnaryHandler(
-		AiServiceScoreConfidenceProcedure,
-		svc.ScoreConfidence,
-		connect.WithSchema(aiServiceMethods.ByName("ScoreConfidence")),
-		connect.WithHandlerOptions(opts...),
-	)
 	aiServiceHealthHandler := connect.NewUnaryHandler(
 		AiServiceHealthProcedure,
 		svc.Health,
 		connect.WithSchema(aiServiceMethods.ByName("Health")),
 		connect.WithHandlerOptions(opts...),
 	)
-	aiServiceGenerateFindingNarrativeHandler := connect.NewUnaryHandler(
-		AiServiceGenerateFindingNarrativeProcedure,
-		svc.GenerateFindingNarrative,
-		connect.WithSchema(aiServiceMethods.ByName("GenerateFindingNarrative")),
-		connect.WithHandlerOptions(opts...),
-	)
-	aiServiceGenerateAttackPayloadHandler := connect.NewUnaryHandler(
-		AiServiceGenerateAttackPayloadProcedure,
-		svc.GenerateAttackPayload,
-		connect.WithSchema(aiServiceMethods.ByName("GenerateAttackPayload")),
-		connect.WithHandlerOptions(opts...),
-	)
-	aiServiceDecideBrowserActionHandler := connect.NewUnaryHandler(
-		AiServiceDecideBrowserActionProcedure,
-		svc.DecideBrowserAction,
-		connect.WithSchema(aiServiceMethods.ByName("DecideBrowserAction")),
+	aiServiceGenerateExecutiveSummaryHandler := connect.NewUnaryHandler(
+		AiServiceGenerateExecutiveSummaryProcedure,
+		svc.GenerateExecutiveSummary,
+		connect.WithSchema(aiServiceMethods.ByName("GenerateExecutiveSummary")),
 		connect.WithHandlerOptions(opts...),
 	)
 	return "/ai.v1.AiService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case AiServiceAnalyzeReconProcedure:
-			aiServiceAnalyzeReconHandler.ServeHTTP(w, r)
-		case AiServiceGenerateHypothesesProcedure:
-			aiServiceGenerateHypothesesHandler.ServeHTTP(w, r)
-		case AiServiceScoreConfidenceProcedure:
-			aiServiceScoreConfidenceHandler.ServeHTTP(w, r)
 		case AiServiceHealthProcedure:
 			aiServiceHealthHandler.ServeHTTP(w, r)
-		case AiServiceGenerateFindingNarrativeProcedure:
-			aiServiceGenerateFindingNarrativeHandler.ServeHTTP(w, r)
-		case AiServiceGenerateAttackPayloadProcedure:
-			aiServiceGenerateAttackPayloadHandler.ServeHTTP(w, r)
-		case AiServiceDecideBrowserActionProcedure:
-			aiServiceDecideBrowserActionHandler.ServeHTTP(w, r)
+		case AiServiceGenerateExecutiveSummaryProcedure:
+			aiServiceGenerateExecutiveSummaryHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -252,30 +128,10 @@ func NewAiServiceHandler(svc AiServiceHandler, opts ...connect.HandlerOption) (s
 // UnimplementedAiServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedAiServiceHandler struct{}
 
-func (UnimplementedAiServiceHandler) AnalyzeRecon(context.Context, *connect.Request[v1.AnalyzeReconRequest]) (*connect.Response[v1.AnalyzeReconResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("ai.v1.AiService.AnalyzeRecon is not implemented"))
-}
-
-func (UnimplementedAiServiceHandler) GenerateHypotheses(context.Context, *connect.Request[v1.GenerateHypothesesRequest]) (*connect.Response[v1.GenerateHypothesesResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("ai.v1.AiService.GenerateHypotheses is not implemented"))
-}
-
-func (UnimplementedAiServiceHandler) ScoreConfidence(context.Context, *connect.Request[v1.ScoreConfidenceRequest]) (*connect.Response[v1.ScoreConfidenceResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("ai.v1.AiService.ScoreConfidence is not implemented"))
-}
-
 func (UnimplementedAiServiceHandler) Health(context.Context, *connect.Request[v1.HealthRequest]) (*connect.Response[v1.HealthResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("ai.v1.AiService.Health is not implemented"))
 }
 
-func (UnimplementedAiServiceHandler) GenerateFindingNarrative(context.Context, *connect.Request[v1.GenerateFindingNarrativeRequest]) (*connect.Response[v1.GenerateFindingNarrativeResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("ai.v1.AiService.GenerateFindingNarrative is not implemented"))
-}
-
-func (UnimplementedAiServiceHandler) GenerateAttackPayload(context.Context, *connect.Request[v1.GenerateAttackPayloadRequest]) (*connect.Response[v1.GenerateAttackPayloadResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("ai.v1.AiService.GenerateAttackPayload is not implemented"))
-}
-
-func (UnimplementedAiServiceHandler) DecideBrowserAction(context.Context, *connect.Request[v1.DecideBrowserActionRequest]) (*connect.Response[v1.DecideBrowserActionResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("ai.v1.AiService.DecideBrowserAction is not implemented"))
+func (UnimplementedAiServiceHandler) GenerateExecutiveSummary(context.Context, *connect.Request[v1.GenerateExecutiveSummaryRequest]) (*connect.Response[v1.GenerateExecutiveSummaryResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("ai.v1.AiService.GenerateExecutiveSummary is not implemented"))
 }

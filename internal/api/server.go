@@ -282,7 +282,20 @@ func (s *ScanServer) ListFindings(ctx context.Context, req *connect.Request[scan
 		if err != nil {
 			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to scan finding: %w", err))
 		}
-		f.Category = category.String
+		catStr := category.String
+		switch catStr {
+		case "VERIFIED_FINDING":
+			catStr = "VERIFIED_ATTACK"
+		case "POTENTIAL_FINDING":
+			catStr = "HYPOTHESIS"
+		case "FALSE_POSITIVE":
+			catStr = "ATTEMPT"
+		case "OBSERVATION":
+			catStr = "OBSERVATION"
+		case "":
+			catStr = "OBSERVATION"
+		}
+		f.Category = catStr
 		f.IsFalsePositive = (isFP == 1)
 		f.CreatedAt = createdAt.Format(time.RFC3339)
 		findings = append(findings, &f)

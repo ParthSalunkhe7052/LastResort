@@ -218,12 +218,12 @@ func IsInCrawlScope(targetURL, seedURL string) bool {
 		return false
 	}
 
-	// Restrict path-prefix if seed has a specific sub-path (like /www-project-juice-shop/)
 	sCtx := s.Path
+	if lastSlash := strings.LastIndex(sCtx, "/"); lastSlash != -1 {
+		sCtx = sCtx[:lastSlash+1]
+	}
+
 	if sCtx != "" && sCtx != "/" {
-		if !strings.HasSuffix(sCtx, "/") {
-			sCtx += "/"
-		}
 		uPath := u.Path
 		if !strings.HasSuffix(uPath, "/") {
 			uPath += "/"

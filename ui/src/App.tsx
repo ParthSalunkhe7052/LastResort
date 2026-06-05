@@ -6,7 +6,6 @@ import Dashboard from './components/dashboard/Dashboard'
 import Settings from './components/settings/Settings'
 import type { FindingRecord } from './components/findings/FindingsBrowser'
 
-
 interface ScanEventRecord {
   time: string
   type: string
@@ -26,7 +25,7 @@ interface ScanRecord {
 export default function App() {
   
   // Dashboard & Configuration States
-  const [targetUrl, setTargetUrl] = useState('https://owasp.org/www-project-juice-shop/')
+  const [targetUrl, setTargetUrl] = useState('https://demo.testfire.net/')
   const [activeTab, setActiveTab] = useState<'dashboard' | 'settings'>('dashboard')
 
   // Connection states
@@ -42,8 +41,7 @@ export default function App() {
   // Findings Browser States
   const [findings, setFindings] = useState<FindingRecord[]>([])
 
-  // Hypotheses State
-  const [hypotheses, setHypotheses] = useState<any[]>([])
+
 
   // Scan Modules State
   const [scanModules, setScanModules] = useState<any[]>([])
@@ -54,6 +52,11 @@ export default function App() {
   // Performance Summary State
   const [performanceMetrics, setPerformanceMetrics] = useState<any>(null)
 
+  // Verification & Evidence State
+  const [verifications, setVerifications] = useState<any[]>([])
+
+  // Final Report State
+  const [reportUrl, setReportUrl] = useState<string | null>(null)
 
   // Check health on mount and periodically
   const checkHealth = async () => {
@@ -129,19 +132,20 @@ export default function App() {
     }
   }
 
-  // Fetch hypotheses
-  const fetchHypotheses = async () => {
+  // Fetch verifications
+  const fetchVerifications = async () => {
     if (!activeScanId || goDaemonStatus !== 'connected') return
     try {
-      const res = await fetch(`http://127.0.0.1:8443/api/v1/hypotheses?scan_id=${activeScanId}`)
+      const res = await fetch(`http://127.0.0.1:8443/api/v1/verifications?scan_id=${activeScanId}`)
       if (res.ok) {
         const data = await res.json()
-        setHypotheses(data.hypotheses || [])
+        setVerifications(data.verifications || [])
       }
     } catch (err) {
-      console.error('Failed to load hypotheses:', err)
+      console.error('Failed to load verifications:', err)
     }
   }
+
 
   const fetchScanModules = async () => {
     if (!activeScanId || goDaemonStatus !== 'connected') return
@@ -173,7 +177,7 @@ export default function App() {
     checkHealth()
     fetchScans()
     fetchFindings()
-    fetchHypotheses()
+    fetchVerifications()
     fetchScanModules()
     fetchPerformanceMetrics()
   }
@@ -182,7 +186,7 @@ export default function App() {
     fetchScans()
     fetchFindings()
     if (activeScanId) {
-      fetchHypotheses()
+      fetchVerifications()
       fetchScanModules()
       fetchPerformanceMetrics()
     }
@@ -195,6 +199,8 @@ export default function App() {
     setIsStartingScan(true)
     setEvents([])
     setLiveScreenshot(null)
+    setVerifications([])
+    setReportUrl(null)
 
     try {
       const createRes = await client.createScan({
@@ -280,9 +286,9 @@ export default function App() {
         } else if (event.eventType === 'finding.new') {
           msg = `[FINDING DISCOVERED] Title: "${fields?.title?.kind?.value}" | Severity: ${fields?.severity?.kind?.value}`
           fetchFindings()
+          fetchVerifications()
         } else if (event.eventType === 'hypothesis.generated') {
           msg = `[HYPOTHESIS] "${fields?.title?.kind?.value}" (confidence: ${Number(fields?.confidence?.kind?.value || 0).toFixed(2)})`
-          fetchHypotheses()
         } else if (event.eventType === 'log.info' || event.eventType === 'log.warning' || event.eventType === 'log.error') {
           msg = `${fields?.message?.kind?.value || ''}`
         } else if (event.eventType === 'module.error') {
@@ -295,6 +301,11 @@ export default function App() {
           const img = fields?.image?.kind?.value || ''
           setLiveScreenshot(img)
           continue
+        } else if (event.eventType === 'report.generated') {
+          const path = fields?.path?.kind?.value || ''
+          const url = `http://127.0.0.1:8443/${path}`
+          setReportUrl(url)
+          msg = `Final assessment report generated: ${url}`
         }
         addEventLog(event.eventType, msg)
       }
@@ -303,10 +314,27 @@ export default function App() {
       fetchScans()
       fetchScanModules()
       fetchFindings()
+      fetchVerifications()
       fetchPerformanceMetrics()
     } catch (err: any) {
       addEventLog('error', `Stream closed: ${err.message}`)
     }
+  }
+
+  // Objective and scan status calculation helpers
+  const activeScan = scans.find(s => s.id === activeScanId)
+  const scanStatus = activeScan ? activeScan.status.replace('SCAN_STATUS_', '') : 'IDLE'
+
+  const getActiveObjective = () => {
+    if (!activeScanId) return "Awaiting target specification"
+    const runningModule = scanModules.find(m => m.status === 'RUNNING')
+    if (runningModule) return runningModule.module_name
+    
+    if (scanStatus === 'COMPLETED') return "Simulation Completed. Report generated."
+    if (scanStatus === 'FAILED') return "Simulation Failed."
+    if (isStartingScan) return "Spawning Penetration Rig..."
+    
+    return "Analyzing Target Application"
   }
 
   return (
@@ -317,6 +345,8 @@ export default function App() {
       pythonAiStatus={pythonAiStatus}
       targetUrl={targetUrl}
       onSync={syncSystem}
+      scanStatus={scanStatus}
+      currentObjective={getActiveObjective()}
     >
       {activeTab === 'dashboard' ? (
         <Dashboard
@@ -332,9 +362,10 @@ export default function App() {
           scanModules={scanModules}
           activeScanId={activeScanId}
           findings={findings}
-          hypotheses={hypotheses}
           liveScreenshot={liveScreenshot}
           performanceMetrics={performanceMetrics}
+          verifications={verifications}
+          reportUrl={reportUrl}
         />
       ) : (
         <Settings />

@@ -125,460 +125,32 @@ func (x *HealthResponse) GetInitialized() bool {
 	return false
 }
 
-type AnalyzeReconRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	TargetUrl     string                 `protobuf:"bytes,1,opt,name=target_url,json=targetUrl,proto3" json:"target_url,omitempty"`
-	Headers       map[string]string      `protobuf:"bytes,2,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	CookieNames   []string               `protobuf:"bytes,3,rep,name=cookie_names,json=cookieNames,proto3" json:"cookie_names,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *AnalyzeReconRequest) Reset() {
-	*x = AnalyzeReconRequest{}
-	mi := &file_ai_v1_ai_proto_msgTypes[2]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AnalyzeReconRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AnalyzeReconRequest) ProtoMessage() {}
-
-func (x *AnalyzeReconRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_ai_v1_ai_proto_msgTypes[2]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AnalyzeReconRequest.ProtoReflect.Descriptor instead.
-func (*AnalyzeReconRequest) Descriptor() ([]byte, []int) {
-	return file_ai_v1_ai_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *AnalyzeReconRequest) GetTargetUrl() string {
-	if x != nil {
-		return x.TargetUrl
-	}
-	return ""
-}
-
-func (x *AnalyzeReconRequest) GetHeaders() map[string]string {
-	if x != nil {
-		return x.Headers
-	}
-	return nil
-}
-
-func (x *AnalyzeReconRequest) GetCookieNames() []string {
-	if x != nil {
-		return x.CookieNames
-	}
-	return nil
-}
-
-type AnalyzeReconResponse struct {
-	state                protoimpl.MessageState `protogen:"open.v1"`
-	DetectedTechnologies []string               `protobuf:"bytes,1,rep,name=detected_technologies,json=detectedTechnologies,proto3" json:"detected_technologies,omitempty"`
-	AuthenticationModel  string                 `protobuf:"bytes,2,opt,name=authentication_model,json=authenticationModel,proto3" json:"authentication_model,omitempty"`
-	RecommendedTests     []string               `protobuf:"bytes,3,rep,name=recommended_tests,json=recommendedTests,proto3" json:"recommended_tests,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
-}
-
-func (x *AnalyzeReconResponse) Reset() {
-	*x = AnalyzeReconResponse{}
-	mi := &file_ai_v1_ai_proto_msgTypes[3]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AnalyzeReconResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AnalyzeReconResponse) ProtoMessage() {}
-
-func (x *AnalyzeReconResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_ai_v1_ai_proto_msgTypes[3]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AnalyzeReconResponse.ProtoReflect.Descriptor instead.
-func (*AnalyzeReconResponse) Descriptor() ([]byte, []int) {
-	return file_ai_v1_ai_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *AnalyzeReconResponse) GetDetectedTechnologies() []string {
-	if x != nil {
-		return x.DetectedTechnologies
-	}
-	return nil
-}
-
-func (x *AnalyzeReconResponse) GetAuthenticationModel() string {
-	if x != nil {
-		return x.AuthenticationModel
-	}
-	return ""
-}
-
-func (x *AnalyzeReconResponse) GetRecommendedTests() []string {
-	if x != nil {
-		return x.RecommendedTests
-	}
-	return nil
-}
-
-type GenerateHypothesesRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	TargetUrl     string                 `protobuf:"bytes,1,opt,name=target_url,json=targetUrl,proto3" json:"target_url,omitempty"`
-	Endpoints     []string               `protobuf:"bytes,2,rep,name=endpoints,proto3" json:"endpoints,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GenerateHypothesesRequest) Reset() {
-	*x = GenerateHypothesesRequest{}
-	mi := &file_ai_v1_ai_proto_msgTypes[4]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GenerateHypothesesRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GenerateHypothesesRequest) ProtoMessage() {}
-
-func (x *GenerateHypothesesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_ai_v1_ai_proto_msgTypes[4]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GenerateHypothesesRequest.ProtoReflect.Descriptor instead.
-func (*GenerateHypothesesRequest) Descriptor() ([]byte, []int) {
-	return file_ai_v1_ai_proto_rawDescGZIP(), []int{4}
-}
-
-func (x *GenerateHypothesesRequest) GetTargetUrl() string {
-	if x != nil {
-		return x.TargetUrl
-	}
-	return ""
-}
-
-func (x *GenerateHypothesesRequest) GetEndpoints() []string {
-	if x != nil {
-		return x.Endpoints
-	}
-	return nil
-}
-
-type Hypothesis struct {
+type FindingSummary struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
-	Id                string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Title             string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
-	Description       string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
-	Confidence        float32                `protobuf:"fixed32,4,opt,name=confidence,proto3" json:"confidence,omitempty"` // 0.0 to 1.0
-	VulnerabilityType string                 `protobuf:"bytes,5,opt,name=vulnerability_type,json=vulnerabilityType,proto3" json:"vulnerability_type,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
-}
-
-func (x *Hypothesis) Reset() {
-	*x = Hypothesis{}
-	mi := &file_ai_v1_ai_proto_msgTypes[5]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *Hypothesis) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Hypothesis) ProtoMessage() {}
-
-func (x *Hypothesis) ProtoReflect() protoreflect.Message {
-	mi := &file_ai_v1_ai_proto_msgTypes[5]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Hypothesis.ProtoReflect.Descriptor instead.
-func (*Hypothesis) Descriptor() ([]byte, []int) {
-	return file_ai_v1_ai_proto_rawDescGZIP(), []int{5}
-}
-
-func (x *Hypothesis) GetId() string {
-	if x != nil {
-		return x.Id
-	}
-	return ""
-}
-
-func (x *Hypothesis) GetTitle() string {
-	if x != nil {
-		return x.Title
-	}
-	return ""
-}
-
-func (x *Hypothesis) GetDescription() string {
-	if x != nil {
-		return x.Description
-	}
-	return ""
-}
-
-func (x *Hypothesis) GetConfidence() float32 {
-	if x != nil {
-		return x.Confidence
-	}
-	return 0
-}
-
-func (x *Hypothesis) GetVulnerabilityType() string {
-	if x != nil {
-		return x.VulnerabilityType
-	}
-	return ""
-}
-
-type GenerateHypothesesResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Hypotheses    []*Hypothesis          `protobuf:"bytes,1,rep,name=hypotheses,proto3" json:"hypotheses,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GenerateHypothesesResponse) Reset() {
-	*x = GenerateHypothesesResponse{}
-	mi := &file_ai_v1_ai_proto_msgTypes[6]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GenerateHypothesesResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GenerateHypothesesResponse) ProtoMessage() {}
-
-func (x *GenerateHypothesesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_ai_v1_ai_proto_msgTypes[6]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GenerateHypothesesResponse.ProtoReflect.Descriptor instead.
-func (*GenerateHypothesesResponse) Descriptor() ([]byte, []int) {
-	return file_ai_v1_ai_proto_rawDescGZIP(), []int{6}
-}
-
-func (x *GenerateHypothesesResponse) GetHypotheses() []*Hypothesis {
-	if x != nil {
-		return x.Hypotheses
-	}
-	return nil
-}
-
-type ScoreConfidenceRequest struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	VulnerabilityType string                 `protobuf:"bytes,1,opt,name=vulnerability_type,json=vulnerabilityType,proto3" json:"vulnerability_type,omitempty"`
-	Endpoint          string                 `protobuf:"bytes,2,opt,name=endpoint,proto3" json:"endpoint,omitempty"`
-	Payload           string                 `protobuf:"bytes,3,opt,name=payload,proto3" json:"payload,omitempty"`
-	ResponseBody      string                 `protobuf:"bytes,4,opt,name=response_body,json=responseBody,proto3" json:"response_body,omitempty"`
-	ResponseStatus    int32                  `protobuf:"varint,5,opt,name=response_status,json=responseStatus,proto3" json:"response_status,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
-}
-
-func (x *ScoreConfidenceRequest) Reset() {
-	*x = ScoreConfidenceRequest{}
-	mi := &file_ai_v1_ai_proto_msgTypes[7]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ScoreConfidenceRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ScoreConfidenceRequest) ProtoMessage() {}
-
-func (x *ScoreConfidenceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_ai_v1_ai_proto_msgTypes[7]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ScoreConfidenceRequest.ProtoReflect.Descriptor instead.
-func (*ScoreConfidenceRequest) Descriptor() ([]byte, []int) {
-	return file_ai_v1_ai_proto_rawDescGZIP(), []int{7}
-}
-
-func (x *ScoreConfidenceRequest) GetVulnerabilityType() string {
-	if x != nil {
-		return x.VulnerabilityType
-	}
-	return ""
-}
-
-func (x *ScoreConfidenceRequest) GetEndpoint() string {
-	if x != nil {
-		return x.Endpoint
-	}
-	return ""
-}
-
-func (x *ScoreConfidenceRequest) GetPayload() string {
-	if x != nil {
-		return x.Payload
-	}
-	return ""
-}
-
-func (x *ScoreConfidenceRequest) GetResponseBody() string {
-	if x != nil {
-		return x.ResponseBody
-	}
-	return ""
-}
-
-func (x *ScoreConfidenceRequest) GetResponseStatus() int32 {
-	if x != nil {
-		return x.ResponseStatus
-	}
-	return 0
-}
-
-type ScoreConfidenceResponse struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	Confidence      float32                `protobuf:"fixed32,1,opt,name=confidence,proto3" json:"confidence,omitempty"` // 0.0 to 1.0
-	Explanation     string                 `protobuf:"bytes,2,opt,name=explanation,proto3" json:"explanation,omitempty"`
-	IsFalsePositive bool                   `protobuf:"varint,3,opt,name=is_false_positive,json=isFalsePositive,proto3" json:"is_false_positive,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
-}
-
-func (x *ScoreConfidenceResponse) Reset() {
-	*x = ScoreConfidenceResponse{}
-	mi := &file_ai_v1_ai_proto_msgTypes[8]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ScoreConfidenceResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ScoreConfidenceResponse) ProtoMessage() {}
-
-func (x *ScoreConfidenceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_ai_v1_ai_proto_msgTypes[8]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ScoreConfidenceResponse.ProtoReflect.Descriptor instead.
-func (*ScoreConfidenceResponse) Descriptor() ([]byte, []int) {
-	return file_ai_v1_ai_proto_rawDescGZIP(), []int{8}
-}
-
-func (x *ScoreConfidenceResponse) GetConfidence() float32 {
-	if x != nil {
-		return x.Confidence
-	}
-	return 0
-}
-
-func (x *ScoreConfidenceResponse) GetExplanation() string {
-	if x != nil {
-		return x.Explanation
-	}
-	return ""
-}
-
-func (x *ScoreConfidenceResponse) GetIsFalsePositive() bool {
-	if x != nil {
-		return x.IsFalsePositive
-	}
-	return false
-}
-
-type GenerateFindingNarrativeRequest struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	VulnerabilityType string                 `protobuf:"bytes,1,opt,name=vulnerability_type,json=vulnerabilityType,proto3" json:"vulnerability_type,omitempty"`
-	Title             string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
-	Endpoint          string                 `protobuf:"bytes,3,opt,name=endpoint,proto3" json:"endpoint,omitempty"`
-	Evidence          string                 `protobuf:"bytes,4,opt,name=evidence,proto3" json:"evidence,omitempty"`
+	Title             string                 `protobuf:"bytes,1,opt,name=title,proto3" json:"title,omitempty"`
+	Severity          string                 `protobuf:"bytes,2,opt,name=severity,proto3" json:"severity,omitempty"`
+	VulnerabilityType string                 `protobuf:"bytes,3,opt,name=vulnerability_type,json=vulnerabilityType,proto3" json:"vulnerability_type,omitempty"`
+	Endpoint          string                 `protobuf:"bytes,4,opt,name=endpoint,proto3" json:"endpoint,omitempty"`
 	Confidence        float32                `protobuf:"fixed32,5,opt,name=confidence,proto3" json:"confidence,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
 
-func (x *GenerateFindingNarrativeRequest) Reset() {
-	*x = GenerateFindingNarrativeRequest{}
-	mi := &file_ai_v1_ai_proto_msgTypes[9]
+func (x *FindingSummary) Reset() {
+	*x = FindingSummary{}
+	mi := &file_ai_v1_ai_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GenerateFindingNarrativeRequest) String() string {
+func (x *FindingSummary) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GenerateFindingNarrativeRequest) ProtoMessage() {}
+func (*FindingSummary) ProtoMessage() {}
 
-func (x *GenerateFindingNarrativeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_ai_v1_ai_proto_msgTypes[9]
+func (x *FindingSummary) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_v1_ai_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -589,69 +161,75 @@ func (x *GenerateFindingNarrativeRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GenerateFindingNarrativeRequest.ProtoReflect.Descriptor instead.
-func (*GenerateFindingNarrativeRequest) Descriptor() ([]byte, []int) {
-	return file_ai_v1_ai_proto_rawDescGZIP(), []int{9}
+// Deprecated: Use FindingSummary.ProtoReflect.Descriptor instead.
+func (*FindingSummary) Descriptor() ([]byte, []int) {
+	return file_ai_v1_ai_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *GenerateFindingNarrativeRequest) GetVulnerabilityType() string {
-	if x != nil {
-		return x.VulnerabilityType
-	}
-	return ""
-}
-
-func (x *GenerateFindingNarrativeRequest) GetTitle() string {
+func (x *FindingSummary) GetTitle() string {
 	if x != nil {
 		return x.Title
 	}
 	return ""
 }
 
-func (x *GenerateFindingNarrativeRequest) GetEndpoint() string {
+func (x *FindingSummary) GetSeverity() string {
+	if x != nil {
+		return x.Severity
+	}
+	return ""
+}
+
+func (x *FindingSummary) GetVulnerabilityType() string {
+	if x != nil {
+		return x.VulnerabilityType
+	}
+	return ""
+}
+
+func (x *FindingSummary) GetEndpoint() string {
 	if x != nil {
 		return x.Endpoint
 	}
 	return ""
 }
 
-func (x *GenerateFindingNarrativeRequest) GetEvidence() string {
-	if x != nil {
-		return x.Evidence
-	}
-	return ""
-}
-
-func (x *GenerateFindingNarrativeRequest) GetConfidence() float32 {
+func (x *FindingSummary) GetConfidence() float32 {
 	if x != nil {
 		return x.Confidence
 	}
 	return 0
 }
 
-type GenerateFindingNarrativeResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Description   string                 `protobuf:"bytes,1,opt,name=description,proto3" json:"description,omitempty"`
-	Remediation   string                 `protobuf:"bytes,2,opt,name=remediation,proto3" json:"remediation,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+type GenerateExecutiveSummaryRequest struct {
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	TargetUrl            string                 `protobuf:"bytes,1,opt,name=target_url,json=targetUrl,proto3" json:"target_url,omitempty"`
+	HighCount            int32                  `protobuf:"varint,2,opt,name=high_count,json=highCount,proto3" json:"high_count,omitempty"`
+	MediumCount          int32                  `protobuf:"varint,3,opt,name=medium_count,json=mediumCount,proto3" json:"medium_count,omitempty"`
+	LowCount             int32                  `protobuf:"varint,4,opt,name=low_count,json=lowCount,proto3" json:"low_count,omitempty"`
+	InfoCount            int32                  `protobuf:"varint,5,opt,name=info_count,json=infoCount,proto3" json:"info_count,omitempty"`
+	Findings             []*FindingSummary      `protobuf:"bytes,6,rep,name=findings,proto3" json:"findings,omitempty"`
+	Duration             string                 `protobuf:"bytes,7,opt,name=duration,proto3" json:"duration,omitempty"`
+	DetectedTechnologies string                 `protobuf:"bytes,8,opt,name=detected_technologies,json=detectedTechnologies,proto3" json:"detected_technologies,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
-func (x *GenerateFindingNarrativeResponse) Reset() {
-	*x = GenerateFindingNarrativeResponse{}
-	mi := &file_ai_v1_ai_proto_msgTypes[10]
+func (x *GenerateExecutiveSummaryRequest) Reset() {
+	*x = GenerateExecutiveSummaryRequest{}
+	mi := &file_ai_v1_ai_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GenerateFindingNarrativeResponse) String() string {
+func (x *GenerateExecutiveSummaryRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GenerateFindingNarrativeResponse) ProtoMessage() {}
+func (*GenerateExecutiveSummaryRequest) ProtoMessage() {}
 
-func (x *GenerateFindingNarrativeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_ai_v1_ai_proto_msgTypes[10]
+func (x *GenerateExecutiveSummaryRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_v1_ai_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -662,50 +240,91 @@ func (x *GenerateFindingNarrativeResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GenerateFindingNarrativeResponse.ProtoReflect.Descriptor instead.
-func (*GenerateFindingNarrativeResponse) Descriptor() ([]byte, []int) {
-	return file_ai_v1_ai_proto_rawDescGZIP(), []int{10}
+// Deprecated: Use GenerateExecutiveSummaryRequest.ProtoReflect.Descriptor instead.
+func (*GenerateExecutiveSummaryRequest) Descriptor() ([]byte, []int) {
+	return file_ai_v1_ai_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *GenerateFindingNarrativeResponse) GetDescription() string {
+func (x *GenerateExecutiveSummaryRequest) GetTargetUrl() string {
 	if x != nil {
-		return x.Description
+		return x.TargetUrl
 	}
 	return ""
 }
 
-func (x *GenerateFindingNarrativeResponse) GetRemediation() string {
+func (x *GenerateExecutiveSummaryRequest) GetHighCount() int32 {
 	if x != nil {
-		return x.Remediation
+		return x.HighCount
+	}
+	return 0
+}
+
+func (x *GenerateExecutiveSummaryRequest) GetMediumCount() int32 {
+	if x != nil {
+		return x.MediumCount
+	}
+	return 0
+}
+
+func (x *GenerateExecutiveSummaryRequest) GetLowCount() int32 {
+	if x != nil {
+		return x.LowCount
+	}
+	return 0
+}
+
+func (x *GenerateExecutiveSummaryRequest) GetInfoCount() int32 {
+	if x != nil {
+		return x.InfoCount
+	}
+	return 0
+}
+
+func (x *GenerateExecutiveSummaryRequest) GetFindings() []*FindingSummary {
+	if x != nil {
+		return x.Findings
+	}
+	return nil
+}
+
+func (x *GenerateExecutiveSummaryRequest) GetDuration() string {
+	if x != nil {
+		return x.Duration
 	}
 	return ""
 }
 
-type GenerateAttackPayloadRequest struct {
-	state                 protoimpl.MessageState `protogen:"open.v1"`
-	HypothesisTitle       string                 `protobuf:"bytes,1,opt,name=hypothesis_title,json=hypothesisTitle,proto3" json:"hypothesis_title,omitempty"`
-	HypothesisDescription string                 `protobuf:"bytes,2,opt,name=hypothesis_description,json=hypothesisDescription,proto3" json:"hypothesis_description,omitempty"`
-	Endpoint              string                 `protobuf:"bytes,3,opt,name=endpoint,proto3" json:"endpoint,omitempty"`
-	Method                string                 `protobuf:"bytes,4,opt,name=method,proto3" json:"method,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+func (x *GenerateExecutiveSummaryRequest) GetDetectedTechnologies() string {
+	if x != nil {
+		return x.DetectedTechnologies
+	}
+	return ""
 }
 
-func (x *GenerateAttackPayloadRequest) Reset() {
-	*x = GenerateAttackPayloadRequest{}
-	mi := &file_ai_v1_ai_proto_msgTypes[11]
+type GenerateExecutiveSummaryResponse struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	Summary            string                 `protobuf:"bytes,1,opt,name=summary,proto3" json:"summary,omitempty"`
+	RiskRating         string                 `protobuf:"bytes,2,opt,name=risk_rating,json=riskRating,proto3" json:"risk_rating,omitempty"`
+	KeyRecommendations []string               `protobuf:"bytes,3,rep,name=key_recommendations,json=keyRecommendations,proto3" json:"key_recommendations,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *GenerateExecutiveSummaryResponse) Reset() {
+	*x = GenerateExecutiveSummaryResponse{}
+	mi := &file_ai_v1_ai_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GenerateAttackPayloadRequest) String() string {
+func (x *GenerateExecutiveSummaryResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GenerateAttackPayloadRequest) ProtoMessage() {}
+func (*GenerateExecutiveSummaryResponse) ProtoMessage() {}
 
-func (x *GenerateAttackPayloadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_ai_v1_ai_proto_msgTypes[11]
+func (x *GenerateExecutiveSummaryResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_v1_ai_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -716,714 +335,30 @@ func (x *GenerateAttackPayloadRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GenerateAttackPayloadRequest.ProtoReflect.Descriptor instead.
-func (*GenerateAttackPayloadRequest) Descriptor() ([]byte, []int) {
-	return file_ai_v1_ai_proto_rawDescGZIP(), []int{11}
+// Deprecated: Use GenerateExecutiveSummaryResponse.ProtoReflect.Descriptor instead.
+func (*GenerateExecutiveSummaryResponse) Descriptor() ([]byte, []int) {
+	return file_ai_v1_ai_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *GenerateAttackPayloadRequest) GetHypothesisTitle() string {
+func (x *GenerateExecutiveSummaryResponse) GetSummary() string {
 	if x != nil {
-		return x.HypothesisTitle
+		return x.Summary
 	}
 	return ""
 }
 
-func (x *GenerateAttackPayloadRequest) GetHypothesisDescription() string {
+func (x *GenerateExecutiveSummaryResponse) GetRiskRating() string {
 	if x != nil {
-		return x.HypothesisDescription
+		return x.RiskRating
 	}
 	return ""
 }
 
-func (x *GenerateAttackPayloadRequest) GetEndpoint() string {
+func (x *GenerateExecutiveSummaryResponse) GetKeyRecommendations() []string {
 	if x != nil {
-		return x.Endpoint
-	}
-	return ""
-}
-
-func (x *GenerateAttackPayloadRequest) GetMethod() string {
-	if x != nil {
-		return x.Method
-	}
-	return ""
-}
-
-type GenerateAttackPayloadResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Method        string                 `protobuf:"bytes,1,opt,name=method,proto3" json:"method,omitempty"`
-	Url           string                 `protobuf:"bytes,2,opt,name=url,proto3" json:"url,omitempty"`
-	Body          string                 `protobuf:"bytes,3,opt,name=body,proto3" json:"body,omitempty"`
-	Headers       map[string]string      `protobuf:"bytes,4,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	Explanation   string                 `protobuf:"bytes,5,opt,name=explanation,proto3" json:"explanation,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GenerateAttackPayloadResponse) Reset() {
-	*x = GenerateAttackPayloadResponse{}
-	mi := &file_ai_v1_ai_proto_msgTypes[12]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GenerateAttackPayloadResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GenerateAttackPayloadResponse) ProtoMessage() {}
-
-func (x *GenerateAttackPayloadResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_ai_v1_ai_proto_msgTypes[12]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GenerateAttackPayloadResponse.ProtoReflect.Descriptor instead.
-func (*GenerateAttackPayloadResponse) Descriptor() ([]byte, []int) {
-	return file_ai_v1_ai_proto_rawDescGZIP(), []int{12}
-}
-
-func (x *GenerateAttackPayloadResponse) GetMethod() string {
-	if x != nil {
-		return x.Method
-	}
-	return ""
-}
-
-func (x *GenerateAttackPayloadResponse) GetUrl() string {
-	if x != nil {
-		return x.Url
-	}
-	return ""
-}
-
-func (x *GenerateAttackPayloadResponse) GetBody() string {
-	if x != nil {
-		return x.Body
-	}
-	return ""
-}
-
-func (x *GenerateAttackPayloadResponse) GetHeaders() map[string]string {
-	if x != nil {
-		return x.Headers
+		return x.KeyRecommendations
 	}
 	return nil
-}
-
-func (x *GenerateAttackPayloadResponse) GetExplanation() string {
-	if x != nil {
-		return x.Explanation
-	}
-	return ""
-}
-
-type DecideBrowserActionRequest struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	Url               string                 `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
-	PageSource        string                 `protobuf:"bytes,2,opt,name=page_source,json=pageSource,proto3" json:"page_source,omitempty"`
-	CurrentGoal       string                 `protobuf:"bytes,3,opt,name=current_goal,json=currentGoal,proto3" json:"current_goal,omitempty"`
-	LastActionSuccess bool                   `protobuf:"varint,4,opt,name=last_action_success,json=lastActionSuccess,proto3" json:"last_action_success,omitempty"`
-	LastActionError   string                 `protobuf:"bytes,5,opt,name=last_action_error,json=lastActionError,proto3" json:"last_action_error,omitempty"`
-	CurrentUrl        string                 `protobuf:"bytes,6,opt,name=current_url,json=currentUrl,proto3" json:"current_url,omitempty"`
-	PageTitle         string                 `protobuf:"bytes,7,opt,name=page_title,json=pageTitle,proto3" json:"page_title,omitempty"`
-	Links             []*BrowserElement      `protobuf:"bytes,8,rep,name=links,proto3" json:"links,omitempty"`
-	Buttons           []*BrowserElement      `protobuf:"bytes,9,rep,name=buttons,proto3" json:"buttons,omitempty"`
-	Forms             []*BrowserForm         `protobuf:"bytes,10,rep,name=forms,proto3" json:"forms,omitempty"`
-	LastAction        string                 `protobuf:"bytes,11,opt,name=last_action,json=lastAction,proto3" json:"last_action,omitempty"`
-	LastSelector      string                 `protobuf:"bytes,12,opt,name=last_selector,json=lastSelector,proto3" json:"last_selector,omitempty"`
-	ScreenshotBase64  string                 `protobuf:"bytes,13,opt,name=screenshot_base64,json=screenshotBase64,proto3" json:"screenshot_base64,omitempty"`
-	// Browser Attack Context
-	SessionId     string                  `protobuf:"bytes,14,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	Cookies       map[string]string       `protobuf:"bytes,15,rep,name=cookies,proto3" json:"cookies,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	LocalStorage  map[string]string       `protobuf:"bytes,16,rep,name=local_storage,json=localStorage,proto3" json:"local_storage,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	History       []*BrowserActionOutcome `protobuf:"bytes,17,rep,name=history,proto3" json:"history,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *DecideBrowserActionRequest) Reset() {
-	*x = DecideBrowserActionRequest{}
-	mi := &file_ai_v1_ai_proto_msgTypes[13]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *DecideBrowserActionRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*DecideBrowserActionRequest) ProtoMessage() {}
-
-func (x *DecideBrowserActionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_ai_v1_ai_proto_msgTypes[13]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use DecideBrowserActionRequest.ProtoReflect.Descriptor instead.
-func (*DecideBrowserActionRequest) Descriptor() ([]byte, []int) {
-	return file_ai_v1_ai_proto_rawDescGZIP(), []int{13}
-}
-
-func (x *DecideBrowserActionRequest) GetUrl() string {
-	if x != nil {
-		return x.Url
-	}
-	return ""
-}
-
-func (x *DecideBrowserActionRequest) GetPageSource() string {
-	if x != nil {
-		return x.PageSource
-	}
-	return ""
-}
-
-func (x *DecideBrowserActionRequest) GetCurrentGoal() string {
-	if x != nil {
-		return x.CurrentGoal
-	}
-	return ""
-}
-
-func (x *DecideBrowserActionRequest) GetLastActionSuccess() bool {
-	if x != nil {
-		return x.LastActionSuccess
-	}
-	return false
-}
-
-func (x *DecideBrowserActionRequest) GetLastActionError() string {
-	if x != nil {
-		return x.LastActionError
-	}
-	return ""
-}
-
-func (x *DecideBrowserActionRequest) GetCurrentUrl() string {
-	if x != nil {
-		return x.CurrentUrl
-	}
-	return ""
-}
-
-func (x *DecideBrowserActionRequest) GetPageTitle() string {
-	if x != nil {
-		return x.PageTitle
-	}
-	return ""
-}
-
-func (x *DecideBrowserActionRequest) GetLinks() []*BrowserElement {
-	if x != nil {
-		return x.Links
-	}
-	return nil
-}
-
-func (x *DecideBrowserActionRequest) GetButtons() []*BrowserElement {
-	if x != nil {
-		return x.Buttons
-	}
-	return nil
-}
-
-func (x *DecideBrowserActionRequest) GetForms() []*BrowserForm {
-	if x != nil {
-		return x.Forms
-	}
-	return nil
-}
-
-func (x *DecideBrowserActionRequest) GetLastAction() string {
-	if x != nil {
-		return x.LastAction
-	}
-	return ""
-}
-
-func (x *DecideBrowserActionRequest) GetLastSelector() string {
-	if x != nil {
-		return x.LastSelector
-	}
-	return ""
-}
-
-func (x *DecideBrowserActionRequest) GetScreenshotBase64() string {
-	if x != nil {
-		return x.ScreenshotBase64
-	}
-	return ""
-}
-
-func (x *DecideBrowserActionRequest) GetSessionId() string {
-	if x != nil {
-		return x.SessionId
-	}
-	return ""
-}
-
-func (x *DecideBrowserActionRequest) GetCookies() map[string]string {
-	if x != nil {
-		return x.Cookies
-	}
-	return nil
-}
-
-func (x *DecideBrowserActionRequest) GetLocalStorage() map[string]string {
-	if x != nil {
-		return x.LocalStorage
-	}
-	return nil
-}
-
-func (x *DecideBrowserActionRequest) GetHistory() []*BrowserActionOutcome {
-	if x != nil {
-		return x.History
-	}
-	return nil
-}
-
-type BrowserActionOutcome struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Action        string                 `protobuf:"bytes,1,opt,name=action,proto3" json:"action,omitempty"`
-	Selector      string                 `protobuf:"bytes,2,opt,name=selector,proto3" json:"selector,omitempty"`
-	Value         string                 `protobuf:"bytes,3,opt,name=value,proto3" json:"value,omitempty"`
-	Success       bool                   `protobuf:"varint,4,opt,name=success,proto3" json:"success,omitempty"`
-	Error         string                 `protobuf:"bytes,5,opt,name=error,proto3" json:"error,omitempty"`
-	Result        *ActionResult          `protobuf:"bytes,6,opt,name=result,proto3" json:"result,omitempty"`
-	Reasoning     string                 `protobuf:"bytes,7,opt,name=reasoning,proto3" json:"reasoning,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *BrowserActionOutcome) Reset() {
-	*x = BrowserActionOutcome{}
-	mi := &file_ai_v1_ai_proto_msgTypes[14]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *BrowserActionOutcome) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*BrowserActionOutcome) ProtoMessage() {}
-
-func (x *BrowserActionOutcome) ProtoReflect() protoreflect.Message {
-	mi := &file_ai_v1_ai_proto_msgTypes[14]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use BrowserActionOutcome.ProtoReflect.Descriptor instead.
-func (*BrowserActionOutcome) Descriptor() ([]byte, []int) {
-	return file_ai_v1_ai_proto_rawDescGZIP(), []int{14}
-}
-
-func (x *BrowserActionOutcome) GetAction() string {
-	if x != nil {
-		return x.Action
-	}
-	return ""
-}
-
-func (x *BrowserActionOutcome) GetSelector() string {
-	if x != nil {
-		return x.Selector
-	}
-	return ""
-}
-
-func (x *BrowserActionOutcome) GetValue() string {
-	if x != nil {
-		return x.Value
-	}
-	return ""
-}
-
-func (x *BrowserActionOutcome) GetSuccess() bool {
-	if x != nil {
-		return x.Success
-	}
-	return false
-}
-
-func (x *BrowserActionOutcome) GetError() string {
-	if x != nil {
-		return x.Error
-	}
-	return ""
-}
-
-func (x *BrowserActionOutcome) GetResult() *ActionResult {
-	if x != nil {
-		return x.Result
-	}
-	return nil
-}
-
-func (x *BrowserActionOutcome) GetReasoning() string {
-	if x != nil {
-		return x.Reasoning
-	}
-	return ""
-}
-
-type ActionResult struct {
-	state            protoimpl.MessageState `protogen:"open.v1"`
-	Success          bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
-	FailureReason    string                 `protobuf:"bytes,2,opt,name=failure_reason,json=failureReason,proto3" json:"failure_reason,omitempty"`
-	CurrentUrl       string                 `protobuf:"bytes,3,opt,name=current_url,json=currentUrl,proto3" json:"current_url,omitempty"`
-	PageTitle        string                 `protobuf:"bytes,4,opt,name=page_title,json=pageTitle,proto3" json:"page_title,omitempty"`
-	ScreenshotBase64 string                 `protobuf:"bytes,5,opt,name=screenshot_base64,json=screenshotBase64,proto3" json:"screenshot_base64,omitempty"`
-	Links            []*BrowserElement      `protobuf:"bytes,6,rep,name=links,proto3" json:"links,omitempty"`
-	Buttons          []*BrowserElement      `protobuf:"bytes,7,rep,name=buttons,proto3" json:"buttons,omitempty"`
-	Forms            []*BrowserForm         `protobuf:"bytes,8,rep,name=forms,proto3" json:"forms,omitempty"`
-	PageSource       string                 `protobuf:"bytes,9,opt,name=page_source,json=pageSource,proto3" json:"page_source,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
-}
-
-func (x *ActionResult) Reset() {
-	*x = ActionResult{}
-	mi := &file_ai_v1_ai_proto_msgTypes[15]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ActionResult) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ActionResult) ProtoMessage() {}
-
-func (x *ActionResult) ProtoReflect() protoreflect.Message {
-	mi := &file_ai_v1_ai_proto_msgTypes[15]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ActionResult.ProtoReflect.Descriptor instead.
-func (*ActionResult) Descriptor() ([]byte, []int) {
-	return file_ai_v1_ai_proto_rawDescGZIP(), []int{15}
-}
-
-func (x *ActionResult) GetSuccess() bool {
-	if x != nil {
-		return x.Success
-	}
-	return false
-}
-
-func (x *ActionResult) GetFailureReason() string {
-	if x != nil {
-		return x.FailureReason
-	}
-	return ""
-}
-
-func (x *ActionResult) GetCurrentUrl() string {
-	if x != nil {
-		return x.CurrentUrl
-	}
-	return ""
-}
-
-func (x *ActionResult) GetPageTitle() string {
-	if x != nil {
-		return x.PageTitle
-	}
-	return ""
-}
-
-func (x *ActionResult) GetScreenshotBase64() string {
-	if x != nil {
-		return x.ScreenshotBase64
-	}
-	return ""
-}
-
-func (x *ActionResult) GetLinks() []*BrowserElement {
-	if x != nil {
-		return x.Links
-	}
-	return nil
-}
-
-func (x *ActionResult) GetButtons() []*BrowserElement {
-	if x != nil {
-		return x.Buttons
-	}
-	return nil
-}
-
-func (x *ActionResult) GetForms() []*BrowserForm {
-	if x != nil {
-		return x.Forms
-	}
-	return nil
-}
-
-func (x *ActionResult) GetPageSource() string {
-	if x != nil {
-		return x.PageSource
-	}
-	return ""
-}
-
-type BrowserElement struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Text          string                 `protobuf:"bytes,1,opt,name=text,proto3" json:"text,omitempty"`
-	Selector      string                 `protobuf:"bytes,2,opt,name=selector,proto3" json:"selector,omitempty"`
-	Type          string                 `protobuf:"bytes,3,opt,name=type,proto3" json:"type,omitempty"`
-	Href          string                 `protobuf:"bytes,4,opt,name=href,proto3" json:"href,omitempty"`
-	Id            string                 `protobuf:"bytes,5,opt,name=id,proto3" json:"id,omitempty"`
-	Name          string                 `protobuf:"bytes,6,opt,name=name,proto3" json:"name,omitempty"`
-	Value         string                 `protobuf:"bytes,7,opt,name=value,proto3" json:"value,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *BrowserElement) Reset() {
-	*x = BrowserElement{}
-	mi := &file_ai_v1_ai_proto_msgTypes[16]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *BrowserElement) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*BrowserElement) ProtoMessage() {}
-
-func (x *BrowserElement) ProtoReflect() protoreflect.Message {
-	mi := &file_ai_v1_ai_proto_msgTypes[16]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use BrowserElement.ProtoReflect.Descriptor instead.
-func (*BrowserElement) Descriptor() ([]byte, []int) {
-	return file_ai_v1_ai_proto_rawDescGZIP(), []int{16}
-}
-
-func (x *BrowserElement) GetText() string {
-	if x != nil {
-		return x.Text
-	}
-	return ""
-}
-
-func (x *BrowserElement) GetSelector() string {
-	if x != nil {
-		return x.Selector
-	}
-	return ""
-}
-
-func (x *BrowserElement) GetType() string {
-	if x != nil {
-		return x.Type
-	}
-	return ""
-}
-
-func (x *BrowserElement) GetHref() string {
-	if x != nil {
-		return x.Href
-	}
-	return ""
-}
-
-func (x *BrowserElement) GetId() string {
-	if x != nil {
-		return x.Id
-	}
-	return ""
-}
-
-func (x *BrowserElement) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
-func (x *BrowserElement) GetValue() string {
-	if x != nil {
-		return x.Value
-	}
-	return ""
-}
-
-type BrowserForm struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Selector      string                 `protobuf:"bytes,1,opt,name=selector,proto3" json:"selector,omitempty"`
-	Action        string                 `protobuf:"bytes,2,opt,name=action,proto3" json:"action,omitempty"`
-	Method        string                 `protobuf:"bytes,3,opt,name=method,proto3" json:"method,omitempty"`
-	Inputs        []*BrowserElement      `protobuf:"bytes,4,rep,name=inputs,proto3" json:"inputs,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *BrowserForm) Reset() {
-	*x = BrowserForm{}
-	mi := &file_ai_v1_ai_proto_msgTypes[17]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *BrowserForm) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*BrowserForm) ProtoMessage() {}
-
-func (x *BrowserForm) ProtoReflect() protoreflect.Message {
-	mi := &file_ai_v1_ai_proto_msgTypes[17]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use BrowserForm.ProtoReflect.Descriptor instead.
-func (*BrowserForm) Descriptor() ([]byte, []int) {
-	return file_ai_v1_ai_proto_rawDescGZIP(), []int{17}
-}
-
-func (x *BrowserForm) GetSelector() string {
-	if x != nil {
-		return x.Selector
-	}
-	return ""
-}
-
-func (x *BrowserForm) GetAction() string {
-	if x != nil {
-		return x.Action
-	}
-	return ""
-}
-
-func (x *BrowserForm) GetMethod() string {
-	if x != nil {
-		return x.Method
-	}
-	return ""
-}
-
-func (x *BrowserForm) GetInputs() []*BrowserElement {
-	if x != nil {
-		return x.Inputs
-	}
-	return nil
-}
-
-type DecideBrowserActionResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Action        string                 `protobuf:"bytes,1,opt,name=action,proto3" json:"action,omitempty"` // "click", "fill", "type", "navigate", "wait", "finish"
-	Selector      string                 `protobuf:"bytes,2,opt,name=selector,proto3" json:"selector,omitempty"`
-	Value         string                 `protobuf:"bytes,3,opt,name=value,proto3" json:"value,omitempty"`
-	Explanation   string                 `protobuf:"bytes,4,opt,name=explanation,proto3" json:"explanation,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *DecideBrowserActionResponse) Reset() {
-	*x = DecideBrowserActionResponse{}
-	mi := &file_ai_v1_ai_proto_msgTypes[18]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *DecideBrowserActionResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*DecideBrowserActionResponse) ProtoMessage() {}
-
-func (x *DecideBrowserActionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_ai_v1_ai_proto_msgTypes[18]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use DecideBrowserActionResponse.ProtoReflect.Descriptor instead.
-func (*DecideBrowserActionResponse) Descriptor() ([]byte, []int) {
-	return file_ai_v1_ai_proto_rawDescGZIP(), []int{18}
-}
-
-func (x *DecideBrowserActionResponse) GetAction() string {
-	if x != nil {
-		return x.Action
-	}
-	return ""
-}
-
-func (x *DecideBrowserActionResponse) GetSelector() string {
-	if x != nil {
-		return x.Selector
-	}
-	return ""
-}
-
-func (x *DecideBrowserActionResponse) GetValue() string {
-	if x != nil {
-		return x.Value
-	}
-	return ""
-}
-
-func (x *DecideBrowserActionResponse) GetExplanation() string {
-	if x != nil {
-		return x.Explanation
-	}
-	return ""
 }
 
 var File_ai_v1_ai_proto protoreflect.FileDescriptor
@@ -1436,150 +371,35 @@ const file_ai_v1_ai_proto_rawDesc = "" +
 	"\x06status\x18\x01 \x01(\tR\x06status\x12\x1a\n" +
 	"\bprovider\x18\x02 \x01(\tR\bprovider\x12\x14\n" +
 	"\x05model\x18\x03 \x01(\tR\x05model\x12 \n" +
-	"\vinitialized\x18\x04 \x01(\bR\vinitialized\"\xd6\x01\n" +
-	"\x13AnalyzeReconRequest\x12\x1d\n" +
-	"\n" +
-	"target_url\x18\x01 \x01(\tR\ttargetUrl\x12A\n" +
-	"\aheaders\x18\x02 \x03(\v2'.ai.v1.AnalyzeReconRequest.HeadersEntryR\aheaders\x12!\n" +
-	"\fcookie_names\x18\x03 \x03(\tR\vcookieNames\x1a:\n" +
-	"\fHeadersEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xab\x01\n" +
-	"\x14AnalyzeReconResponse\x123\n" +
-	"\x15detected_technologies\x18\x01 \x03(\tR\x14detectedTechnologies\x121\n" +
-	"\x14authentication_model\x18\x02 \x01(\tR\x13authenticationModel\x12+\n" +
-	"\x11recommended_tests\x18\x03 \x03(\tR\x10recommendedTests\"X\n" +
-	"\x19GenerateHypothesesRequest\x12\x1d\n" +
-	"\n" +
-	"target_url\x18\x01 \x01(\tR\ttargetUrl\x12\x1c\n" +
-	"\tendpoints\x18\x02 \x03(\tR\tendpoints\"\xa3\x01\n" +
-	"\n" +
-	"Hypothesis\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
-	"\x05title\x18\x02 \x01(\tR\x05title\x12 \n" +
-	"\vdescription\x18\x03 \x01(\tR\vdescription\x12\x1e\n" +
-	"\n" +
-	"confidence\x18\x04 \x01(\x02R\n" +
-	"confidence\x12-\n" +
-	"\x12vulnerability_type\x18\x05 \x01(\tR\x11vulnerabilityType\"O\n" +
-	"\x1aGenerateHypothesesResponse\x121\n" +
-	"\n" +
-	"hypotheses\x18\x01 \x03(\v2\x11.ai.v1.HypothesisR\n" +
-	"hypotheses\"\xcb\x01\n" +
-	"\x16ScoreConfidenceRequest\x12-\n" +
-	"\x12vulnerability_type\x18\x01 \x01(\tR\x11vulnerabilityType\x12\x1a\n" +
-	"\bendpoint\x18\x02 \x01(\tR\bendpoint\x12\x18\n" +
-	"\apayload\x18\x03 \x01(\tR\apayload\x12#\n" +
-	"\rresponse_body\x18\x04 \x01(\tR\fresponseBody\x12'\n" +
-	"\x0fresponse_status\x18\x05 \x01(\x05R\x0eresponseStatus\"\x87\x01\n" +
-	"\x17ScoreConfidenceResponse\x12\x1e\n" +
-	"\n" +
-	"confidence\x18\x01 \x01(\x02R\n" +
-	"confidence\x12 \n" +
-	"\vexplanation\x18\x02 \x01(\tR\vexplanation\x12*\n" +
-	"\x11is_false_positive\x18\x03 \x01(\bR\x0fisFalsePositive\"\xbe\x01\n" +
-	"\x1fGenerateFindingNarrativeRequest\x12-\n" +
-	"\x12vulnerability_type\x18\x01 \x01(\tR\x11vulnerabilityType\x12\x14\n" +
-	"\x05title\x18\x02 \x01(\tR\x05title\x12\x1a\n" +
-	"\bendpoint\x18\x03 \x01(\tR\bendpoint\x12\x1a\n" +
-	"\bevidence\x18\x04 \x01(\tR\bevidence\x12\x1e\n" +
+	"\vinitialized\x18\x04 \x01(\bR\vinitialized\"\xad\x01\n" +
+	"\x0eFindingSummary\x12\x14\n" +
+	"\x05title\x18\x01 \x01(\tR\x05title\x12\x1a\n" +
+	"\bseverity\x18\x02 \x01(\tR\bseverity\x12-\n" +
+	"\x12vulnerability_type\x18\x03 \x01(\tR\x11vulnerabilityType\x12\x1a\n" +
+	"\bendpoint\x18\x04 \x01(\tR\bendpoint\x12\x1e\n" +
 	"\n" +
 	"confidence\x18\x05 \x01(\x02R\n" +
-	"confidence\"f\n" +
-	" GenerateFindingNarrativeResponse\x12 \n" +
-	"\vdescription\x18\x01 \x01(\tR\vdescription\x12 \n" +
-	"\vremediation\x18\x02 \x01(\tR\vremediation\"\xb4\x01\n" +
-	"\x1cGenerateAttackPayloadRequest\x12)\n" +
-	"\x10hypothesis_title\x18\x01 \x01(\tR\x0fhypothesisTitle\x125\n" +
-	"\x16hypothesis_description\x18\x02 \x01(\tR\x15hypothesisDescription\x12\x1a\n" +
-	"\bendpoint\x18\x03 \x01(\tR\bendpoint\x12\x16\n" +
-	"\x06method\x18\x04 \x01(\tR\x06method\"\x88\x02\n" +
-	"\x1dGenerateAttackPayloadResponse\x12\x16\n" +
-	"\x06method\x18\x01 \x01(\tR\x06method\x12\x10\n" +
-	"\x03url\x18\x02 \x01(\tR\x03url\x12\x12\n" +
-	"\x04body\x18\x03 \x01(\tR\x04body\x12K\n" +
-	"\aheaders\x18\x04 \x03(\v21.ai.v1.GenerateAttackPayloadResponse.HeadersEntryR\aheaders\x12 \n" +
-	"\vexplanation\x18\x05 \x01(\tR\vexplanation\x1a:\n" +
-	"\fHeadersEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x80\a\n" +
-	"\x1aDecideBrowserActionRequest\x12\x10\n" +
-	"\x03url\x18\x01 \x01(\tR\x03url\x12\x1f\n" +
-	"\vpage_source\x18\x02 \x01(\tR\n" +
-	"pageSource\x12!\n" +
-	"\fcurrent_goal\x18\x03 \x01(\tR\vcurrentGoal\x12.\n" +
-	"\x13last_action_success\x18\x04 \x01(\bR\x11lastActionSuccess\x12*\n" +
-	"\x11last_action_error\x18\x05 \x01(\tR\x0flastActionError\x12\x1f\n" +
-	"\vcurrent_url\x18\x06 \x01(\tR\n" +
-	"currentUrl\x12\x1d\n" +
+	"confidence\"\xc2\x02\n" +
+	"\x1fGenerateExecutiveSummaryRequest\x12\x1d\n" +
 	"\n" +
-	"page_title\x18\a \x01(\tR\tpageTitle\x12+\n" +
-	"\x05links\x18\b \x03(\v2\x15.ai.v1.BrowserElementR\x05links\x12/\n" +
-	"\abuttons\x18\t \x03(\v2\x15.ai.v1.BrowserElementR\abuttons\x12(\n" +
-	"\x05forms\x18\n" +
-	" \x03(\v2\x12.ai.v1.BrowserFormR\x05forms\x12\x1f\n" +
-	"\vlast_action\x18\v \x01(\tR\n" +
-	"lastAction\x12#\n" +
-	"\rlast_selector\x18\f \x01(\tR\flastSelector\x12+\n" +
-	"\x11screenshot_base64\x18\r \x01(\tR\x10screenshotBase64\x12\x1d\n" +
+	"target_url\x18\x01 \x01(\tR\ttargetUrl\x12\x1d\n" +
 	"\n" +
-	"session_id\x18\x0e \x01(\tR\tsessionId\x12H\n" +
-	"\acookies\x18\x0f \x03(\v2..ai.v1.DecideBrowserActionRequest.CookiesEntryR\acookies\x12X\n" +
-	"\rlocal_storage\x18\x10 \x03(\v23.ai.v1.DecideBrowserActionRequest.LocalStorageEntryR\flocalStorage\x125\n" +
-	"\ahistory\x18\x11 \x03(\v2\x1b.ai.v1.BrowserActionOutcomeR\ahistory\x1a:\n" +
-	"\fCookiesEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a?\n" +
-	"\x11LocalStorageEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xdb\x01\n" +
-	"\x14BrowserActionOutcome\x12\x16\n" +
-	"\x06action\x18\x01 \x01(\tR\x06action\x12\x1a\n" +
-	"\bselector\x18\x02 \x01(\tR\bselector\x12\x14\n" +
-	"\x05value\x18\x03 \x01(\tR\x05value\x12\x18\n" +
-	"\asuccess\x18\x04 \x01(\bR\asuccess\x12\x14\n" +
-	"\x05error\x18\x05 \x01(\tR\x05error\x12+\n" +
-	"\x06result\x18\x06 \x01(\v2\x13.ai.v1.ActionResultR\x06result\x12\x1c\n" +
-	"\treasoning\x18\a \x01(\tR\treasoning\"\xe5\x02\n" +
-	"\fActionResult\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\x12%\n" +
-	"\x0efailure_reason\x18\x02 \x01(\tR\rfailureReason\x12\x1f\n" +
-	"\vcurrent_url\x18\x03 \x01(\tR\n" +
-	"currentUrl\x12\x1d\n" +
+	"high_count\x18\x02 \x01(\x05R\thighCount\x12!\n" +
+	"\fmedium_count\x18\x03 \x01(\x05R\vmediumCount\x12\x1b\n" +
+	"\tlow_count\x18\x04 \x01(\x05R\blowCount\x12\x1d\n" +
 	"\n" +
-	"page_title\x18\x04 \x01(\tR\tpageTitle\x12+\n" +
-	"\x11screenshot_base64\x18\x05 \x01(\tR\x10screenshotBase64\x12+\n" +
-	"\x05links\x18\x06 \x03(\v2\x15.ai.v1.BrowserElementR\x05links\x12/\n" +
-	"\abuttons\x18\a \x03(\v2\x15.ai.v1.BrowserElementR\abuttons\x12(\n" +
-	"\x05forms\x18\b \x03(\v2\x12.ai.v1.BrowserFormR\x05forms\x12\x1f\n" +
-	"\vpage_source\x18\t \x01(\tR\n" +
-	"pageSource\"\xa2\x01\n" +
-	"\x0eBrowserElement\x12\x12\n" +
-	"\x04text\x18\x01 \x01(\tR\x04text\x12\x1a\n" +
-	"\bselector\x18\x02 \x01(\tR\bselector\x12\x12\n" +
-	"\x04type\x18\x03 \x01(\tR\x04type\x12\x12\n" +
-	"\x04href\x18\x04 \x01(\tR\x04href\x12\x0e\n" +
-	"\x02id\x18\x05 \x01(\tR\x02id\x12\x12\n" +
-	"\x04name\x18\x06 \x01(\tR\x04name\x12\x14\n" +
-	"\x05value\x18\a \x01(\tR\x05value\"\x88\x01\n" +
-	"\vBrowserForm\x12\x1a\n" +
-	"\bselector\x18\x01 \x01(\tR\bselector\x12\x16\n" +
-	"\x06action\x18\x02 \x01(\tR\x06action\x12\x16\n" +
-	"\x06method\x18\x03 \x01(\tR\x06method\x12-\n" +
-	"\x06inputs\x18\x04 \x03(\v2\x15.ai.v1.BrowserElementR\x06inputs\"\x89\x01\n" +
-	"\x1bDecideBrowserActionResponse\x12\x16\n" +
-	"\x06action\x18\x01 \x01(\tR\x06action\x12\x1a\n" +
-	"\bselector\x18\x02 \x01(\tR\bselector\x12\x14\n" +
-	"\x05value\x18\x03 \x01(\tR\x05value\x12 \n" +
-	"\vexplanation\x18\x04 \x01(\tR\vexplanation2\xe7\x04\n" +
-	"\tAiService\x12G\n" +
-	"\fAnalyzeRecon\x12\x1a.ai.v1.AnalyzeReconRequest\x1a\x1b.ai.v1.AnalyzeReconResponse\x12Y\n" +
-	"\x12GenerateHypotheses\x12 .ai.v1.GenerateHypothesesRequest\x1a!.ai.v1.GenerateHypothesesResponse\x12P\n" +
-	"\x0fScoreConfidence\x12\x1d.ai.v1.ScoreConfidenceRequest\x1a\x1e.ai.v1.ScoreConfidenceResponse\x125\n" +
+	"info_count\x18\x05 \x01(\x05R\tinfoCount\x121\n" +
+	"\bfindings\x18\x06 \x03(\v2\x15.ai.v1.FindingSummaryR\bfindings\x12\x1a\n" +
+	"\bduration\x18\a \x01(\tR\bduration\x123\n" +
+	"\x15detected_technologies\x18\b \x01(\tR\x14detectedTechnologies\"\x8e\x01\n" +
+	" GenerateExecutiveSummaryResponse\x12\x18\n" +
+	"\asummary\x18\x01 \x01(\tR\asummary\x12\x1f\n" +
+	"\vrisk_rating\x18\x02 \x01(\tR\n" +
+	"riskRating\x12/\n" +
+	"\x13key_recommendations\x18\x03 \x03(\tR\x12keyRecommendations2\xaf\x01\n" +
+	"\tAiService\x125\n" +
 	"\x06Health\x12\x14.ai.v1.HealthRequest\x1a\x15.ai.v1.HealthResponse\x12k\n" +
-	"\x18GenerateFindingNarrative\x12&.ai.v1.GenerateFindingNarrativeRequest\x1a'.ai.v1.GenerateFindingNarrativeResponse\x12b\n" +
-	"\x15GenerateAttackPayload\x12#.ai.v1.GenerateAttackPayloadRequest\x1a$.ai.v1.GenerateAttackPayloadResponse\x12\\\n" +
-	"\x13DecideBrowserAction\x12!.ai.v1.DecideBrowserActionRequest\x1a\".ai.v1.DecideBrowserActionResponseB5Z3github.com/parth/lastresort/internal/gen/ai/v1;aiv1b\x06proto3"
+	"\x18GenerateExecutiveSummary\x12&.ai.v1.GenerateExecutiveSummaryRequest\x1a'.ai.v1.GenerateExecutiveSummaryResponseB5Z3github.com/parth/lastresort/internal/gen/ai/v1;aiv1b\x06proto3"
 
 var (
 	file_ai_v1_ai_proto_rawDescOnce sync.Once
@@ -1593,66 +413,25 @@ func file_ai_v1_ai_proto_rawDescGZIP() []byte {
 	return file_ai_v1_ai_proto_rawDescData
 }
 
-var file_ai_v1_ai_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
+var file_ai_v1_ai_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_ai_v1_ai_proto_goTypes = []any{
 	(*HealthRequest)(nil),                    // 0: ai.v1.HealthRequest
 	(*HealthResponse)(nil),                   // 1: ai.v1.HealthResponse
-	(*AnalyzeReconRequest)(nil),              // 2: ai.v1.AnalyzeReconRequest
-	(*AnalyzeReconResponse)(nil),             // 3: ai.v1.AnalyzeReconResponse
-	(*GenerateHypothesesRequest)(nil),        // 4: ai.v1.GenerateHypothesesRequest
-	(*Hypothesis)(nil),                       // 5: ai.v1.Hypothesis
-	(*GenerateHypothesesResponse)(nil),       // 6: ai.v1.GenerateHypothesesResponse
-	(*ScoreConfidenceRequest)(nil),           // 7: ai.v1.ScoreConfidenceRequest
-	(*ScoreConfidenceResponse)(nil),          // 8: ai.v1.ScoreConfidenceResponse
-	(*GenerateFindingNarrativeRequest)(nil),  // 9: ai.v1.GenerateFindingNarrativeRequest
-	(*GenerateFindingNarrativeResponse)(nil), // 10: ai.v1.GenerateFindingNarrativeResponse
-	(*GenerateAttackPayloadRequest)(nil),     // 11: ai.v1.GenerateAttackPayloadRequest
-	(*GenerateAttackPayloadResponse)(nil),    // 12: ai.v1.GenerateAttackPayloadResponse
-	(*DecideBrowserActionRequest)(nil),       // 13: ai.v1.DecideBrowserActionRequest
-	(*BrowserActionOutcome)(nil),             // 14: ai.v1.BrowserActionOutcome
-	(*ActionResult)(nil),                     // 15: ai.v1.ActionResult
-	(*BrowserElement)(nil),                   // 16: ai.v1.BrowserElement
-	(*BrowserForm)(nil),                      // 17: ai.v1.BrowserForm
-	(*DecideBrowserActionResponse)(nil),      // 18: ai.v1.DecideBrowserActionResponse
-	nil,                                      // 19: ai.v1.AnalyzeReconRequest.HeadersEntry
-	nil,                                      // 20: ai.v1.GenerateAttackPayloadResponse.HeadersEntry
-	nil,                                      // 21: ai.v1.DecideBrowserActionRequest.CookiesEntry
-	nil,                                      // 22: ai.v1.DecideBrowserActionRequest.LocalStorageEntry
+	(*FindingSummary)(nil),                   // 2: ai.v1.FindingSummary
+	(*GenerateExecutiveSummaryRequest)(nil),  // 3: ai.v1.GenerateExecutiveSummaryRequest
+	(*GenerateExecutiveSummaryResponse)(nil), // 4: ai.v1.GenerateExecutiveSummaryResponse
 }
 var file_ai_v1_ai_proto_depIdxs = []int32{
-	19, // 0: ai.v1.AnalyzeReconRequest.headers:type_name -> ai.v1.AnalyzeReconRequest.HeadersEntry
-	5,  // 1: ai.v1.GenerateHypothesesResponse.hypotheses:type_name -> ai.v1.Hypothesis
-	20, // 2: ai.v1.GenerateAttackPayloadResponse.headers:type_name -> ai.v1.GenerateAttackPayloadResponse.HeadersEntry
-	16, // 3: ai.v1.DecideBrowserActionRequest.links:type_name -> ai.v1.BrowserElement
-	16, // 4: ai.v1.DecideBrowserActionRequest.buttons:type_name -> ai.v1.BrowserElement
-	17, // 5: ai.v1.DecideBrowserActionRequest.forms:type_name -> ai.v1.BrowserForm
-	21, // 6: ai.v1.DecideBrowserActionRequest.cookies:type_name -> ai.v1.DecideBrowserActionRequest.CookiesEntry
-	22, // 7: ai.v1.DecideBrowserActionRequest.local_storage:type_name -> ai.v1.DecideBrowserActionRequest.LocalStorageEntry
-	14, // 8: ai.v1.DecideBrowserActionRequest.history:type_name -> ai.v1.BrowserActionOutcome
-	15, // 9: ai.v1.BrowserActionOutcome.result:type_name -> ai.v1.ActionResult
-	16, // 10: ai.v1.ActionResult.links:type_name -> ai.v1.BrowserElement
-	16, // 11: ai.v1.ActionResult.buttons:type_name -> ai.v1.BrowserElement
-	17, // 12: ai.v1.ActionResult.forms:type_name -> ai.v1.BrowserForm
-	16, // 13: ai.v1.BrowserForm.inputs:type_name -> ai.v1.BrowserElement
-	2,  // 14: ai.v1.AiService.AnalyzeRecon:input_type -> ai.v1.AnalyzeReconRequest
-	4,  // 15: ai.v1.AiService.GenerateHypotheses:input_type -> ai.v1.GenerateHypothesesRequest
-	7,  // 16: ai.v1.AiService.ScoreConfidence:input_type -> ai.v1.ScoreConfidenceRequest
-	0,  // 17: ai.v1.AiService.Health:input_type -> ai.v1.HealthRequest
-	9,  // 18: ai.v1.AiService.GenerateFindingNarrative:input_type -> ai.v1.GenerateFindingNarrativeRequest
-	11, // 19: ai.v1.AiService.GenerateAttackPayload:input_type -> ai.v1.GenerateAttackPayloadRequest
-	13, // 20: ai.v1.AiService.DecideBrowserAction:input_type -> ai.v1.DecideBrowserActionRequest
-	3,  // 21: ai.v1.AiService.AnalyzeRecon:output_type -> ai.v1.AnalyzeReconResponse
-	6,  // 22: ai.v1.AiService.GenerateHypotheses:output_type -> ai.v1.GenerateHypothesesResponse
-	8,  // 23: ai.v1.AiService.ScoreConfidence:output_type -> ai.v1.ScoreConfidenceResponse
-	1,  // 24: ai.v1.AiService.Health:output_type -> ai.v1.HealthResponse
-	10, // 25: ai.v1.AiService.GenerateFindingNarrative:output_type -> ai.v1.GenerateFindingNarrativeResponse
-	12, // 26: ai.v1.AiService.GenerateAttackPayload:output_type -> ai.v1.GenerateAttackPayloadResponse
-	18, // 27: ai.v1.AiService.DecideBrowserAction:output_type -> ai.v1.DecideBrowserActionResponse
-	21, // [21:28] is the sub-list for method output_type
-	14, // [14:21] is the sub-list for method input_type
-	14, // [14:14] is the sub-list for extension type_name
-	14, // [14:14] is the sub-list for extension extendee
-	0,  // [0:14] is the sub-list for field type_name
+	2, // 0: ai.v1.GenerateExecutiveSummaryRequest.findings:type_name -> ai.v1.FindingSummary
+	0, // 1: ai.v1.AiService.Health:input_type -> ai.v1.HealthRequest
+	3, // 2: ai.v1.AiService.GenerateExecutiveSummary:input_type -> ai.v1.GenerateExecutiveSummaryRequest
+	1, // 3: ai.v1.AiService.Health:output_type -> ai.v1.HealthResponse
+	4, // 4: ai.v1.AiService.GenerateExecutiveSummary:output_type -> ai.v1.GenerateExecutiveSummaryResponse
+	3, // [3:5] is the sub-list for method output_type
+	1, // [1:3] is the sub-list for method input_type
+	1, // [1:1] is the sub-list for extension type_name
+	1, // [1:1] is the sub-list for extension extendee
+	0, // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_ai_v1_ai_proto_init() }
@@ -1666,7 +445,7 @@ func file_ai_v1_ai_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ai_v1_ai_proto_rawDesc), len(file_ai_v1_ai_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   23,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -48,6 +48,7 @@ type CrawlResponse struct {
 // ActionRequest is the body format for browser interaction commands.
 type ActionRequest struct {
 	ScanID    string `json:"scanId"`
+	WorkerID  string `json:"workerId,omitempty"`
 	URL       string `json:"url"`
 	Action    string `json:"action"`    // "click", "fill", "type", "navigate"
 	Selector  string `json:"selector"`  // CSS selector

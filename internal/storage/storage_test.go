@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	aiv1 "github.com/parth/lastresort/internal/gen/ai/v1"
+	"github.com/parth/lastresort/internal/browser"
 )
 
 func TestStorageInitAndInserts(t *testing.T) {
@@ -273,9 +273,9 @@ func TestAttackJournal(t *testing.T) {
 		Selector:  "#login-btn",
 		Success:   true,
 		Reasoning: "Attempting to reach the login page.",
-		Result: &aiv1.ActionResult{
+		Result: &browser.ActionResult{
 			Success:    true,
-			CurrentUrl: "http://localhost/login",
+			CurrentURL: "http://localhost/login",
 			PageTitle:  "Login Page",
 		},
 	}
@@ -298,7 +298,7 @@ func TestAttackJournal(t *testing.T) {
 		t.Errorf("retrieved entry mismatch: %+v", retrieved)
 	}
 
-	if retrieved.Result == nil || retrieved.Result.CurrentUrl != "http://localhost/login" {
+	if retrieved.Result == nil || retrieved.Result.CurrentURL != "http://localhost/login" {
 		t.Errorf("retrieved result mismatch: %+v", retrieved.Result)
 	}
 

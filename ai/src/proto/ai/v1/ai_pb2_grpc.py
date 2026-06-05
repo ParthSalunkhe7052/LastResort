@@ -34,63 +34,20 @@ class AiServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.AnalyzeRecon = channel.unary_unary(
-                '/ai.v1.AiService/AnalyzeRecon',
-                request_serializer=ai_dot_v1_dot_ai__pb2.AnalyzeReconRequest.SerializeToString,
-                response_deserializer=ai_dot_v1_dot_ai__pb2.AnalyzeReconResponse.FromString,
-                _registered_method=True)
-        self.GenerateHypotheses = channel.unary_unary(
-                '/ai.v1.AiService/GenerateHypotheses',
-                request_serializer=ai_dot_v1_dot_ai__pb2.GenerateHypothesesRequest.SerializeToString,
-                response_deserializer=ai_dot_v1_dot_ai__pb2.GenerateHypothesesResponse.FromString,
-                _registered_method=True)
-        self.ScoreConfidence = channel.unary_unary(
-                '/ai.v1.AiService/ScoreConfidence',
-                request_serializer=ai_dot_v1_dot_ai__pb2.ScoreConfidenceRequest.SerializeToString,
-                response_deserializer=ai_dot_v1_dot_ai__pb2.ScoreConfidenceResponse.FromString,
-                _registered_method=True)
         self.Health = channel.unary_unary(
                 '/ai.v1.AiService/Health',
                 request_serializer=ai_dot_v1_dot_ai__pb2.HealthRequest.SerializeToString,
                 response_deserializer=ai_dot_v1_dot_ai__pb2.HealthResponse.FromString,
                 _registered_method=True)
-        self.GenerateFindingNarrative = channel.unary_unary(
-                '/ai.v1.AiService/GenerateFindingNarrative',
-                request_serializer=ai_dot_v1_dot_ai__pb2.GenerateFindingNarrativeRequest.SerializeToString,
-                response_deserializer=ai_dot_v1_dot_ai__pb2.GenerateFindingNarrativeResponse.FromString,
-                _registered_method=True)
-        self.GenerateAttackPayload = channel.unary_unary(
-                '/ai.v1.AiService/GenerateAttackPayload',
-                request_serializer=ai_dot_v1_dot_ai__pb2.GenerateAttackPayloadRequest.SerializeToString,
-                response_deserializer=ai_dot_v1_dot_ai__pb2.GenerateAttackPayloadResponse.FromString,
-                _registered_method=True)
-        self.DecideBrowserAction = channel.unary_unary(
-                '/ai.v1.AiService/DecideBrowserAction',
-                request_serializer=ai_dot_v1_dot_ai__pb2.DecideBrowserActionRequest.SerializeToString,
-                response_deserializer=ai_dot_v1_dot_ai__pb2.DecideBrowserActionResponse.FromString,
+        self.GenerateExecutiveSummary = channel.unary_unary(
+                '/ai.v1.AiService/GenerateExecutiveSummary',
+                request_serializer=ai_dot_v1_dot_ai__pb2.GenerateExecutiveSummaryRequest.SerializeToString,
+                response_deserializer=ai_dot_v1_dot_ai__pb2.GenerateExecutiveSummaryResponse.FromString,
                 _registered_method=True)
 
 
 class AiServiceServicer(object):
     """Missing associated documentation comment in .proto file."""
-
-    def AnalyzeRecon(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def GenerateHypotheses(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def ScoreConfidence(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
 
     def Health(self, request, context):
         """Missing associated documentation comment in .proto file."""
@@ -98,19 +55,7 @@ class AiServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def GenerateFindingNarrative(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def GenerateAttackPayload(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def DecideBrowserAction(self, request, context):
+    def GenerateExecutiveSummary(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -119,40 +64,15 @@ class AiServiceServicer(object):
 
 def add_AiServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'AnalyzeRecon': grpc.unary_unary_rpc_method_handler(
-                    servicer.AnalyzeRecon,
-                    request_deserializer=ai_dot_v1_dot_ai__pb2.AnalyzeReconRequest.FromString,
-                    response_serializer=ai_dot_v1_dot_ai__pb2.AnalyzeReconResponse.SerializeToString,
-            ),
-            'GenerateHypotheses': grpc.unary_unary_rpc_method_handler(
-                    servicer.GenerateHypotheses,
-                    request_deserializer=ai_dot_v1_dot_ai__pb2.GenerateHypothesesRequest.FromString,
-                    response_serializer=ai_dot_v1_dot_ai__pb2.GenerateHypothesesResponse.SerializeToString,
-            ),
-            'ScoreConfidence': grpc.unary_unary_rpc_method_handler(
-                    servicer.ScoreConfidence,
-                    request_deserializer=ai_dot_v1_dot_ai__pb2.ScoreConfidenceRequest.FromString,
-                    response_serializer=ai_dot_v1_dot_ai__pb2.ScoreConfidenceResponse.SerializeToString,
-            ),
             'Health': grpc.unary_unary_rpc_method_handler(
                     servicer.Health,
                     request_deserializer=ai_dot_v1_dot_ai__pb2.HealthRequest.FromString,
                     response_serializer=ai_dot_v1_dot_ai__pb2.HealthResponse.SerializeToString,
             ),
-            'GenerateFindingNarrative': grpc.unary_unary_rpc_method_handler(
-                    servicer.GenerateFindingNarrative,
-                    request_deserializer=ai_dot_v1_dot_ai__pb2.GenerateFindingNarrativeRequest.FromString,
-                    response_serializer=ai_dot_v1_dot_ai__pb2.GenerateFindingNarrativeResponse.SerializeToString,
-            ),
-            'GenerateAttackPayload': grpc.unary_unary_rpc_method_handler(
-                    servicer.GenerateAttackPayload,
-                    request_deserializer=ai_dot_v1_dot_ai__pb2.GenerateAttackPayloadRequest.FromString,
-                    response_serializer=ai_dot_v1_dot_ai__pb2.GenerateAttackPayloadResponse.SerializeToString,
-            ),
-            'DecideBrowserAction': grpc.unary_unary_rpc_method_handler(
-                    servicer.DecideBrowserAction,
-                    request_deserializer=ai_dot_v1_dot_ai__pb2.DecideBrowserActionRequest.FromString,
-                    response_serializer=ai_dot_v1_dot_ai__pb2.DecideBrowserActionResponse.SerializeToString,
+            'GenerateExecutiveSummary': grpc.unary_unary_rpc_method_handler(
+                    servicer.GenerateExecutiveSummary,
+                    request_deserializer=ai_dot_v1_dot_ai__pb2.GenerateExecutiveSummaryRequest.FromString,
+                    response_serializer=ai_dot_v1_dot_ai__pb2.GenerateExecutiveSummaryResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -164,87 +84,6 @@ def add_AiServiceServicer_to_server(servicer, server):
  # This class is part of an EXPERIMENTAL API.
 class AiService(object):
     """Missing associated documentation comment in .proto file."""
-
-    @staticmethod
-    def AnalyzeRecon(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/ai.v1.AiService/AnalyzeRecon',
-            ai_dot_v1_dot_ai__pb2.AnalyzeReconRequest.SerializeToString,
-            ai_dot_v1_dot_ai__pb2.AnalyzeReconResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def GenerateHypotheses(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/ai.v1.AiService/GenerateHypotheses',
-            ai_dot_v1_dot_ai__pb2.GenerateHypothesesRequest.SerializeToString,
-            ai_dot_v1_dot_ai__pb2.GenerateHypothesesResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def ScoreConfidence(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/ai.v1.AiService/ScoreConfidence',
-            ai_dot_v1_dot_ai__pb2.ScoreConfidenceRequest.SerializeToString,
-            ai_dot_v1_dot_ai__pb2.ScoreConfidenceResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
 
     @staticmethod
     def Health(request,
@@ -274,7 +113,7 @@ class AiService(object):
             _registered_method=True)
 
     @staticmethod
-    def GenerateFindingNarrative(request,
+    def GenerateExecutiveSummary(request,
             target,
             options=(),
             channel_credentials=None,
@@ -287,63 +126,9 @@ class AiService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/ai.v1.AiService/GenerateFindingNarrative',
-            ai_dot_v1_dot_ai__pb2.GenerateFindingNarrativeRequest.SerializeToString,
-            ai_dot_v1_dot_ai__pb2.GenerateFindingNarrativeResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def GenerateAttackPayload(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/ai.v1.AiService/GenerateAttackPayload',
-            ai_dot_v1_dot_ai__pb2.GenerateAttackPayloadRequest.SerializeToString,
-            ai_dot_v1_dot_ai__pb2.GenerateAttackPayloadResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def DecideBrowserAction(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/ai.v1.AiService/DecideBrowserAction',
-            ai_dot_v1_dot_ai__pb2.DecideBrowserActionRequest.SerializeToString,
-            ai_dot_v1_dot_ai__pb2.DecideBrowserActionResponse.FromString,
+            '/ai.v1.AiService/GenerateExecutiveSummary',
+            ai_dot_v1_dot_ai__pb2.GenerateExecutiveSummaryRequest.SerializeToString,
+            ai_dot_v1_dot_ai__pb2.GenerateExecutiveSummaryResponse.FromString,
             options,
             channel_credentials,
             insecure,

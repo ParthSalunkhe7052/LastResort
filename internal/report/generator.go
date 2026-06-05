@@ -77,10 +77,20 @@ func (g *Generator) GenerateScanReport(ctx context.Context, scanID string) (stri
 			return "", "", fmt.Errorf("failed to scan finding row: %w", err)
 		}
 		f.IsFalsePositive = isFP
-		f.Category = category.String
-		if f.Category == "" {
-			f.Category = "OBSERVATION"
+		catStr := category.String
+		switch catStr {
+		case "VERIFIED_FINDING":
+			catStr = "VERIFIED_ATTACK"
+		case "POTENTIAL_FINDING":
+			catStr = "HYPOTHESIS"
+		case "FALSE_POSITIVE":
+			catStr = "ATTEMPT"
+		case "OBSERVATION":
+			catStr = "OBSERVATION"
+		case "":
+			catStr = "OBSERVATION"
 		}
+		f.Category = catStr
 		findings = append(findings, f)
 
 		if isFP == 0 {
@@ -99,45 +109,127 @@ type HTMLFinding struct {
 	RawResponse string
 }
 
-	// 2b. Fetch hypotheses
-	hyps, err := g.db.ListHypotheses(ctx, scanID)
-	if err == nil {
-		for _, h := range hyps {
-			categoryCounts["HYPOTHESIS"]++
-			// Map hypothesis to finding for reporting
-			findings = append(findings, storage.Finding{
-				ID:                h.ID,
-				Title:             h.Title,
-				Description:       h.Description,
-				Severity:          "INFO",
-				VulnerabilityType: "Hypothesis",
-				Endpoint:          "N/A",
-				Confidence:        h.Confidence,
-				Category:          "HYPOTHESIS",
-				CreatedAt:         h.CreatedAt,
-			})
-		}
-	}
 
 	// 2c. Fetch exploration stats
 	var endpointCount int
 	_ = g.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM endpoints WHERE scan_id = ?", scanID).Scan(&endpointCount)
 
-	// 3. Build Markdown content and HTML findings list
+	// 3. Build HTML findings list and execute single AI summary call
 	var htmlFindings []HTMLFinding
 	md := fmt.Sprintf("# Security Assessment Report for %s\n\n", targetURL)
+
+	durationStr := "N/A"
+	if startedAtNull.Valid && finishedAtNull.Valid {
+		durationStr = finishedAtNull.Time.Sub(startedAtNull.Time).Truncate(time.Second).String()
+	}
+
+	var pbFindings []*aiv1.FindingSummary
+	for _, f := range findings {
+		descText := f.Description
+		if descText == "" {
+			descText = "No detailed description provided."
+		}
+		remedText := getRemediationText(f.VulnerabilityType)
+
+		pbFindings = append(pbFindings, &aiv1.FindingSummary{
+			Title:             f.Title,
+			Severity:          f.Severity,
+			VulnerabilityType: f.VulnerabilityType,
+			Endpoint:          f.Endpoint,
+			Confidence:        float32(f.Confidence),
+		})
+
+		// Fetch evidence flows
+		var rawReq, rawRes string
+		row := g.db.QueryRowContext(ctx, `
+			SELECT f.method, f.url, f.request_headers, f.request_body, f.response_headers, f.response_body
+			FROM finding_evidence e
+			JOIN http_flows f ON e.flow_id = f.id
+			WHERE e.finding_id = ?
+			LIMIT 1
+		`, f.ID)
+		
+		var fMethod, fUrl, fReqHeaders, fResHeaders string
+		var fReqBody, fResBody []byte
+		if err := row.Scan(&fMethod, &fUrl, &fReqHeaders, &fReqBody, &fResHeaders, &fResBody); err == nil {
+			rawReq = fmt.Sprintf("%s %s HTTP/1.1\n%s\n\n%s", fMethod, fUrl, fReqHeaders, string(fReqBody))
+			rawRes = fmt.Sprintf("HTTP/1.1 %d\n%s\n\n%s", f.ResponseStatus, fResHeaders, string(fResBody))
+			if len(rawRes) > 2000 {
+				rawRes = rawRes[:2000] + "\n...[TRUNCATED]..."
+			}
+		}
+
+		htmlFindings = append(htmlFindings, HTMLFinding{
+			Finding:     f,
+			Description: descText,
+			Remediation: remedText,
+			RawRequest:  rawReq,
+			RawResponse: rawRes,
+		})
+	}
+
+	// Single AI call for Executive Summary
+	execSummary := "Automated security assessment complete. Please review the findings below for detailed analysis and remediation steps."
+	riskRating := "MEDIUM"
+	keyRecs := []string{
+		"Apply input filtering and output encoding controls.",
+		"Configure standard secure HTTP headers.",
+		"Audit authentication mechanisms and authorization paths.",
+	}
+
+	if g.aiClient != nil && len(findings) > 0 {
+		aiCtx, aiCancel := context.WithTimeout(ctx, 45*time.Second)
+		aiReq := &aiv1.GenerateExecutiveSummaryRequest{
+			TargetUrl:            targetURL,
+			HighCount:            int32(severityCounts["HIGH"]),
+			MediumCount:          int32(severityCounts["MEDIUM"]),
+			LowCount:             int32(severityCounts["LOW"]),
+			InfoCount:            int32(severityCounts["INFO"]),
+			Findings:             pbFindings,
+			Duration:             durationStr,
+			DetectedTechnologies: detectedTechs,
+		}
+		startTime := time.Now()
+		aiRes, err := g.aiClient.GenerateExecutiveSummary(aiCtx, connect.NewRequest(aiReq))
+		aiCancel()
+		duration := time.Since(startTime)
+
+		if err == nil && aiRes.Msg.Summary != "" {
+			execSummary = aiRes.Msg.Summary
+			riskRating = aiRes.Msg.RiskRating
+			keyRecs = aiRes.Msg.KeyRecommendations
+
+			// Track Gemini call telemetry in DB
+			_, _ = g.db.ExecContext(ctx,
+				`UPDATE scans SET
+					gemini_calls = COALESCE(gemini_calls, 0) + 1,
+					gemini_time_ms = COALESCE(gemini_time_ms, 0) + ?
+				 WHERE id = ?`,
+				duration.Milliseconds(), scanID,
+			)
+		} else {
+			// Fallback logic
+			if severityCounts["HIGH"] > 0 {
+				riskRating = "HIGH"
+			}
+		}
+	}
+
+	// Compile Markdown Report
 	md += "## Executive Summary\n"
+	md += fmt.Sprintf("%s\n\n", execSummary)
 	md += fmt.Sprintf("- **Target URL:** %s\n", targetURL)
 	md += fmt.Sprintf("- **Scan Status:** Completed\n")
+	md += fmt.Sprintf("- **Duration:** %s\n", durationStr)
+	md += fmt.Sprintf("- **Overall Risk Rating:** %s\n", riskRating)
 	md += fmt.Sprintf("- **Endpoints Explored:** %d\n", endpointCount)
 	md += fmt.Sprintf("- **Attack Scenarios Attempted:** %d\n", categoryCounts["ATTEMPT"]+categoryCounts["VERIFIED_ATTACK"])
 	md += fmt.Sprintf("- **Successful Exploits:** %d\n", categoryCounts["VERIFIED_ATTACK"])
-	md += fmt.Sprintf("- **Security Observations:** %d\n", categoryCounts["OBSERVATION"])
-	md += fmt.Sprintf("- **AI Hypotheses:** %d\n", categoryCounts["HYPOTHESIS"])
+	md += fmt.Sprintf("- **Security Observations:** %d\n\n", categoryCounts["OBSERVATION"])
 
-	if startedAtNull.Valid && finishedAtNull.Valid {
-		duration := finishedAtNull.Time.Sub(startedAtNull.Time).Truncate(time.Second)
-		md += fmt.Sprintf("- **Duration:** %s\n", duration.String())
+	md += "### Key Security Recommendations\n"
+	for _, rec := range keyRecs {
+		md += fmt.Sprintf("1. %s\n", rec)
 	}
 	md += "\n"
 
@@ -149,86 +241,15 @@ type HTMLFinding struct {
 	md += fmt.Sprintf("| **LOW** | %d |\n", severityCounts["LOW"])
 	md += fmt.Sprintf("| **INFO** | %d |\n\n", severityCounts["INFO"])
 
-	md += "## Findings\n\n"
+	md += "## Findings Details\n\n"
 	if len(findings) == 0 {
 		md += "No security vulnerabilities were identified during this assessment.\n"
 	} else {
-		for i, f := range findings {
+		for i, f := range htmlFindings {
 			fpLabel := ""
 			if f.IsFalsePositive == 1 {
 				fpLabel = " [FALSE POSITIVE]"
 			}
-
-			descText := f.Description
-			remedText := getRemediationText(f.VulnerabilityType)
-
-			// Query AI narrative with 30s timeout
-			if g.aiClient != nil {
-				cacheKey := f.VulnerabilityType + "|" + f.Title
-				g.cacheMu.RLock()
-				cached, found := g.cache[cacheKey]
-				g.cacheMu.RUnlock()
-
-				if found {
-					descText = cached.description
-					remedText = cached.remediation
-				} else {
-					aiCtx, aiCancel := context.WithTimeout(ctx, 30*time.Second)
-					aiReq := &aiv1.GenerateFindingNarrativeRequest{
-						VulnerabilityType: f.VulnerabilityType,
-						Title:             f.Title,
-						Endpoint:          f.Endpoint,
-						Evidence:          f.Payload,
-						Confidence:        float32(f.Confidence),
-					}
-					startTime := time.Now()
-					aiRes, err := g.aiClient.GenerateFindingNarrative(aiCtx, connect.NewRequest(aiReq))
-					aiCancel()
-					duration := time.Since(startTime)
-
-					if err == nil && aiRes.Msg.Description != "" && aiRes.Msg.Remediation != "" {
-						descText = aiRes.Msg.Description
-						remedText = aiRes.Msg.Remediation
-
-						g.cacheMu.Lock()
-						g.cache[cacheKey] = narrativeCacheEntry{
-							description: descText,
-							remediation: remedText,
-						}
-						g.cacheMu.Unlock()
-					}
-
-					// Track Gemini call telemetry in DB
-					_, _ = g.db.ExecContext(ctx,
-						`UPDATE scans SET
-							gemini_calls = COALESCE(gemini_calls, 0) + 1,
-							gemini_time_ms = COALESCE(gemini_time_ms, 0) + ?
-						 WHERE id = ?`,
-						duration.Milliseconds(), scanID,
-					)
-				}
-			}
-
-			// Fetch evidence flows
-			var rawReq, rawRes string
-			row := g.db.QueryRowContext(ctx, `
-				SELECT f.method, f.url, f.request_headers, f.request_body, f.response_headers, f.response_body
-				FROM finding_evidence e
-				JOIN http_flows f ON e.flow_id = f.id
-				WHERE e.finding_id = ?
-				LIMIT 1
-			`, f.ID)
-			
-			var fMethod, fUrl, fReqHeaders, fResHeaders string
-			var fReqBody, fResBody []byte
-			if err := row.Scan(&fMethod, &fUrl, &fReqHeaders, &fReqBody, &fResHeaders, &fResBody); err == nil {
-				rawReq = fmt.Sprintf("%s %s HTTP/1.1\n%s\n\n%s", fMethod, fUrl, fReqHeaders, string(fReqBody))
-				rawRes = fmt.Sprintf("HTTP/1.1 %d\n%s\n\n%s", f.ResponseStatus, fResHeaders, string(fResBody))
-				if len(rawRes) > 2000 {
-					rawRes = rawRes[:2000] + "\n...[TRUNCATED]..."
-				}
-			}
-
 			md += fmt.Sprintf("### %d. %s (%s)%s\n", i+1, f.Title, f.Severity, fpLabel)
 			md += fmt.Sprintf("- **Vulnerability Type:** %s\n", f.VulnerabilityType)
 			md += fmt.Sprintf("- **Endpoint:** `%s`\n", f.Endpoint)
@@ -240,22 +261,14 @@ type HTMLFinding struct {
 			}
 			md += fmt.Sprintf("- **Confidence:** %.2f\n\n", f.Confidence)
 			md += "**Description:**\n"
-			md += descText + "\n\n"
+			md += f.Description + "\n\n"
 			md += "**Remediation:**\n"
-			md += remedText + "\n\n"
-			if rawReq != "" {
-				md += "**Raw HTTP Request:**\n```http\n" + rawReq + "\n```\n\n"
-				md += "**Raw HTTP Response:**\n```http\n" + rawRes + "\n```\n\n"
+			md += f.Remediation + "\n\n"
+			if f.RawRequest != "" {
+				md += "**Raw HTTP Request:**\n```http\n" + f.RawRequest + "\n```\n\n"
+				md += "**Raw HTTP Response:**\n```http\n" + f.RawResponse + "\n```\n\n"
 			}
 			md += "---\n\n"
-
-			htmlFindings = append(htmlFindings, HTMLFinding{
-				Finding:     f,
-				Description: descText,
-				Remediation: remedText,
-				RawRequest:  rawReq,
-				RawResponse: rawRes,
-			})
 		}
 	}
 
@@ -293,18 +306,24 @@ type HTMLFinding struct {
 		InfoCount      int
 		Findings       []HTMLFinding
 		GeneratedAt    string
+		ExecSummary    string
+		RiskRating     string
+		Recommendations []string
 	}
 
 	htmlData := HTMLData{
-		TargetURL:   targetURL,
-		TechStack:   detectedTechs,
-		AuthModel:   authModel,
-		HighCount:   severityCounts["HIGH"],
-		MediumCount: severityCounts["MEDIUM"],
-		LowCount:    severityCounts["LOW"],
-		InfoCount:   severityCounts["INFO"],
-		Findings:    htmlFindings,
-		GeneratedAt: time.Now().Format(time.RFC1123),
+		TargetURL:       targetURL,
+		TechStack:       detectedTechs,
+		AuthModel:       authModel,
+		HighCount:       severityCounts["HIGH"],
+		MediumCount:     severityCounts["MEDIUM"],
+		LowCount:        severityCounts["LOW"],
+		InfoCount:       severityCounts["INFO"],
+		Findings:        htmlFindings,
+		GeneratedAt:     time.Now().Format(time.RFC1123),
+		ExecSummary:     execSummary,
+		RiskRating:      riskRating,
+		Recommendations: keyRecs,
 	}
 
 	if err := tmpl.Execute(htmlFile, htmlData); err != nil {
@@ -438,6 +457,17 @@ const DefaultHTMLTemplate = `<!DOCTYPE html>
         <p><strong>Target URL:</strong> {{.TargetURL}}</p>
         <p><strong>Technologies:</strong> {{.TechStack}} | <strong>Auth Model:</strong> {{.AuthModel}}</p>
         
+        <h2>Executive Summary</h2>
+        <p>{{.ExecSummary}}</p>
+        <p><strong>Overall Risk Rating:</strong> {{.RiskRating}}</p>
+        
+        <h3>Key Security Recommendations:</h3>
+        <ul>
+            {{range .Recommendations}}
+            <li>{{.}}</li>
+            {{end}}
+        </ul>
+
         <h2>Severity Summary</h2>
         <div class="summary-grid">
             <div class="summary-card high">
