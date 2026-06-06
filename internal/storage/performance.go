@@ -7,14 +7,14 @@ import (
 )
 
 type ScanPerformanceMetrics struct {
-	PagesCrawled          int     `json:"pages_crawled"`
+	PagesCrawled          int     `json:"visited_pages"`
 	EndpointsFound        int     `json:"endpoints_found"`
 	FormsFound            int     `json:"forms_found"`
-	AttackAttempts        int     `json:"attack_attempts"`
+	AttackAttempts        int     `json:"fuzz_requests"`
 	SuccessfulAttacks     int     `json:"successful_attacks"`
 	FailedAttempts        int     `json:"failed_attempts"`
 	Observations          int     `json:"observations"`
-	ScanDuration          float64 `json:"scan_duration"`
+	ScanDuration          float64 `json:"elapsed_seconds"`
 	GeminiCalls           int     `json:"gemini_calls"`
 	AverageResponseTime   float64 `json:"average_response_time"`
 	ReconDuration         float64 `json:"recon_duration"`
@@ -27,27 +27,18 @@ type ScanPerformanceMetrics struct {
 func (db *DB) GetScanPerformance(ctx context.Context, scanID string) (*ScanPerformanceMetrics, error) {
 	metrics := &ScanPerformanceMetrics{}
 
-	// 1. Pages Crawled
+	// Discovery and Inventory
 	_ = db.QueryRowContext(ctx, "SELECT COUNT(DISTINCT url) FROM endpoints WHERE scan_id = ? AND source = 'crawler'", scanID).Scan(&metrics.PagesCrawled)
-
-	// 2. Endpoints Found
 	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM endpoints WHERE scan_id = ?", scanID).Scan(&metrics.EndpointsFound)
+	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM forms WHERE scan_id = ?", scanID).Scan(&metrics.FormsFound)
 
-	// 3. Forms Found
-	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM endpoints WHERE scan_id = ? AND source = 'browser_form'", scanID).Scan(&metrics.FormsFound)
+	// Findings and Fuzzing Metrics
+	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM findings WHERE scan_id = ? AND category = 'VERIFIED_FINDING'", scanID).Scan(&metrics.SuccessfulAttacks)
+	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM findings WHERE scan_id = ? AND category = 'POTENTIAL_FINDING'", scanID).Scan(&metrics.FailedAttempts)
+	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM findings WHERE scan_id = ? AND category = 'OBSERVATION'", scanID).Scan(&metrics.Observations)
+	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM attack_attempts WHERE scan_id = ?", scanID).Scan(&metrics.AttackAttempts)
 
-	// 4. Successful Attacks (category = 'VERIFIED_ATTACK')
-	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM findings WHERE scan_id = ? AND category = 'VERIFIED_ATTACK'", scanID).Scan(&metrics.SuccessfulAttacks)
-
-	// 5. Failed Attempts (category = 'ATTEMPT')
-	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM findings WHERE scan_id = ? AND category = 'ATTEMPT'", scanID).Scan(&metrics.FailedAttempts)
-
-	// 6. Observations (category = 'OBSERVATION' or empty)
-	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM findings WHERE scan_id = ? AND (category = 'OBSERVATION' OR category IS NULL OR category = '')", scanID).Scan(&metrics.Observations)
-
-	metrics.AttackAttempts = metrics.SuccessfulAttacks + metrics.FailedAttempts
-
-	// 7. Gemini calls, Gemini time, started_at, finished_at
+	// Execution Metadata
 	var startedAtNull, finishedAtNull sql.NullTime
 	var geminiCalls, geminiTimeMs int
 	err := db.QueryRowContext(ctx, "SELECT started_at, finished_at, COALESCE(gemini_calls, 0), COALESCE(gemini_time_ms, 0) FROM scans WHERE id = ?", scanID).Scan(&startedAtNull, &finishedAtNull, &geminiCalls, &geminiTimeMs)
@@ -65,7 +56,7 @@ func (db *DB) GetScanPerformance(ctx context.Context, scanID string) (*ScanPerfo
 		}
 	}
 
-	// 8. Module timings
+	// Phase-specific Timing Breakdown
 	rows, err := db.QueryContext(ctx, "SELECT module_name, started_at, completed_at FROM scan_modules WHERE scan_id = ?", scanID)
 	if err == nil {
 		defer rows.Close()
