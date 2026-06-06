@@ -49,10 +49,6 @@ func (as *ActiveScanner) ScanRateLimit(ctx context.Context, scanID, urlStr strin
 		description := fmt.Sprintf("The application responded to 10 consecutive rapid requests without returning a 429 Too Many Requests or any throttling/block signal. This suggests lack of rate limiting controls on: %s", urlStr)
 		severity := "INFO"
 
-		flowID, flowErr := as.db.SaveFlow(ctx, scanID, "GET", urlStr, map[string][]string{}, nil, map[string][]string{}, nil, 200)
-		if flowErr != nil {
-			return flowErr
-		}
 		_, err := as.db.SaveFindingWithEvidence(ctx, storage.FindingInput{
 			ScanID:            scanID,
 			Title:             title,
@@ -64,7 +60,7 @@ func (as *ActiveScanner) ScanRateLimit(ctx context.Context, scanID, urlStr strin
 			ResponseStatus:    200,
 			Confidence:        0.5,
 		}, storage.EvidenceInput{
-			FlowID:          flowID,
+			FlowID:          0,
 			EvidenceType:    storage.EvidenceTiming,
 			RequestExcerpt:  fmt.Sprintf("GET %s (10 requests, 100ms delay)", urlStr),
 			ResponseExcerpt: "no 429/403 observed in burst test",

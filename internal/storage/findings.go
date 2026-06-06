@@ -69,6 +69,7 @@ type Finding struct {
 	ResponseStatus    int     `json:"response_status"`
 	Confidence        float64 `json:"confidence"`
 	Category          string  `json:"category"`
+	VerificationID    string  `json:"verification_id"`
 	IsFalsePositive   int     `json:"is_false_positive"`
 	CreatedAt         string  `json:"created_at"`
 }
@@ -176,10 +177,11 @@ func (db *DB) SaveFindingWithEvidence(ctx context.Context, in FindingInput, ev E
 				response_status = ?,
 				confidence = ?,
 				category = ?,
+				verification_id = COALESCE(NULLIF(?, ''), verification_id),
 				occurrence_count = COALESCE(occurrence_count, 1) + 1,
 				created_at = CURRENT_TIMESTAMP
 			 WHERE id = ?`,
-			in.Description, in.Severity, in.Payload, in.ResponseStatus, in.Confidence, in.Category, existingID,
+			in.Description, in.Severity, in.Payload, in.ResponseStatus, in.Confidence, in.Category, in.VerificationID, existingID,
 		)
 		if err != nil {
 			return "", fmt.Errorf("failed to update finding: %w", err)
@@ -191,9 +193,9 @@ func (db *DB) SaveFindingWithEvidence(ctx context.Context, in FindingInput, ev E
 	// Insert a new finding
 	findingID := uuid.New().String()
 	_, err = db.ExecContext(ctx,
-		`INSERT INTO findings (id, scan_id, title, description, severity, vulnerability_type, endpoint, payload, response_status, confidence, category, is_false_positive, fingerprint, occurrence_count)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 1)`,
-		findingID, in.ScanID, in.Title, in.Description, in.Severity, in.VulnerabilityType, in.Endpoint, in.Payload, in.ResponseStatus, in.Confidence, in.Category, fp,
+		`INSERT INTO findings (id, scan_id, title, description, severity, vulnerability_type, endpoint, payload, response_status, confidence, category, verification_id, is_false_positive, fingerprint, occurrence_count)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 1)`,
+		findingID, in.ScanID, in.Title, in.Description, in.Severity, in.VulnerabilityType, in.Endpoint, in.Payload, in.ResponseStatus, in.Confidence, in.Category, in.VerificationID, fp,
 	)
 	if err != nil {
 		return "", fmt.Errorf("failed to insert finding: %w", err)

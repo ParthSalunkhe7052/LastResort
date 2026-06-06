@@ -127,3 +127,112 @@ export async function scrapePageContext(page: Page): Promise<PageContext> {
     };
   }
 }
+
+export async function getAXTreeString(page: Page): Promise<string> {
+  try {
+    // Open a Chrome DevTools Protocol session
+    const client = await page.context().newCDPSession(page);
+    await client.send('Accessibility.enable');
+    const { nodes } = await client.send('Accessibility.getFullAXTree');
+    await client.detach();
+
+    if (!nodes || nodes.length === 0) return '';
+
+    // Create lookup map of nodes
+    const nodeMap = new Map<string, any>();
+    for (const node of nodes) {
+      nodeMap.set(node.nodeId, node);
+    }
+
+    // Identify the root node (usually the first node or node with role 'WebArea' / 'RootWebArea')
+    const rootNode = nodes[0];
+    if (!rootNode) return '';
+
+    const getVal = (prop: any): string => {
+      if (prop && prop.value) return String(prop.value);
+      return '';
+    };
+
+    const formatNode = (nodeId: string, depth = 0): string => {
+      const node = nodeMap.get(nodeId);
+      if (!node) return '';
+
+      const role = getVal(node.role);
+      // Skip generic and presentational containers to keep the tree small and readable
+      if (role === 'none' || role === 'GenericContainer' || role === 'ignored') {
+        let result = '';
+        if (node.childNodeIds) {
+          for (const childId of node.childNodeIds) {
+            result += formatNode(childId, depth);
+          }
+        }
+        return result;
+      }
+
+      const name = getVal(node.name);
+      const value = getVal(node.value);
+      const description = getVal(node.description);
+
+      const indentation = '  '.repeat(depth);
+      let desc = `${indentation}[${role}`;
+      if (name) {
+        desc += ` "${name}"`;
+      }
+      if (value) {
+        desc += ` value="${value}"`;
+      }
+      if (description) {
+        desc += ` description="${description}"`;
+      }
+      desc += ']';
+
+      let result = desc + '\n';
+      if (node.childNodeIds) {
+        for (const childId of node.childNodeIds) {
+          result += formatNode(childId, depth + 1);
+        }
+      }
+      return result;
+    };
+
+    return formatNode(rootNode.nodeId);
+  } catch (err) {
+    console.error('Failed to capture accessibility tree:', err);
+    return '';
+  }
+}
+
+export async function dismissPopups(page: Page): Promise<void> {
+  try {
+    const selectors = [
+      'button[aria-label="Close Welcome Banner"]',
+      'button:has-text("Dismiss")',
+      'a:has-text("Dismiss")',
+      '.close-dialog',
+      'button:has-text("Got it")',
+      'button:has-text("Accept Cookies")',
+      'button:has-text("Accept all")',
+      '#accept-choices',
+      '.cc-dismiss',
+      '.cc-btn.cc-dismiss'
+    ];
+    for (const selector of selectors) {
+      try {
+        const locator = page.locator(selector);
+        if (await locator.count() > 0) {
+          for (let i = 0; i < await locator.count(); i++) {
+            const btn = locator.nth(i);
+            if (await btn.isVisible()) {
+              await btn.click({ timeout: 1500 }).catch(() => {});
+              console.log(`[BROWSER] Auto-dismissed element matching: "${selector}"`);
+            }
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+  } catch (err) {
+    // ignore
+  }
+}

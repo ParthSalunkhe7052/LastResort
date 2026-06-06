@@ -1,35 +1,63 @@
 package main
 
 import (
-	"context"
-	"crypto/tls"
 	"flag"
 	"fmt"
+	"io"
 	"log"
-	"net"
 	"net/http"
 	"os"
-	"path/filepath"
+	"strings"
 
 	"connectrpc.com/connect"
+	"github.com/parth/lastresort/internal/ai"
 	"github.com/parth/lastresort/internal/api"
 	"github.com/parth/lastresort/internal/attack"
 	aiv1 "github.com/parth/lastresort/internal/gen/ai/v1"
-	"github.com/parth/lastresort/internal/gen/ai/v1/aiv1connect"
 	"github.com/parth/lastresort/internal/gen/scan/v1/scanv1connect"
 	"github.com/parth/lastresort/internal/orchestrator"
-	"github.com/parth/lastresort/internal/proxy"
 	"github.com/parth/lastresort/internal/storage"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 )
 
+func loadDotEnv() {
+	file, err := os.Open(".env")
+	if err != nil {
+		return
+	}
+	defer file.Close()
+
+	bytes, err := io.ReadAll(file)
+	if err != nil {
+		return
+	}
+	lines := strings.Split(string(bytes), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) == 2 {
+			key := strings.TrimSpace(parts[0])
+			value := strings.TrimSpace(parts[1])
+			if (strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"")) ||
+				(strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'")) {
+				value = value[1 : len(value)-1]
+			}
+			if os.Getenv(key) == "" {
+				os.Setenv(key, value)
+			}
+		}
+	}
+}
+
 func main() {
+	loadDotEnv()
 	serveCmd := flag.NewFlagSet("serve", flag.ExitOnError)
 	dbPathOpt := serveCmd.String("db", "./data/lastresort.db", "Path to SQLite database")
 	apiPortOpt := serveCmd.Int("port", 8443, "API Server Port")
-	proxyPortOpt := serveCmd.Int("proxy-port", 8080, "MITM Proxy Port")
-	aiAddrOpt := serveCmd.String("ai-addr", "http://127.0.0.1:50052", "Python AI Server Address")
 
 	if len(os.Args) < 2 {
 		printUsage()
@@ -39,7 +67,7 @@ func main() {
 	switch os.Args[1] {
 	case "serve":
 		serveCmd.Parse(os.Args[2:])
-		runServe(*dbPathOpt, *apiPortOpt, *proxyPortOpt, *aiAddrOpt)
+		runServe(*dbPathOpt, *apiPortOpt)
 	case "version":
 		fmt.Println("LastResort v0.1.0-alpha")
 	default:
@@ -51,11 +79,11 @@ func main() {
 func printUsage() {
 	fmt.Println("Usage: lastresort <command> [arguments]")
 	fmt.Println("Commands:")
-	fmt.Println("  serve      Start the API and proxy daemon")
+	fmt.Println("  serve      Start the API daemon")
 	fmt.Println("  version    Show version info")
 }
 
-func runServe(dbPath string, apiPort int, proxyPort int, aiAddr string) {
+func runServe(dbPath string, apiPort int) {
 	log.Printf("Starting LastResort Core daemon...")
 
 	// 1. Initialize SQLite Database
@@ -69,64 +97,15 @@ func runServe(dbPath string, apiPort int, proxyPort int, aiAddr string) {
 	// Initialize Nuclei Templates if nuclei binary is available
 	go attack.InitNucleiTemplates()
 
-	// 2. Setup certificate storage structures
-	certDir := "./data/certs"
-	if err := os.MkdirAll(certDir, 0755); err != nil {
-		log.Fatalf("[CERT] [FATAL] Failed to create certs directory: %v", err)
-	}
-	log.Printf("[CERT] Certificate storage structure created at %s", certDir)
+	// 2. Initialize the Go-native AI client
+	aiClient := ai.NewLocalServiceClient()
+	log.Printf("[LLM] Initialized Go-native Gemini/OpenRouter AI service client")
 
-	// 3. Initialize TLS Root CA and Cert Manager
-	caCertPath := filepath.Join(certDir, "ca.crt")
-	caKeyPath := filepath.Join(certDir, "ca.key")
-	certManager, err := proxy.NewCertManager(caCertPath, caKeyPath)
-	if err != nil {
-		log.Fatalf("[CERT] [FATAL] Failed to initialize CertManager: %v", err)
-	}
-	log.Printf("[CERT] Loaded TLS Certificate Authority from %s", caCertPath)
+	// 3. Initialize background Scan Orchestrator
+	// No proxy port parameter needed now (passed as 0)
+	scanOrch := orchestrator.NewOrchestrator(db, aiClient, 0)
 
-	// 4. Start the MITM Proxy Server
-	proxyServer := proxy.NewProxyServer(db, certManager, proxyPort)
-	if err := proxyServer.Start(); err != nil {
-		log.Fatalf("[PROXY] [FATAL] Failed to start MITM proxy: %v", err)
-	}
-	defer proxyServer.Stop()
-
-	// 5. Connect to Python AI gRPC server via H2C HTTP/2 client
-	httpClient := &http.Client{
-		Transport: &http2.Transport{
-			AllowHTTP: true,
-			DialTLSContext: func(ctx context.Context, network, addr string, cfg *tls.Config) (net.Conn, error) {
-				var d net.Dialer
-				return d.DialContext(ctx, network, addr)
-			},
-		},
-	}
-
-	aiClient := aiv1connect.NewAiServiceClient(
-		httpClient,
-		aiAddr,
-		connect.WithGRPC(), // speak standard gRPC
-		connect.WithInterceptors(connect.UnaryInterceptorFunc(func(next connect.UnaryFunc) connect.UnaryFunc {
-			return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
-				provider, err := db.GetSetting(ctx, "ai_provider")
-				if err == nil && provider != "" {
-					req.Header().Set("x-ai-provider", provider)
-				}
-				model, err := db.GetSetting(ctx, "gemini_model")
-				if err == nil && model != "" {
-					req.Header().Set("x-gemini-model", model)
-				}
-				return next(ctx, req)
-			}
-		})),
-	)
-	log.Printf("[IPC] Configured client connection to Python AI gRPC at %s", aiAddr)
-
-	// 6. Initialize background Scan Orchestrator
-	scanOrch := orchestrator.NewOrchestrator(db, aiClient, proxyPort)
-
-	// 7. Register ConnectRPC Services
+	// 4. Register ConnectRPC Services
 	scanServer := api.NewScanServer(db, aiClient, scanOrch)
 	mux := http.NewServeMux()
 	path, handler := scanv1connect.NewScanServiceHandler(scanServer)
@@ -138,7 +117,6 @@ func runServe(dbPath string, apiPort int, proxyPort int, aiAddr string) {
 	// Serve the reports directory statically
 	mux.Handle("/reports/", http.StripPrefix("/reports/", http.FileServer(http.Dir("./data/reports"))))
 
-
 	// Dynamic status check endpoint
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -147,7 +125,7 @@ func runServe(dbPath string, apiPort int, proxyPort int, aiAddr string) {
 		aiProvider := "unknown"
 		aiModel := "unknown"
 
-		// Query Python AI service health
+		// Query local Go AI client health
 		aiRes, err := aiClient.Health(r.Context(), connect.NewRequest(&aiv1.HealthRequest{}))
 		if err == nil {
 			aiStatus = aiRes.Msg.Status
@@ -155,10 +133,9 @@ func runServe(dbPath string, apiPort int, proxyPort int, aiAddr string) {
 			aiModel = aiRes.Msg.Model
 		}
 
-		fmt.Fprintf(w, `{"status":"ok","db":"connected","proxy":"listening","ai":{"status":"%s","provider":"%s","model":"%s"},"version":"0.1.0-alpha"}`,
+		fmt.Fprintf(w, `{"status":"ok","db":"connected","proxy":"disabled","ai":{"status":"%s","provider":"%s","model":"%s"},"version":"0.1.0-alpha"}`,
 			aiStatus, aiProvider, aiModel)
 	})
-
 
 	// 5. Add CORS middleware for UI access
 	corsMux := corsMiddleware(mux)

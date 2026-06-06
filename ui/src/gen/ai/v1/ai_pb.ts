@@ -4,7 +4,7 @@
 // @ts-nocheck
 
 import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
-import { Message, proto3 } from "@bufbuild/protobuf";
+import { Message, proto3, protoInt64 } from "@bufbuild/protobuf";
 
 /**
  * @generated from message ai.v1.HealthRequest
@@ -278,6 +278,634 @@ export class GenerateExecutiveSummaryResponse extends Message<GenerateExecutiveS
 
   static equals(a: GenerateExecutiveSummaryResponse | PlainMessage<GenerateExecutiveSummaryResponse> | undefined, b: GenerateExecutiveSummaryResponse | PlainMessage<GenerateExecutiveSummaryResponse> | undefined): boolean {
     return proto3.util.equals(GenerateExecutiveSummaryResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message ai.v1.BrowserElement
+ */
+export class BrowserElement extends Message<BrowserElement> {
+  /**
+   * @generated from field: string tag = 1;
+   */
+  tag = "";
+
+  /**
+   * @generated from field: string text = 2;
+   */
+  text = "";
+
+  /**
+   * @generated from field: string selector = 3;
+   */
+  selector = "";
+
+  /**
+   * @generated from field: string href = 4;
+   */
+  href = "";
+
+  /**
+   * @generated from field: string id = 5;
+   */
+  id = "";
+
+  /**
+   * @generated from field: string name = 6;
+   */
+  name = "";
+
+  /**
+   * @generated from field: string value = 7;
+   */
+  value = "";
+
+  /**
+   * @generated from field: string type = 8;
+   */
+  type = "";
+
+  constructor(data?: PartialMessage<BrowserElement>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "ai.v1.BrowserElement";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "tag", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "text", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "selector", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "href", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 7, name: "value", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 8, name: "type", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): BrowserElement {
+    return new BrowserElement().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): BrowserElement {
+    return new BrowserElement().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): BrowserElement {
+    return new BrowserElement().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: BrowserElement | PlainMessage<BrowserElement> | undefined, b: BrowserElement | PlainMessage<BrowserElement> | undefined): boolean {
+    return proto3.util.equals(BrowserElement, a, b);
+  }
+}
+
+/**
+ * @generated from message ai.v1.BrowserForm
+ */
+export class BrowserForm extends Message<BrowserForm> {
+  /**
+   * @generated from field: string selector = 1;
+   */
+  selector = "";
+
+  /**
+   * @generated from field: string action = 2;
+   */
+  action = "";
+
+  /**
+   * @generated from field: string method = 3;
+   */
+  method = "";
+
+  /**
+   * @generated from field: repeated ai.v1.BrowserElement inputs = 4;
+   */
+  inputs: BrowserElement[] = [];
+
+  constructor(data?: PartialMessage<BrowserForm>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "ai.v1.BrowserForm";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "selector", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "action", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "method", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "inputs", kind: "message", T: BrowserElement, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): BrowserForm {
+    return new BrowserForm().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): BrowserForm {
+    return new BrowserForm().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): BrowserForm {
+    return new BrowserForm().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: BrowserForm | PlainMessage<BrowserForm> | undefined, b: BrowserForm | PlainMessage<BrowserForm> | undefined): boolean {
+    return proto3.util.equals(BrowserForm, a, b);
+  }
+}
+
+/**
+ * @generated from message ai.v1.BrowserContext
+ */
+export class BrowserContext extends Message<BrowserContext> {
+  /**
+   * @generated from field: string session_id = 1;
+   */
+  sessionId = "";
+
+  /**
+   * @generated from field: string current_url = 2;
+   */
+  currentUrl = "";
+
+  /**
+   * @generated from field: string page_title = 3;
+   */
+  pageTitle = "";
+
+  /**
+   * @generated from field: string page_source = 4;
+   */
+  pageSource = "";
+
+  /**
+   * @generated from field: string screenshot = 5;
+   */
+  screenshot = "";
+
+  /**
+   * @generated from field: map<string, string> cookies = 6;
+   */
+  cookies: { [key: string]: string } = {};
+
+  /**
+   * @generated from field: map<string, string> local_storage = 7;
+   */
+  localStorage: { [key: string]: string } = {};
+
+  /**
+   * @generated from field: repeated ai.v1.BrowserForm forms = 8;
+   */
+  forms: BrowserForm[] = [];
+
+  /**
+   * @generated from field: repeated ai.v1.BrowserElement inputs = 9;
+   */
+  inputs: BrowserElement[] = [];
+
+  /**
+   * @generated from field: repeated ai.v1.BrowserElement buttons = 10;
+   */
+  buttons: BrowserElement[] = [];
+
+  /**
+   * @generated from field: repeated ai.v1.BrowserElement links = 11;
+   */
+  links: BrowserElement[] = [];
+
+  /**
+   * @generated from field: string auth_state = 12;
+   */
+  authState = "";
+
+  constructor(data?: PartialMessage<BrowserContext>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "ai.v1.BrowserContext";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "session_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "current_url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "page_title", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "page_source", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "screenshot", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "cookies", kind: "map", K: 9 /* ScalarType.STRING */, V: {kind: "scalar", T: 9 /* ScalarType.STRING */} },
+    { no: 7, name: "local_storage", kind: "map", K: 9 /* ScalarType.STRING */, V: {kind: "scalar", T: 9 /* ScalarType.STRING */} },
+    { no: 8, name: "forms", kind: "message", T: BrowserForm, repeated: true },
+    { no: 9, name: "inputs", kind: "message", T: BrowserElement, repeated: true },
+    { no: 10, name: "buttons", kind: "message", T: BrowserElement, repeated: true },
+    { no: 11, name: "links", kind: "message", T: BrowserElement, repeated: true },
+    { no: 12, name: "auth_state", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): BrowserContext {
+    return new BrowserContext().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): BrowserContext {
+    return new BrowserContext().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): BrowserContext {
+    return new BrowserContext().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: BrowserContext | PlainMessage<BrowserContext> | undefined, b: BrowserContext | PlainMessage<BrowserContext> | undefined): boolean {
+    return proto3.util.equals(BrowserContext, a, b);
+  }
+}
+
+/**
+ * @generated from message ai.v1.NetworkEvent
+ */
+export class NetworkEvent extends Message<NetworkEvent> {
+  /**
+   * @generated from field: string method = 1;
+   */
+  method = "";
+
+  /**
+   * @generated from field: string url = 2;
+   */
+  url = "";
+
+  /**
+   * @generated from field: int32 status_code = 3;
+   */
+  statusCode = 0;
+
+  /**
+   * @generated from field: string resource_type = 4;
+   */
+  resourceType = "";
+
+  constructor(data?: PartialMessage<NetworkEvent>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "ai.v1.NetworkEvent";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "method", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "status_code", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 4, name: "resource_type", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): NetworkEvent {
+    return new NetworkEvent().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): NetworkEvent {
+    return new NetworkEvent().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): NetworkEvent {
+    return new NetworkEvent().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: NetworkEvent | PlainMessage<NetworkEvent> | undefined, b: NetworkEvent | PlainMessage<NetworkEvent> | undefined): boolean {
+    return proto3.util.equals(NetworkEvent, a, b);
+  }
+}
+
+/**
+ * @generated from message ai.v1.ActionResult
+ */
+export class ActionResult extends Message<ActionResult> {
+  /**
+   * @generated from field: bool success = 1;
+   */
+  success = false;
+
+  /**
+   * @generated from field: string failure_reason = 2;
+   */
+  failureReason = "";
+
+  /**
+   * @generated from field: string current_url = 3;
+   */
+  currentUrl = "";
+
+  /**
+   * @generated from field: string page_title = 4;
+   */
+  pageTitle = "";
+
+  /**
+   * @generated from field: string screenshot = 5;
+   */
+  screenshot = "";
+
+  /**
+   * @generated from field: ai.v1.BrowserContext visible_elements = 6;
+   */
+  visibleElements?: BrowserContext;
+
+  /**
+   * @generated from field: repeated ai.v1.NetworkEvent network_events = 7;
+   */
+  networkEvents: NetworkEvent[] = [];
+
+  /**
+   * @generated from field: int64 duration_ms = 8;
+   */
+  durationMs = protoInt64.zero;
+
+  /**
+   * @generated from field: int32 status_code = 9;
+   */
+  statusCode = 0;
+
+  /**
+   * @generated from field: string response_body = 10;
+   */
+  responseBody = "";
+
+  constructor(data?: PartialMessage<ActionResult>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "ai.v1.ActionResult";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "success", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 2, name: "failure_reason", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "current_url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "page_title", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "screenshot", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "visible_elements", kind: "message", T: BrowserContext },
+    { no: 7, name: "network_events", kind: "message", T: NetworkEvent, repeated: true },
+    { no: 8, name: "duration_ms", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 9, name: "status_code", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 10, name: "response_body", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ActionResult {
+    return new ActionResult().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ActionResult {
+    return new ActionResult().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ActionResult {
+    return new ActionResult().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ActionResult | PlainMessage<ActionResult> | undefined, b: ActionResult | PlainMessage<ActionResult> | undefined): boolean {
+    return proto3.util.equals(ActionResult, a, b);
+  }
+}
+
+/**
+ * @generated from message ai.v1.PlanSQLiAttackRequest
+ */
+export class PlanSQLiAttackRequest extends Message<PlanSQLiAttackRequest> {
+  /**
+   * @generated from field: ai.v1.BrowserContext current_context = 1;
+   */
+  currentContext?: BrowserContext;
+
+  /**
+   * @generated from field: string endpoint = 2;
+   */
+  endpoint = "";
+
+  /**
+   * @generated from field: repeated ai.v1.BrowserForm forms = 3;
+   */
+  forms: BrowserForm[] = [];
+
+  /**
+   * @generated from field: repeated string parameters = 4;
+   */
+  parameters: string[] = [];
+
+  constructor(data?: PartialMessage<PlanSQLiAttackRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "ai.v1.PlanSQLiAttackRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "current_context", kind: "message", T: BrowserContext },
+    { no: 2, name: "endpoint", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "forms", kind: "message", T: BrowserForm, repeated: true },
+    { no: 4, name: "parameters", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): PlanSQLiAttackRequest {
+    return new PlanSQLiAttackRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): PlanSQLiAttackRequest {
+    return new PlanSQLiAttackRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): PlanSQLiAttackRequest {
+    return new PlanSQLiAttackRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: PlanSQLiAttackRequest | PlainMessage<PlanSQLiAttackRequest> | undefined, b: PlanSQLiAttackRequest | PlainMessage<PlanSQLiAttackRequest> | undefined): boolean {
+    return proto3.util.equals(PlanSQLiAttackRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message ai.v1.SQLiPayload
+ */
+export class SQLiPayload extends Message<SQLiPayload> {
+  /**
+   * @generated from field: string strategy = 1;
+   */
+  strategy = "";
+
+  /**
+   * @generated from field: string value = 2;
+   */
+  value = "";
+
+  /**
+   * @generated from field: string description = 3;
+   */
+  description = "";
+
+  constructor(data?: PartialMessage<SQLiPayload>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "ai.v1.SQLiPayload";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "strategy", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "value", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "description", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SQLiPayload {
+    return new SQLiPayload().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SQLiPayload {
+    return new SQLiPayload().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SQLiPayload {
+    return new SQLiPayload().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: SQLiPayload | PlainMessage<SQLiPayload> | undefined, b: SQLiPayload | PlainMessage<SQLiPayload> | undefined): boolean {
+    return proto3.util.equals(SQLiPayload, a, b);
+  }
+}
+
+/**
+ * @generated from message ai.v1.PlanSQLiAttackResponse
+ */
+export class PlanSQLiAttackResponse extends Message<PlanSQLiAttackResponse> {
+  /**
+   * @generated from field: repeated ai.v1.SQLiPayload payloads = 1;
+   */
+  payloads: SQLiPayload[] = [];
+
+  /**
+   * @generated from field: string reasoning = 2;
+   */
+  reasoning = "";
+
+  constructor(data?: PartialMessage<PlanSQLiAttackResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "ai.v1.PlanSQLiAttackResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "payloads", kind: "message", T: SQLiPayload, repeated: true },
+    { no: 2, name: "reasoning", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): PlanSQLiAttackResponse {
+    return new PlanSQLiAttackResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): PlanSQLiAttackResponse {
+    return new PlanSQLiAttackResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): PlanSQLiAttackResponse {
+    return new PlanSQLiAttackResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: PlanSQLiAttackResponse | PlainMessage<PlanSQLiAttackResponse> | undefined, b: PlanSQLiAttackResponse | PlainMessage<PlanSQLiAttackResponse> | undefined): boolean {
+    return proto3.util.equals(PlanSQLiAttackResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message ai.v1.VerifyAttackResultRequest
+ */
+export class VerifyAttackResultRequest extends Message<VerifyAttackResultRequest> {
+  /**
+   * @generated from field: string payload = 1;
+   */
+  payload = "";
+
+  /**
+   * @generated from field: ai.v1.ActionResult response = 2;
+   */
+  response?: ActionResult;
+
+  constructor(data?: PartialMessage<VerifyAttackResultRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "ai.v1.VerifyAttackResultRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "payload", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "response", kind: "message", T: ActionResult },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): VerifyAttackResultRequest {
+    return new VerifyAttackResultRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): VerifyAttackResultRequest {
+    return new VerifyAttackResultRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): VerifyAttackResultRequest {
+    return new VerifyAttackResultRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: VerifyAttackResultRequest | PlainMessage<VerifyAttackResultRequest> | undefined, b: VerifyAttackResultRequest | PlainMessage<VerifyAttackResultRequest> | undefined): boolean {
+    return proto3.util.equals(VerifyAttackResultRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message ai.v1.VerifyAttackResultResponse
+ */
+export class VerifyAttackResultResponse extends Message<VerifyAttackResultResponse> {
+  /**
+   * @generated from field: bool confirmed = 1;
+   */
+  confirmed = false;
+
+  /**
+   * @generated from field: string reasoning = 2;
+   */
+  reasoning = "";
+
+  /**
+   * @generated from field: float confidence = 3;
+   */
+  confidence = 0;
+
+  /**
+   * @generated from field: string vulnerability_type = 4;
+   */
+  vulnerabilityType = "";
+
+  constructor(data?: PartialMessage<VerifyAttackResultResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "ai.v1.VerifyAttackResultResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "confirmed", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 2, name: "reasoning", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "confidence", kind: "scalar", T: 2 /* ScalarType.FLOAT */ },
+    { no: 4, name: "vulnerability_type", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): VerifyAttackResultResponse {
+    return new VerifyAttackResultResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): VerifyAttackResultResponse {
+    return new VerifyAttackResultResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): VerifyAttackResultResponse {
+    return new VerifyAttackResultResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: VerifyAttackResultResponse | PlainMessage<VerifyAttackResultResponse> | undefined, b: VerifyAttackResultResponse | PlainMessage<VerifyAttackResultResponse> | undefined): boolean {
+    return proto3.util.equals(VerifyAttackResultResponse, a, b);
   }
 }
 

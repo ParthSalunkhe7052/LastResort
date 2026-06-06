@@ -29,7 +29,7 @@ func NewCrawlManager(scanID string, proxyPort int) *CrawlManager {
 
 // Crawl executes the complete crawl phase for a target URL.
 // It uses a callback function to send discovery logs back to the orchestrator.
-func (cm *CrawlManager) Crawl(ctx context.Context, scanID, seedURL string, onLog func(msg string), onEndpoint func(method, urlStr, source string), onForm func(form browser.DiscoveredForm)) error {
+func (cm *CrawlManager) Crawl(ctx context.Context, scanID, seedURL, cookieStr string, onLog func(msg string), onEndpoint func(method, urlStr, source string), onForm func(form browser.DiscoveredForm)) error {
 	u, err := url.Parse(seedURL)
 	if err != nil {
 		return fmt.Errorf("invalid seed URL: %w", err)
@@ -122,24 +122,24 @@ func (cm *CrawlManager) Crawl(ctx context.Context, scanID, seedURL string, onLog
 	}()
 
 	// 2. Try Katana crawler if available; otherwise try browser crawl if online; fallback to static BFS
+	hasKatana := false
 	if attack.ToolAvailable("katana") {
 		onLog("[CRAWLER] Katana crawler binary is available. Running Katana crawl...")
-		err := attack.RunKatanaCrawl(sessionCtx, seedURL, cm.proxyPort, func(method, urlStr, source string) {
-			endpointsChan <- DiscoveredEndpoint{
-				Method: method,
-				URL:    urlStr,
-				Source: source,
+		err := attack.RunKatanaCrawl(sessionCtx, seedURL, cm.proxyPort, cookieStr, func(method, urlStr, source string) {
+			if IsInCrawlScope(urlStr, seedURL) {
+				endpointsChan <- DiscoveredEndpoint{
+					Method: method,
+					URL:    urlStr,
+					Source: source,
+				}
 			}
 		})
 		if err == nil {
 			onLog("[CRAWLER] Katana crawler crawl completed successfully.")
-			close(endpointsChan)
-			close(errorsChan)
-			wg.Wait()
-			onLog(fmt.Sprintf("[CRAWLER] Crawl phase completed for Scan ID: %s", scanID))
-			return nil
+			hasKatana = true
+		} else {
+			onLog(fmt.Sprintf("[CRAWLER] [ERROR] Katana crawl failed: %v", err))
 		}
-		onLog(fmt.Sprintf("[CRAWLER] [ERROR] Katana crawl failed, falling back: %v", err))
 	}
 
 	browserClient := browser.NewClient("")
@@ -148,25 +148,32 @@ func (cm *CrawlManager) Crawl(ctx context.Context, scanID, seedURL string, onLog
 		endpoints, forms, err := browserClient.Crawl(sessionCtx, scanID, seedURL, cm.proxyPort)
 		if err != nil {
 			onLog(fmt.Sprintf("[CRAWLER] [ERROR] Browser crawl failed, falling back to static crawl: %v", err))
-			runStaticBFS(sessionCtx, session, endpointsChan, errorsChan, seedURL, sitemapURLs, seedHost, onLog, cm)
+			if !hasKatana {
+				onLog("[CRAWLER] Falling back to static BFS crawler...")
+				runStaticBFS(sessionCtx, session, endpointsChan, errorsChan, seedURL, sitemapURLs, seedHost, onLog, cm)
+			}
 		} else {
 			onLog(fmt.Sprintf("[CRAWLER] Browser crawl succeeded. Processing %d discovered routes and %d forms.", len(endpoints), len(forms)))
 			for _, ep := range endpoints {
-				endpointsChan <- DiscoveredEndpoint{
-					Method: ep.Method,
-					URL:    ep.URL,
-					Source: ep.Source,
+				if IsInCrawlScope(ep.URL, seedURL) {
+					endpointsChan <- DiscoveredEndpoint{
+						Method: ep.Method,
+						URL:    ep.URL,
+						Source: ep.Source,
+					}
 				}
 			}
 			for _, f := range forms {
-				if onForm != nil {
+				if IsInCrawlScope(f.Action, seedURL) && onForm != nil {
 					onForm(f)
 				}
 			}
 		}
 	} else {
-		onLog("[CRAWLER] Browser crawling service is offline. Falling back to static BFS crawler...")
-		runStaticBFS(sessionCtx, session, endpointsChan, errorsChan, seedURL, sitemapURLs, seedHost, onLog, cm)
+		if !hasKatana {
+			onLog("[CRAWLER] Browser crawling service is offline. Falling back to static BFS crawler...")
+			runStaticBFS(sessionCtx, session, endpointsChan, errorsChan, seedURL, sitemapURLs, seedHost, onLog, cm)
+		}
 	}
 
 	// Clean up listeners

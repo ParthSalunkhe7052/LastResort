@@ -1,14 +1,10 @@
 package api
 
 import (
-	"bytes"
 	"context"
-	"crypto/tls"
 	"database/sql"
 	"errors"
 	"fmt"
-	"net"
-	"strings"
 	"time"
 
 	"connectrpc.com/connect"
@@ -221,37 +217,9 @@ func (s *ScanServer) StreamScanEvents(ctx context.Context, req *connect.Request[
 	}
 }
 
-// ListFlows retrieves proxy history transactions from SQLite database
+// ListFlows is deprecated and returns an empty list.
 func (s *ScanServer) ListFlows(ctx context.Context, req *connect.Request[scanv1.ListFlowsRequest]) (*connect.Response[scanv1.ListFlowsResponse], error) {
-	scanID := req.Msg.ScanId
-
-	var rows *sql.Rows
-	var err error
-
-	if scanID != "" {
-		rows, err = s.DB.QueryContext(ctx, "SELECT id, scan_id, method, url, request_headers, request_body, response_headers, response_body, response_status, created_at FROM http_flows WHERE scan_id = ? ORDER BY id DESC", scanID)
-	} else {
-		rows, err = s.DB.QueryContext(ctx, "SELECT id, scan_id, method, url, request_headers, request_body, response_headers, response_body, response_status, created_at FROM http_flows ORDER BY id DESC")
-	}
-
-	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to query flows: %w", err))
-	}
-	defer rows.Close()
-
-	var flows []*scanv1.FlowRecord
-	for rows.Next() {
-		var f scanv1.FlowRecord
-		var createdAt time.Time
-		err := rows.Scan(&f.Id, &f.ScanId, &f.Method, &f.Url, &f.RequestHeaders, &f.RequestBody, &f.ResponseHeaders, &f.ResponseBody, &f.ResponseStatus, &createdAt)
-		if err != nil {
-			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to scan flow: %w", err))
-		}
-		f.CreatedAt = createdAt.Format(time.RFC3339)
-		flows = append(flows, &f)
-	}
-
-	return connect.NewResponse(&scanv1.ListFlowsResponse{Flows: flows}), nil
+	return connect.NewResponse(&scanv1.ListFlowsResponse{}), nil
 }
 
 // ListFindings retrieves passive and active security findings from SQLite database
@@ -261,10 +229,34 @@ func (s *ScanServer) ListFindings(ctx context.Context, req *connect.Request[scan
 	var rows *sql.Rows
 	var err error
 
+	// Filter and prioritize high severity / verified findings and cap at 10.
+	queryStr := `
+		SELECT id, scan_id, title, description, severity, vulnerability_type, endpoint, payload, response_status, confidence, category, is_false_positive, created_at 
+		FROM findings 
+		WHERE is_false_positive = 0 %s
+		ORDER BY 
+			CASE category
+				WHEN 'VERIFIED_FINDING' THEN 1
+				WHEN 'POTENTIAL_FINDING' THEN 2
+				WHEN 'NEEDS_REVIEW' THEN 3
+				WHEN 'OBSERVATION' THEN 4
+				ELSE 5
+			END ASC,
+			CASE severity 
+				WHEN 'CRITICAL' THEN 1 
+				WHEN 'HIGH' THEN 2 
+				WHEN 'MEDIUM' THEN 3 
+				WHEN 'LOW' THEN 4 
+				ELSE 5 
+			END ASC, 
+			confidence DESC, 
+			created_at DESC 
+		LIMIT 10`
+
 	if scanID != "" {
-		rows, err = s.DB.QueryContext(ctx, "SELECT id, scan_id, title, description, severity, vulnerability_type, endpoint, payload, response_status, confidence, category, is_false_positive, created_at FROM findings WHERE scan_id = ? ORDER BY created_at DESC", scanID)
+		rows, err = s.DB.QueryContext(ctx, fmt.Sprintf(queryStr, "AND scan_id = ?"), scanID)
 	} else {
-		rows, err = s.DB.QueryContext(ctx, "SELECT id, scan_id, title, description, severity, vulnerability_type, endpoint, payload, response_status, confidence, category, is_false_positive, created_at FROM findings ORDER BY created_at DESC")
+		rows, err = s.DB.QueryContext(ctx, fmt.Sprintf(queryStr, ""))
 	}
 
 	if err != nil {
@@ -331,65 +323,9 @@ func (s *ScanServer) ListEndpoints(ctx context.Context, req *connect.Request[sca
 	return connect.NewResponse(&scanv1.ListEndpointsResponse{Endpoints: records}), nil
 }
 
-// SendRepeaterRequest establishes a direct socket connection to forward a custom HTTP request
+// SendRepeaterRequest is deprecated.
 func (s *ScanServer) SendRepeaterRequest(ctx context.Context, req *connect.Request[scanv1.SendRepeaterRequestRequest]) (*connect.Response[scanv1.SendRepeaterRequestResponse], error) {
-	rawRequest := req.Msg.RawRequest
-	targetHost := req.Msg.TargetHost
-	useTLS := req.Msg.UseTls
-
-	// Normalize hostname
-	targetHost = strings.TrimPrefix(targetHost, "http://")
-	targetHost = strings.TrimPrefix(targetHost, "https://")
-
-	if !strings.Contains(targetHost, ":") {
-		if useTLS {
-			targetHost += ":443"
-		} else {
-			targetHost += ":80"
-		}
-	}
-
-	dialer := net.Dialer{Timeout: 5 * time.Second}
-	var conn net.Conn
-	var err error
-
-	if useTLS {
-		conn, err = tls.DialWithDialer(&dialer, "tcp", targetHost, &tls.Config{
-			InsecureSkipVerify: true,
-		})
-	} else {
-		conn, err = dialer.DialContext(ctx, "tcp", targetHost)
-	}
-
-	if err != nil {
-		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("failed to connect to %s: %w", targetHost, err))
-	}
-	defer conn.Close()
-
-	// Forward raw payload bytes
-	_, err = conn.Write([]byte(rawRequest))
-	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to send raw request bytes: %w", err))
-	}
-
-	// Ensure we set read deadline to prevent lockups on keep-alive
-	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
-
-	var responseBuf bytes.Buffer
-	buf := make([]byte, 4096)
-	for {
-		n, err := conn.Read(buf)
-		if n > 0 {
-			responseBuf.Write(buf[:n])
-		}
-		if err != nil {
-			break
-		}
-	}
-
-	return connect.NewResponse(&scanv1.SendRepeaterRequestResponse{
-		RawResponse: responseBuf.String(),
-	}), nil
+	return nil, connect.NewError(connect.CodeUnimplemented, fmt.Errorf("Repeater functionality is removed"))
 }
 
 // GenerateReport invokes report generator to build assessment exports

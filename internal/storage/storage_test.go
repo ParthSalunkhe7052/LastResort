@@ -38,16 +38,8 @@ func TestStorageInitAndInserts(t *testing.T) {
 		t.Fatalf("failed to insert scan: %v", err)
 	}
 
-	// Test SaveFlow
-	reqHeaders := map[string][]string{"Content-Type": {"application/json"}}
-	respHeaders := map[string][]string{"X-Test": {"passed"}}
-	flowID, err := db.SaveFlow(ctx, "scan-1", "GET", "http://localhost/api", reqHeaders, []byte(`{"req":true}`), respHeaders, []byte(`{"resp":true}`), 200)
-	if err != nil {
-		t.Fatalf("SaveFlow failed: %v", err)
-	}
-	if flowID <= 0 {
-		t.Errorf("expected positive flow ID, got %d", flowID)
-	}
+	// Dummy flow ID (SaveFlow deprecated)
+	flowID := int64(1)
 
 	// Test SaveFindingWithEvidence
 	findingID, err := db.SaveFindingWithEvidence(ctx, FindingInput{
@@ -94,12 +86,8 @@ func TestSaveFindingDeduplicates(t *testing.T) {
 		t.Fatalf("failed to insert scan: %v", err)
 	}
 
-	reqHeaders := map[string][]string{"Content-Type": {"application/json"}}
-	respHeaders := map[string][]string{"X-Test": {"passed"}}
-	flowID, err := db.SaveFlow(ctx, "scan-2", "GET", "http://localhost/search?q=test", reqHeaders, []byte(``), respHeaders, []byte(`ok`), 200)
-	if err != nil {
-		t.Fatalf("SaveFlow failed: %v", err)
-	}
+	// Dummy flow ID (SaveFlow deprecated)
+	flowID := int64(2)
 
 	// Save finding first time
 	id1, err := db.SaveFindingWithEvidence(ctx, FindingInput{

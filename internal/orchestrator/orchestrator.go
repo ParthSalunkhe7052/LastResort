@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/parth/lastresort/internal/ai"
 	"github.com/parth/lastresort/internal/browser"
 	"github.com/parth/lastresort/internal/crawler"
 	"github.com/parth/lastresort/internal/gen/ai/v1/aiv1connect"
@@ -40,7 +41,7 @@ func NewOrchestrator(db *storage.DB, aiClient aiv1connect.AiServiceClient, proxy
 		aiClient:      aiClient,
 		browserClient: browser.NewClient(""),
 		proxyPort:     proxyPort,
-		verification:  NewVerificationEngine(),
+		verification:  NewVerificationEngine(aiClient),
 	}
 }
 
@@ -104,9 +105,9 @@ func (o *Orchestrator) Start(scanID string) {
 			switch m {
 			case ModuleRecon, ModuleAuthDiscovery, ModuleCrawlStatic, ModulePassive:
 				prepModules = append(prepModules, m)
-			case ModuleHeaders, ModuleCors, ModuleXssReflected, ModuleSqliBasic, ModuleCsrfBasic, ModuleRateLimitBasic, ModuleNuclei:
+			case ModuleHeaders, ModuleCors, ModuleXssReflected, ModuleSqliBasic, ModuleCsrfBasic, ModuleRateLimitBasic, ModuleNuclei, ModulePathTraversal:
 				parallelModules = append(parallelModules, m)
-			case ModuleReport:
+			case ModuleVisualExploit, ModuleReport:
 				completionModules = append(completionModules, m)
 			default:
 				prepModules = append(prepModules, m)
@@ -117,8 +118,8 @@ func (o *Orchestrator) Start(scanID string) {
 		for _, module := range prepModules {
 			select {
 			case <-ctx.Done():
-				o.failScan(scanID, fmt.Errorf("scan context cancelled: %w", ctx.Err()))
-				return
+				log.Printf("[Orchestrator] Scan %s timed out during prep. Proceeding to final report.", scanID)
+				goto finalize
 			default:
 			}
 
@@ -204,38 +205,53 @@ func (o *Orchestrator) Start(scanID string) {
 				go func() {
 					defer wg.Done()
 					for m := range moduleChan {
-						startedAt := startParallelModule(m)
-						err := o.runModule(ctx, scanID, targetURL, m, as)
-						updateParallelProgress(m, startedAt, err)
+						select {
+						case <-ctx.Done():
+							return
+						default:
+							startedAt := startParallelModule(m)
+							err := o.runModule(ctx, scanID, targetURL, m, as)
+							updateParallelProgress(m, startedAt, err)
+						}
 					}
 				}()
 			}
-			wg.Wait()
+			// Wait for parallel modules with a "max-wait" safety buffer
+			waitDone := make(chan struct{})
+			go func() {
+				wg.Wait()
+				close(waitDone)
+			}()
+
+			select {
+			case <-waitDone:
+				log.Printf("[Orchestrator] All parallel modules finished.")
+			case <-time.After(10 * time.Minute):
+				log.Printf("[Orchestrator] [WARNING] Parallel modules timed out after 10m safety buffer. Forcing finalization.")
+			}
 		}
 
+	finalize:
 		// 3. Completion Phase (Sequential)
 		for _, module := range completionModules {
-			select {
-			case <-ctx.Done():
-				o.failScan(scanID, fmt.Errorf("scan context cancelled: %w", ctx.Err()))
-				return
-			default:
-			}
-
+			// Even if context is cancelled, we try to run completion modules (like Report) with a fresh, short-lived context.
+			reportCtx, reportCancel := context.WithTimeout(context.Background(), 2*time.Minute)
+			
 			phaseName := moduleDisplayName(module)
 			o.publishPhaseStart(scanID, phaseName)
 			startedAt := time.Now()
-			_ = o.db.UpsertScanModule(ctx, scanID, phaseName, storage.ModuleRunning, &startedAt, nil, "")
+			_ = o.db.UpsertScanModule(reportCtx, scanID, phaseName, storage.ModuleRunning, &startedAt, nil, "")
 
-			err := o.runModule(ctx, scanID, targetURL, module, as)
+			err := o.runModule(reportCtx, scanID, targetURL, module, as)
 			completedAt := time.Now()
 			if err != nil {
 				o.publishModuleError(scanID, phaseName, err)
 				log.Printf("[Orchestrator] [WARNING] Completion Module %s failed: %v", module, err)
-				_ = o.db.UpsertScanModule(ctx, scanID, phaseName, storage.ModuleFailed, &startedAt, &completedAt, err.Error())
+				_ = o.db.UpsertScanModule(reportCtx, scanID, phaseName, storage.ModuleFailed, &startedAt, &completedAt, err.Error())
 			} else {
-				_ = o.db.UpsertScanModule(ctx, scanID, phaseName, storage.ModuleSuccess, &startedAt, &completedAt, "")
+				_ = o.db.UpsertScanModule(reportCtx, scanID, phaseName, storage.ModuleSuccess, &startedAt, &completedAt, "")
 			}
+			reportCancel()
 
 			o.publishPhaseCompleted(scanID, phaseName)
 			cumulative += weights[module]
@@ -475,24 +491,15 @@ func moduleDisplayName(module string) string {
 		return "Autonomous Auth Discovery"
 	case ModuleReport:
 		return "Report Generation"
+	case ModuleVisualExploit:
+		return "Visual Exploitation"
 	default:
 		return module
 	}
 }
 
-type AttackSurface struct {
-	URL         string
-	Method      string
-	BaseBody    []byte
-	ContentType string
-	Point       scanner.InsertionPoint
-	IsForm      bool
-	FormSel     string
-	FormPageURL string
-}
-
-func (o *Orchestrator) getAttackSurfaces(ctx context.Context, scanID string) ([]AttackSurface, error) {
-	var surfaces []AttackSurface
+func (o *Orchestrator) getAttackSurfaces(ctx context.Context, scanID string, targetURL string) ([]scanner.AttackSurface, error) {
+	var surfaces []scanner.AttackSurface
 
 	// 1. Fetch static/recon endpoints
 	endpoints, err := o.db.ListEndpoints(ctx, scanID)
@@ -501,9 +508,12 @@ func (o *Orchestrator) getAttackSurfaces(ctx context.Context, scanID string) ([]
 	}
 
 	for _, ep := range endpoints {
+		if !crawler.IsInCrawlScope(ep.URL, targetURL) {
+			continue
+		}
 		points, _ := scanner.ExtractInsertionPoints(ep.Method, ep.URL, nil, "")
 		for _, pt := range points {
-			surfaces = append(surfaces, AttackSurface{
+			surfaces = append(surfaces, scanner.AttackSurface{
 				URL:         ep.URL,
 				Method:      ep.Method,
 				ContentType: "application/x-www-form-urlencoded",
@@ -521,6 +531,9 @@ func (o *Orchestrator) getAttackSurfaces(ctx context.Context, scanID string) ([]
 	}
 
 	for _, f := range forms {
+		if !crawler.IsInCrawlScope(f.URL, targetURL) {
+			continue
+		}
 		var inputs []browser.BrowserElement
 		if err := json.Unmarshal([]byte(f.InputsJSON), &inputs); err != nil {
 			continue
@@ -556,33 +569,16 @@ func (o *Orchestrator) getAttackSurfaces(ctx context.Context, scanID string) ([]
 
 			var baseBody []byte
 			if strings.ToUpper(f.Method) == "POST" {
-				vals := url.Values{}
-				for _, otherIn := range inputs {
-					otherName := otherIn.Name
-					if otherName == "" {
-						otherName = otherIn.ID
-					}
-					if otherName != "" && otherIn.Type != "submit" && otherIn.Type != "button" {
-						vals.Set(otherName, otherIn.Value)
-					}
-				}
-				baseBody = []byte(vals.Encode())
+				baseBody = o.buildFormBody(f.InputsJSON)
 			}
 
-			formActionURL := f.Action
-			if formActionURL == "" {
-				formActionURL = f.URL
-			} else {
-				base, err := url.Parse(f.URL)
-				if err == nil {
-					ref, err := url.Parse(formActionURL)
-					if err == nil {
-						formActionURL = base.ResolveReference(ref).String()
-					}
-				}
+			formActionURL := o.resolveActionURL(f.URL, f.Action)
+
+			if !crawler.IsInCrawlScope(formActionURL, targetURL) {
+				continue
 			}
 
-			surfaces = append(surfaces, AttackSurface{
+			surfaces = append(surfaces, scanner.AttackSurface{
 				URL:         formActionURL,
 				Method:      f.Method,
 				BaseBody:    baseBody,
@@ -596,6 +592,45 @@ func (o *Orchestrator) getAttackSurfaces(ctx context.Context, scanID string) ([]
 	}
 
 	return surfaces, nil
+}
+
+func (o *Orchestrator) buildFormBody(inputsJSON string) []byte {
+	var inputs []browser.BrowserElement
+	if err := json.Unmarshal([]byte(inputsJSON), &inputs); err != nil {
+		return nil
+	}
+	vals := url.Values{}
+	for _, in := range inputs {
+		tLower := strings.ToLower(in.Type)
+		if tLower != "submit" && tLower != "button" && tLower != "image" {
+			name := in.Name
+			if name == "" {
+				name = in.ID
+			}
+			if name != "" {
+				vals.Set(name, in.Value)
+			}
+		}
+	}
+	return []byte(vals.Encode())
+}
+
+func (o *Orchestrator) resolveActionURL(baseURL, action string) string {
+	if action == "" {
+		return baseURL
+	}
+	if strings.HasPrefix(action, "http://") || strings.HasPrefix(action, "https://") {
+		return action
+	}
+	base, err := url.Parse(baseURL)
+	if err != nil {
+		return action
+	}
+	ref, err := url.Parse(action)
+	if err != nil {
+		return action
+	}
+	return base.ResolveReference(ref).String()
 }
 
 func makeFormSubmitScript(actionURL, method string, body []byte) string {
@@ -699,8 +734,35 @@ func (o *Orchestrator) executeDeterministicAttack(
 	return res, err
 }
 
-func (o *Orchestrator) runAgentSqli(ctx context.Context, scanID, targetURL string) error {
-	surfaces, err := o.getAttackSurfaces(ctx, scanID)
+func (o *Orchestrator) runAgentSqliAgent(ctx context.Context, scanID, targetURL string, onLog func(string)) error {
+	surfaces, err := o.getAttackSurfaces(ctx, scanID, targetURL)
+	if err != nil {
+		return err
+	}
+
+	exec := attack.NewAgentSQLiExecutor(
+		o.db,
+		o.browserClient,
+		o.aiClient,
+		scanID,
+		o.proxyPort,
+		onLog,
+		func(b64 string) {
+			o.publishBrowserScreenshot(scanID, b64)
+		},
+	)
+
+	for _, surf := range surfaces {
+		err := exec.Execute(ctx, surf)
+		if err != nil {
+			log.Printf("[Orchestrator] SQLi Agent execution failed on surface %s: %v", surf.URL, err)
+		}
+	}
+	return nil
+}
+
+func (o *Orchestrator) runAgentSqli(ctx context.Context, scanID, targetURL string, onLog func(string)) error {
+	surfaces, err := o.getAttackSurfaces(ctx, scanID, targetURL)
 	if err != nil {
 		return err
 	}
@@ -779,8 +841,14 @@ func (o *Orchestrator) runAgentSqli(ctx context.Context, scanID, targetURL strin
 			if err == nil {
 				verifID, verifErr := o.db.SaveVerification(ctx, findingID, scanID, vr)
 				if verifErr == nil {
-					_, _ = o.db.ExecContext(ctx, "UPDATE findings SET category = ?, verification_id = ? WHERE id = ?", storage.StateVerifiedFinding, verifID, findingID)
+					if _, updateErr := o.db.ExecContext(ctx, "UPDATE findings SET category = ?, verification_id = ? WHERE id = ?", storage.StateVerifiedFinding, verifID, findingID); updateErr != nil {
+						o.publishAgentLog(scanID, fmt.Sprintf("[ERROR] Failed to update finding category: %v", updateErr))
+					}
+				} else {
+					o.publishAgentLog(scanID, fmt.Sprintf("[ERROR] Failed to save verification: %v", verifErr))
 				}
+			} else {
+				o.publishAgentLog(scanID, fmt.Sprintf("[ERROR] Failed to save finding: %v", err))
 			}
 		}
 	}
@@ -790,13 +858,14 @@ func (o *Orchestrator) runAgentSqli(ctx context.Context, scanID, targetURL strin
 		o.publishAgentLog(scanID, "[Orchestrator] [WARNING] SQLMap fuzzer not found in PATH. Downgrading gracefully to internal SQLi fuzzer.")
 	} else {
 		o.publishAgentLog(scanID, "[Orchestrator] [SQLi] SQLMap is available. Fuzzing discovered endpoints...")
+		cookieStr := o.getAuthCookieString(ctx, scanID)
 		endpoints, err := o.db.ListEndpoints(ctx, scanID)
 		if err == nil {
 			var fuzzedAny bool
 			for _, ep := range endpoints {
 				if strings.Contains(ep.URL, "?") {
 					o.publishAgentLog(scanID, fmt.Sprintf("[Orchestrator] [SQLi] Running SQLMap on parameter endpoint: %s", ep.URL))
-					sqliFindings, err := attack.RunSQLMapScan(ctx, ep.URL, o.proxyPort)
+					sqliFindings, err := attack.RunSQLMapScan(ctx, ep.URL, o.proxyPort, cookieStr, onLog)
 					if err == nil && len(sqliFindings) > 0 {
 						fuzzedAny = true
 						for _, f := range sqliFindings {
@@ -812,7 +881,7 @@ func (o *Orchestrator) runAgentSqli(ctx context.Context, scanID, targetURL strin
 								Payload:           f.Payload,
 								ResponseStatus:    200,
 								Confidence:        0.95,
-								Category:          storage.StateVerifiedFinding,
+								Category:          storage.StatePotentialFinding,
 							}, storage.EvidenceInput{
 								FlowID:          0,
 								EvidenceType:    storage.EvidenceDOM,
@@ -831,8 +900,14 @@ func (o *Orchestrator) runAgentSqli(ctx context.Context, scanID, targetURL strin
 								}
 								verifID, verifErr := o.db.SaveVerification(ctx, findingID, scanID, vr)
 								if verifErr == nil {
-									_, _ = o.db.ExecContext(ctx, "UPDATE findings SET category = ?, verification_id = ? WHERE id = ?", storage.StateVerifiedFinding, verifID, findingID)
+									if _, updateErr := o.db.ExecContext(ctx, "UPDATE findings SET category = ?, verification_id = ? WHERE id = ?", storage.StateVerifiedFinding, verifID, findingID); updateErr != nil {
+										o.publishAgentLog(scanID, fmt.Sprintf("[ERROR] Failed to update finding category: %v", updateErr))
+									}
+								} else {
+									o.publishAgentLog(scanID, fmt.Sprintf("[ERROR] Failed to save verification: %v", verifErr))
 								}
+							} else {
+								o.publishAgentLog(scanID, fmt.Sprintf("[ERROR] Failed to save finding: %v", err))
 							}
 						}
 					}
@@ -841,7 +916,8 @@ func (o *Orchestrator) runAgentSqli(ctx context.Context, scanID, targetURL strin
 			// Fallback to seed target URL if no parameter-based endpoints were found
 			if !fuzzedAny {
 				o.publishAgentLog(scanID, fmt.Sprintf("[Orchestrator] [SQLi] Running SQLMap on seed URL: %s", targetURL))
-				sqliFindings, err := attack.RunSQLMapScan(ctx, targetURL, o.proxyPort)
+				sqliFindings, err := attack.RunSQLMapScan(ctx, targetURL, o.proxyPort, cookieStr, onLog)
+
 				if err == nil {
 					for _, f := range sqliFindings {
 						_ = o.db.IncrementAttackExecuted(ctx, scanID)
@@ -856,7 +932,7 @@ func (o *Orchestrator) runAgentSqli(ctx context.Context, scanID, targetURL strin
 							Payload:           f.Payload,
 							ResponseStatus:    200,
 							Confidence:        0.95,
-							Category:          storage.StateVerifiedFinding,
+							Category:          storage.StatePotentialFinding,
 						}, storage.EvidenceInput{
 							FlowID:          0,
 							EvidenceType:    storage.EvidenceDOM,
@@ -875,8 +951,14 @@ func (o *Orchestrator) runAgentSqli(ctx context.Context, scanID, targetURL strin
 							}
 							verifID, verifErr := o.db.SaveVerification(ctx, findingID, scanID, vr)
 							if verifErr == nil {
-								_, _ = o.db.ExecContext(ctx, "UPDATE findings SET category = ?, verification_id = ? WHERE id = ?", storage.StateVerifiedFinding, verifID, findingID)
+								if _, updateErr := o.db.ExecContext(ctx, "UPDATE findings SET category = ?, verification_id = ? WHERE id = ?", storage.StateVerifiedFinding, verifID, findingID); updateErr != nil {
+									o.publishAgentLog(scanID, fmt.Sprintf("[ERROR] Failed to update finding category: %v", updateErr))
+								}
+							} else {
+								o.publishAgentLog(scanID, fmt.Sprintf("[ERROR] Failed to save verification: %v", verifErr))
 							}
+						} else {
+							o.publishAgentLog(scanID, fmt.Sprintf("[ERROR] Failed to save finding: %v", err))
 						}
 					}
 				}
@@ -888,8 +970,8 @@ func (o *Orchestrator) runAgentSqli(ctx context.Context, scanID, targetURL strin
 }
 
 
-func (o *Orchestrator) runAgentXss(ctx context.Context, scanID, targetURL string) error {
-	surfaces, err := o.getAttackSurfaces(ctx, scanID)
+func (o *Orchestrator) runAgentXss(ctx context.Context, scanID, targetURL string, onLog func(string)) error {
+	surfaces, err := o.getAttackSurfaces(ctx, scanID, targetURL)
 	if err != nil {
 		return err
 	}
@@ -968,8 +1050,14 @@ func (o *Orchestrator) runAgentXss(ctx context.Context, scanID, targetURL string
 			if err == nil {
 				verifID, verifErr := o.db.SaveVerification(ctx, findingID, scanID, vr)
 				if verifErr == nil {
-					_, _ = o.db.ExecContext(ctx, "UPDATE findings SET category = ?, verification_id = ? WHERE id = ?", storage.StateVerifiedFinding, verifID, findingID)
+					if _, updateErr := o.db.ExecContext(ctx, "UPDATE findings SET category = ?, verification_id = ? WHERE id = ?", storage.StateVerifiedFinding, verifID, findingID); updateErr != nil {
+						o.publishAgentLog(scanID, fmt.Sprintf("[ERROR] Failed to update finding category: %v", updateErr))
+					}
+				} else {
+					o.publishAgentLog(scanID, fmt.Sprintf("[ERROR] Failed to save verification: %v", verifErr))
 				}
+			} else {
+				o.publishAgentLog(scanID, fmt.Sprintf("[ERROR] Failed to save finding: %v", err))
 			}
 		}
 	}
@@ -979,13 +1067,14 @@ func (o *Orchestrator) runAgentXss(ctx context.Context, scanID, targetURL string
 		o.publishAgentLog(scanID, "[Orchestrator] [WARNING] Dalfox fuzzer not found in PATH. Downgrading gracefully to internal XSS fuzzer.")
 	} else {
 		o.publishAgentLog(scanID, "[Orchestrator] [XSS] Dalfox is available. Fuzzing discovered endpoints...")
+		cookieStr := o.getAuthCookieString(ctx, scanID)
 		endpoints, err := o.db.ListEndpoints(ctx, scanID)
 		if err == nil {
 			var fuzzedAny bool
 			for _, ep := range endpoints {
 				if strings.Contains(ep.URL, "?") {
 					o.publishAgentLog(scanID, fmt.Sprintf("[Orchestrator] [XSS] Running Dalfox on parameter endpoint: %s", ep.URL))
-					dfFindings, err := attack.RunDalfoxScan(ctx, ep.URL, o.proxyPort)
+					dfFindings, err := attack.RunDalfoxScan(ctx, ep.URL, o.proxyPort, cookieStr, onLog)
 					if err == nil && len(dfFindings) > 0 {
 						fuzzedAny = true
 						for _, f := range dfFindings {
@@ -1001,7 +1090,7 @@ func (o *Orchestrator) runAgentXss(ctx context.Context, scanID, targetURL string
 								Payload:           f.Payload,
 								ResponseStatus:    200,
 								Confidence:        0.95,
-								Category:          storage.StateVerifiedFinding,
+								Category:          storage.StatePotentialFinding,
 							}, storage.EvidenceInput{
 								FlowID:          0,
 								EvidenceType:    storage.EvidenceDOM,
@@ -1020,8 +1109,14 @@ func (o *Orchestrator) runAgentXss(ctx context.Context, scanID, targetURL string
 								}
 								verifID, verifErr := o.db.SaveVerification(ctx, findingID, scanID, vr)
 								if verifErr == nil {
-									_, _ = o.db.ExecContext(ctx, "UPDATE findings SET category = ?, verification_id = ? WHERE id = ?", storage.StateVerifiedFinding, verifID, findingID)
+									if _, updateErr := o.db.ExecContext(ctx, "UPDATE findings SET category = ?, verification_id = ? WHERE id = ?", storage.StateVerifiedFinding, verifID, findingID); updateErr != nil {
+										o.publishAgentLog(scanID, fmt.Sprintf("[ERROR] Failed to update finding category: %v", updateErr))
+									}
+								} else {
+									o.publishAgentLog(scanID, fmt.Sprintf("[ERROR] Failed to save verification: %v", verifErr))
 								}
+							} else {
+								o.publishAgentLog(scanID, fmt.Sprintf("[ERROR] Failed to save finding: %v", err))
 							}
 						}
 					}
@@ -1030,7 +1125,7 @@ func (o *Orchestrator) runAgentXss(ctx context.Context, scanID, targetURL string
 			// Fallback to seed target URL if no parameter-based endpoints were found
 			if !fuzzedAny {
 				o.publishAgentLog(scanID, fmt.Sprintf("[Orchestrator] [XSS] Running Dalfox on seed URL: %s", targetURL))
-				dfFindings, err := attack.RunDalfoxScan(ctx, targetURL, o.proxyPort)
+				dfFindings, err := attack.RunDalfoxScan(ctx, targetURL, o.proxyPort, cookieStr, onLog)
 				if err == nil {
 					for _, f := range dfFindings {
 						_ = o.db.IncrementAttackExecuted(ctx, scanID)
@@ -1045,7 +1140,7 @@ func (o *Orchestrator) runAgentXss(ctx context.Context, scanID, targetURL string
 							Payload:           f.Payload,
 							ResponseStatus:    200,
 							Confidence:        0.95,
-							Category:          storage.StateVerifiedFinding,
+							Category:          storage.StatePotentialFinding,
 						}, storage.EvidenceInput{
 							FlowID:          0,
 							EvidenceType:    storage.EvidenceDOM,
@@ -1064,8 +1159,14 @@ func (o *Orchestrator) runAgentXss(ctx context.Context, scanID, targetURL string
 							}
 							verifID, verifErr := o.db.SaveVerification(ctx, findingID, scanID, vr)
 							if verifErr == nil {
-								_, _ = o.db.ExecContext(ctx, "UPDATE findings SET category = ?, verification_id = ? WHERE id = ?", storage.StateVerifiedFinding, verifID, findingID)
+								if _, updateErr := o.db.ExecContext(ctx, "UPDATE findings SET category = ?, verification_id = ? WHERE id = ?", storage.StateVerifiedFinding, verifID, findingID); updateErr != nil {
+									o.publishAgentLog(scanID, fmt.Sprintf("[ERROR] Failed to update finding category: %v", updateErr))
+								}
+							} else {
+								o.publishAgentLog(scanID, fmt.Sprintf("[ERROR] Failed to save verification: %v", verifErr))
 							}
+						} else {
+							o.publishAgentLog(scanID, fmt.Sprintf("[ERROR] Failed to save finding: %v", err))
 						}
 					}
 				}
@@ -1080,7 +1181,7 @@ func (o *Orchestrator) runAgentXss(ctx context.Context, scanID, targetURL string
 
 
 func (o *Orchestrator) runAgentPathTraversal(ctx context.Context, scanID, targetURL string) error {
-	surfaces, err := o.getAttackSurfaces(ctx, scanID)
+	surfaces, err := o.getAttackSurfaces(ctx, scanID, targetURL)
 	if err != nil {
 		return err
 	}
@@ -1161,8 +1262,14 @@ func (o *Orchestrator) runAgentPathTraversal(ctx context.Context, scanID, target
 			if err == nil {
 				verifID, verifErr := o.db.SaveVerification(ctx, findingID, scanID, vr)
 				if verifErr == nil {
-					_, _ = o.db.ExecContext(ctx, "UPDATE findings SET category = ?, verification_id = ? WHERE id = ?", storage.StateVerifiedFinding, verifID, findingID)
+					if _, updateErr := o.db.ExecContext(ctx, "UPDATE findings SET category = ?, verification_id = ? WHERE id = ?", storage.StateVerifiedFinding, verifID, findingID); updateErr != nil {
+						o.publishAgentLog(scanID, fmt.Sprintf("[ERROR] Failed to update finding category: %v", updateErr))
+					}
+				} else {
+					o.publishAgentLog(scanID, fmt.Sprintf("[ERROR] Failed to save verification: %v", verifErr))
 				}
+			} else {
+				o.publishAgentLog(scanID, fmt.Sprintf("[ERROR] Failed to save finding: %v", err))
 			}
 		}
 	}
@@ -1170,37 +1277,35 @@ func (o *Orchestrator) runAgentPathTraversal(ctx context.Context, scanID, target
 }
 
 func (o *Orchestrator) runAgentCsrf(ctx context.Context, scanID, targetURL string) error {
-	rows, err := o.db.QueryContext(ctx, "SELECT id, method, url, request_headers, request_body FROM http_flows WHERE scan_id = ? ORDER BY id DESC", scanID)
+	forms, err := o.db.ListForms(ctx, scanID)
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
 
-	for rows.Next() {
+	for _, f := range forms {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
 		}
 
-		var flowID int64
-		var method, urlStr string
-		var headersJSON string
-		var body []byte
-		if err := rows.Scan(&flowID, &method, &urlStr, &headersJSON, &body); err != nil {
+		method := strings.ToUpper(f.Method)
+		if method != "POST" && method != "PUT" && method != "PATCH" && method != "DELETE" {
 			continue
 		}
 
-		reqHeaders := make(http.Header)
-		var hdrMap map[string][]string
-		if json.Unmarshal([]byte(headersJSON), &hdrMap) == nil {
-			for k, v := range hdrMap {
-				for _, vv := range v {
-					reqHeaders.Add(k, vv)
-				}
-			}
+		if !crawler.IsInCrawlScope(f.URL, targetURL) {
+			continue
 		}
-		contentType := reqHeaders.Get("Content-Type")
+
+		// Construct body from inputs
+		body := o.buildFormBody(f.InputsJSON)
+		contentType := "application/x-www-form-urlencoded"
+
+		urlStr := o.resolveActionURL(f.URL, f.Action)
+
+		reqHeaders := make(http.Header)
+		reqHeaders.Set("Content-Type", contentType)
 
 		// 1. Heuristically check if this POST/PUT request might lack CSRF tokens
 		res, err := scanner.DetectCSRFHeuristic(method, urlStr, reqHeaders, body, contentType)
@@ -1270,8 +1375,14 @@ func (o *Orchestrator) runAgentCsrf(ctx context.Context, scanID, targetURL strin
 		if err == nil {
 			verifID, verifErr := o.db.SaveVerification(ctx, findingID, scanID, vr)
 			if verifErr == nil {
-				_, _ = o.db.ExecContext(ctx, "UPDATE findings SET category = ?, verification_id = ? WHERE id = ?", storage.StateVerifiedFinding, verifID, findingID)
+				if _, updateErr := o.db.ExecContext(ctx, "UPDATE findings SET category = ?, verification_id = ? WHERE id = ?", storage.StateVerifiedFinding, verifID, findingID); updateErr != nil {
+					o.publishAgentLog(scanID, fmt.Sprintf("[ERROR] Failed to update finding category: %v", updateErr))
+				}
+			} else {
+				o.publishAgentLog(scanID, fmt.Sprintf("[ERROR] Failed to save verification: %v", verifErr))
 			}
+		} else {
+			o.publishAgentLog(scanID, fmt.Sprintf("[ERROR] Failed to save finding: %v", err))
 		}
 	}
 	return nil
@@ -1286,6 +1397,111 @@ func (o *Orchestrator) decideDeterministicAuthAction(
 ) (action string, selector string, value string, reason string, finish bool, needsReview bool) {
 
 	currentURLStr := actionRes.CurrentURL
+	pageSourceLower := strings.ToLower(actionRes.PageSource)
+
+	// 0. Check for "Logged In" indicators to terminate early if successful
+	hasPasswordInput := false
+	for _, f := range actionRes.Forms {
+		for _, in := range f.Inputs {
+			if strings.ToLower(in.Type) == "password" {
+				hasPasswordInput = true
+				break
+			}
+		}
+	}
+	if strings.Contains(pageSourceLower, `type="password"`) || strings.Contains(pageSourceLower, `type='password'`) || strings.Contains(pageSourceLower, `type=password`) {
+		hasPasswordInput = true
+	}
+
+	if !hasPasswordInput {
+		urlLower := strings.ToLower(currentURLStr)
+		isDashboardURL := strings.Contains(urlLower, "/dashboard") || strings.Contains(urlLower, "/admin") || strings.Contains(urlLower, "/panel") || strings.Contains(urlLower, "/home")
+
+		loggedInIndicators := []string{
+			"sign off", "signout", "sign-out", "log out", "logout",
+			"my account", "user profile", "edit profile",
+			"administrative tools", "global settings",
+		}
+
+		isLoggedIn := false
+		matchedIndicator := ""
+
+		if isDashboardURL {
+			isLoggedIn = true
+			matchedIndicator = "dashboard/admin URL path"
+		} else {
+			for _, indicator := range loggedInIndicators {
+				if strings.Contains(pageSourceLower, indicator) {
+					isLoggedIn = true
+					matchedIndicator = indicator
+					break
+				}
+			}
+		}
+
+		// Also check "welcome" if it's not a landing page with login links
+		if !isLoggedIn && (strings.Contains(pageSourceLower, "welcome") || strings.Contains(pageSourceLower, "hello")) {
+			hasLoginLink := false
+			for _, l := range actionRes.Links {
+				lText := strings.ToLower(l.Text)
+				lHref := strings.ToLower(l.Href)
+				if strings.Contains(lText, "login") || strings.Contains(lText, "sign in") || strings.Contains(lText, "log in") ||
+					strings.Contains(lHref, "login") || strings.Contains(lHref, "signin") {
+					hasLoginLink = true
+					break
+				}
+			}
+			if !hasLoginLink {
+				isLoggedIn = true
+				matchedIndicator = "welcome message (no login links)"
+			}
+		}
+
+		if isLoggedIn {
+			reason = fmt.Sprintf("Authenticated state detected (indicator: '%s').", matchedIndicator)
+
+			// Save a finding to mark successful authentication
+			findingID, err := o.db.SaveFindingWithEvidence(ctx, storage.FindingInput{
+				ScanID:            scanID,
+				Title:             "Successful Authentication",
+				Description:       fmt.Sprintf("LastResort successfully bypassed or discovered authentication credentials. Indicator found: '%s'.", matchedIndicator),
+				Severity:          "INFO",
+				VulnerabilityType: "Authentication",
+				Endpoint:          currentURLStr,
+				Category:          storage.StatePotentialFinding,
+				Confidence:        1.0,
+			}, storage.EvidenceInput{
+				FlowID:          0,
+				EvidenceType:    storage.EvidenceDOM,
+				RequestExcerpt:  "Auth Discovery Phase",
+				ResponseExcerpt: matchedIndicator,
+			})
+
+			if err == nil {
+				vr := &storage.VerificationResult{
+					EndpointURL:     currentURLStr,
+					Payload:         "Auth Discovery Phase",
+					VerifiedAt:      time.Now(),
+					Verified:        true,
+					Confidence:      1.0,
+					Method:          storage.VerificationDOMMarker,
+					EvidenceSummary: fmt.Sprintf("Authentication succeeded. Indicator found: '%s'.", matchedIndicator),
+				}
+				verifID, verifErr := o.db.SaveVerification(ctx, findingID, scanID, vr)
+				if verifErr == nil {
+					if _, updateErr := o.db.ExecContext(ctx, "UPDATE findings SET category = ?, verification_id = ? WHERE id = ?", storage.StateVerifiedFinding, verifID, findingID); updateErr != nil {
+						o.publishAgentLog(scanID, fmt.Sprintf("[ERROR] Failed to update finding category: %v", updateErr))
+					}
+				} else {
+					o.publishAgentLog(scanID, fmt.Sprintf("[ERROR] Failed to save verification: %v", verifErr))
+				}
+			} else {
+				o.publishAgentLog(scanID, fmt.Sprintf("[ERROR] Failed to save finding: %v", err))
+			}
+
+			return "finish", "", "", reason, true, false
+		}
+	}
 
 	// Helper to check if we already tried a selector (allowing max 2 retries, i.e. 3 total attempts)
 	hasTried := func(act, sel, val string) bool {
@@ -1373,10 +1589,7 @@ func (o *Orchestrator) decideDeterministicAuthAction(
 		user string
 		pass string
 	}{
-		{"jsmith", "VerySafe"}, // Priority target-specific (Altoro Mutual / Testfire)
 		{"admin", "admin"},
-		{"admin", "password"},
-		{"test", "test"},
 	}
 
 	// Determine how many credential attempts we have made by counting previous successful clicks/submits
@@ -1496,6 +1709,24 @@ func (o *Orchestrator) decideDeterministicAuthAction(
 	return "finish", "", "", "No login fields or links found. Auth discovery complete.", true, false
 }
 
+func (o *Orchestrator) getAuthCookieString(ctx context.Context, scanID string) string {
+	cookiesJSON, err := o.db.GetAuthCookies(ctx, scanID)
+	if err != nil || cookiesJSON == "" {
+		return ""
+	}
+
+	var cookies []browser.Cookie
+	if err := json.Unmarshal([]byte(cookiesJSON), &cookies); err != nil {
+		return ""
+	}
+
+	var cookiePairs []string
+	for _, c := range cookies {
+		cookiePairs = append(cookiePairs, fmt.Sprintf("%s=%s", c.Name, c.Value))
+	}
+	return strings.Join(cookiePairs, "; ")
+}
+
 func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module string, as *scanner.ActiveScanner) error {
 	onLog := func(msg string) {
 		GlobalBroker.Publish(Event{
@@ -1530,8 +1761,9 @@ func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module 
 		return nil
 
 	case ModuleCrawlStatic:
+		cookieStr := o.getAuthCookieString(ctx, scanID)
 		cm := crawler.NewCrawlManager(scanID, o.proxyPort)
-		return cm.Crawl(ctx, scanID, targetURL, func(msg string) {
+		return cm.Crawl(ctx, scanID, targetURL, cookieStr, func(msg string) {
 			// Stream crawl activity as INFO logs (never as findings).
 			GlobalBroker.Publish(Event{
 				ScanID:    scanID,
@@ -1598,10 +1830,13 @@ func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module 
 		return as.ScanRateLimit(ctx, scanID, targetURL)
 
 	case ModuleXssReflected:
-		return o.runAgentXss(ctx, scanID, targetURL)
+		return o.runAgentXss(ctx, scanID, targetURL, onLog)
 
 	case ModuleSqliBasic:
-		return o.runAgentSqli(ctx, scanID, targetURL)
+		return o.runAgentSqli(ctx, scanID, targetURL, onLog)
+
+	case ModuleSqliAgent:
+		return o.runAgentSqliAgent(ctx, scanID, targetURL, onLog)
 
 	case ModuleCsrfBasic:
 		return o.runAgentCsrf(ctx, scanID, targetURL)
@@ -1610,7 +1845,7 @@ func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module 
 		return o.runAgentPathTraversal(ctx, scanID, targetURL)
 
 	case ModuleNuclei:
-		return o.runNucleiScan(ctx, scanID, targetURL)
+		return o.runNucleiScan(ctx, scanID, targetURL, onLog)
 
 
 
@@ -1618,19 +1853,103 @@ func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module 
 		onLog("[AGENT] Starting autonomous authentication discovery...")
 		browserClient := o.browserClient
 
-		// Prioritize 300-second total budget context for authentication discovery
+		type SavedAction struct {
+			Action   string `json:"action"`
+			Selector string `json:"selector"`
+			Value    string `json:"value"`
+		}
+
 		authCtx, authCancel := context.WithTimeout(ctx, 300*time.Second)
 		defer authCancel()
 
+		u, parseErr := url.Parse(targetURL)
+		if parseErr != nil {
+			onLog("[AGENT] [ERROR] Invalid target URL for host extraction")
+			return parseErr
+		}
+		host := u.Host
+
+		// Try to fetch memory flow
+		memoryJSON, err := o.db.GetWorkflowMemory(authCtx, host, "login")
+		if err == nil && memoryJSON != "" {
+			onLog(fmt.Sprintf("[AGENT] [MEMORY] Discovered saved login sequence for host: %s. Replaying...", host))
+			var savedActions []SavedAction
+			if err := json.Unmarshal([]byte(memoryJSON), &savedActions); err == nil && len(savedActions) > 0 {
+				replaySuccess := true
+				for idx, step := range savedActions {
+					onLog(fmt.Sprintf("[AGENT] [MEMORY-REPLAY] Step %d: %s on %s (val: %s)", idx+1, step.Action, step.Selector, step.Value))
+					actionReq := browser.ActionRequest{
+						ScanID:    scanID,
+						WorkerID:  "auth",
+						Action:    step.Action,
+						Selector:  step.Selector,
+						Value:     step.Value,
+						ProxyPort: o.proxyPort,
+					}
+					if idx == 0 {
+						actionReq.URL = targetURL
+						actionReq.Action = "navigate"
+					}
+
+					execRes, err := browserClient.ExecuteAction(authCtx, actionReq)
+					if err == nil && execRes != nil && execRes.ScreenshotBase64 != "" {
+						o.publishBrowserScreenshot(scanID, execRes.ScreenshotBase64)
+					}
+					if err != nil || (execRes != nil && !execRes.Success) {
+						replaySuccess = false
+						onLog(fmt.Sprintf("[AGENT] [MEMORY-FAIL] Action failed: %s", step.Selector))
+						break
+					}
+
+					if idx == 0 && step.Action != "navigate" {
+						actionReq.URL = ""
+						actionReq.Action = step.Action
+						execRes2, err2 := browserClient.ExecuteAction(authCtx, actionReq)
+						if err2 == nil && execRes2 != nil && execRes2.ScreenshotBase64 != "" {
+							o.publishBrowserScreenshot(scanID, execRes2.ScreenshotBase64)
+						}
+						if err2 != nil || (execRes2 != nil && !execRes2.Success) {
+							replaySuccess = false
+							onLog(fmt.Sprintf("[AGENT] [MEMORY-FAIL] Input step failed: %s", step.Selector))
+							break
+						}
+					}
+					time.Sleep(500 * time.Millisecond)
+				}
+
+				if replaySuccess {
+					finalCheckRes, err := browserClient.ExecuteAction(authCtx, browser.ActionRequest{
+						ScanID:    scanID,
+						WorkerID:  "auth",
+						Action:    "wait",
+						ProxyPort: o.proxyPort,
+					})
+					if err == nil && finalCheckRes != nil {
+						_, _, _, _, finish, _ := o.decideDeterministicAuthAction(authCtx, scanID, finalCheckRes, targetURL, nil)
+						if finish {
+							onLog("[AGENT] [MEMORY-SUCCESS] Replay completed successfully! Authentication bypass state confirmed.")
+							if len(finalCheckRes.Cookies) > 0 {
+								cookiesJSON, _ := json.Marshal(finalCheckRes.Cookies)
+								_ = o.db.SaveAuthCookies(authCtx, scanID, string(cookiesJSON))
+							}
+							return nil
+						}
+					}
+				}
+				onLog("[AGENT] [HEAL] Cached login flow was unsuccessful. Initiating AI ReAct healing process...")
+			}
+		}
+
 		maxSteps := 10
 		consecutiveFailures := 0
-		
 		currentStep, _ := o.db.GetLastJournalStep(authCtx, scanID)
+
+		localAI, isLocal := o.aiClient.(*ai.LocalServiceClient)
 
 		for step := currentStep + 1; step <= currentStep+maxSteps; step++ {
 			select {
 			case <-authCtx.Done():
-				onLog("[AGENT] Auth discovery budget timeout reached (120s). Halting module.")
+				onLog("[AGENT] Auth discovery budget timeout reached. Halting module.")
 				return nil
 			default:
 			}
@@ -1640,18 +1959,17 @@ func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module 
 				break
 			}
 
-			onLog(fmt.Sprintf("[AGENT] Step %d: Analyzing current page state...", step))
+			onLog(fmt.Sprintf("[AGENT] Step %d: Fetching current state...", step))
 
-			// 1. Get current state (navigate to seed first if just starting)
 			actionReq := browser.ActionRequest{
 				ScanID:    scanID,
 				WorkerID:  "auth",
-				URL:       targetURL, // Always ensure we are in scope
+				URL:       targetURL,
 				Action:    "navigate",
 				ProxyPort: o.proxyPort,
 			}
 			if step > 1 {
-				actionReq.URL = "" // Don't re-navigate, just get current source
+				actionReq.URL = ""
 				actionReq.Action = "wait"
 			}
 
@@ -1660,37 +1978,113 @@ func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module 
 				o.publishBrowserScreenshot(scanID, actionRes.ScreenshotBase64)
 			}
 			if err != nil {
-				onLog(fmt.Sprintf("[AGENT] [ERROR] Browser action failed: %v", err))
+				onLog(fmt.Sprintf("[AGENT] [ERROR] Browser state fetch failed: %v", err))
 				consecutiveFailures++
 				continue
 			}
 
-			// Retrieve updated journal history
-			history, _ := o.db.ListJournalEntries(authCtx, scanID)
-
-			// 2. Deterministically decide what to do next
-			decideAction, decideSelector, decideValue, decideReason, finish, _ := o.decideDeterministicAuthAction(
-				authCtx,
-				scanID,
-				actionRes,
-				targetURL,
-				history,
-			)
-
-			onLog(fmt.Sprintf("[AGENT] Deterministic Decision: %s (%s)", decideAction, decideReason))
-
+			// Check if already authenticated
+			_, _, _, _, finish, _ := o.decideDeterministicAuthAction(authCtx, scanID, actionRes, targetURL, nil)
 			if finish {
-				onLog("[AGENT] Deterministic signaling discovery phase complete.")
+				onLog("[AGENT] Authentication successful! Preserving sequence to workflow memory.")
+				history, _ := o.db.ListJournalEntries(authCtx, scanID)
+				var successfulSteps []SavedAction
+				for _, h := range history {
+					if h.Success && h.Action != "wait" && h.Action != "navigate" {
+						successfulSteps = append(successfulSteps, SavedAction{
+							Action:   h.Action,
+							Selector: h.Selector,
+							Value:    h.Value,
+						})
+					}
+				}
+				if len(successfulSteps) > 0 {
+					stepsJSON, _ := json.Marshal(successfulSteps)
+					_ = o.db.SaveWorkflowMemory(authCtx, host, "login", string(stepsJSON))
+				}
+				if len(actionRes.Cookies) > 0 {
+					cookiesJSON, _ := json.Marshal(actionRes.Cookies)
+					_ = o.db.SaveAuthCookies(authCtx, scanID, string(cookiesJSON))
+					onLog(fmt.Sprintf("[AGENT] Persisted %d session cookies.", len(actionRes.Cookies)))
+				}
 				break
 			}
 
-			// 3. Execute the deterministic action
+			// ReAct Planning with AXTree
+			history, _ := o.db.ListJournalEntries(authCtx, scanID)
+			historyJSON, _ := json.Marshal(history)
+			linksJSON, _ := json.Marshal(actionRes.Links)
+			buttonsJSON, _ := json.Marshal(actionRes.Buttons)
+			formsJSON, _ := json.Marshal(actionRes.Forms)
+
+			prompt := fmt.Sprintf(`
+You are LastResort, an autonomous browser pentesting agent.
+Your current goal is to find a way to authenticate (log in) to the target application.
+Current Page URL: %s
+Page Title: %s
+Accessibility Tree (AXTree):
+%s
+
+Interactive Elements Available:
+Links: %s
+Buttons: %s
+Forms: %s
+
+History of previous actions in this scan:
+%s
+
+Decide on the next single best action to take to advance toward authentication.
+Your response MUST be in JSON format matching this schema:
+{
+  "thought": "Your reasoning here",
+  "action": "click" | "fill",
+  "selector": "CSS selector to interact with",
+  "value": "Value to type (if action is fill)",
+  "finish": true/false
+}
+`, actionRes.CurrentURL, actionRes.PageTitle, actionRes.AXTree, string(linksJSON), string(buttonsJSON), string(formsJSON), string(historyJSON))
+
+			var resStr string
+			if isLocal {
+				resStr, err = localAI.CallLLM(authCtx, prompt, true)
+			} else {
+				err = fmt.Errorf("local AI service client is unavailable")
+			}
+
+			if err != nil {
+				onLog(fmt.Sprintf("[AGENT] [ERROR] AI planning call failed: %v", err))
+				consecutiveFailures++
+				continue
+			}
+
+			var decision struct {
+				Thought  string `json:"thought"`
+				Action   string `json:"action"`
+				Selector string `json:"selector"`
+				Value    string `json:"value"`
+				Finish   bool   `json:"finish"`
+			}
+			if err := json.Unmarshal([]byte(resStr), &decision); err != nil {
+				onLog(fmt.Sprintf("[AGENT] [ERROR] Failed to parse AI decision JSON: %v", err))
+				consecutiveFailures++
+				continue
+			}
+
+			onLog(fmt.Sprintf("[AGENT] Thought: %s", decision.Thought))
+			onLog(fmt.Sprintf("[AGENT] Decision: %s on %s (val: %s)", decision.Action, decision.Selector, decision.Value))
+
+			if decision.Finish {
+				onLog("[AGENT] AI signaled completion of authentication flow.")
+				break
+			}
+
+			// Execute chosen action
 			execReq := browser.ActionRequest{
 				ScanID:    scanID,
 				WorkerID:  "auth",
-				Action:    decideAction,
-				Selector:  decideSelector,
-				Value:     decideValue,
+				Action:    decision.Action,
+				Selector:  decision.Selector,
+				Value:     decision.Value,
 				ProxyPort: o.proxyPort,
 			}
 
@@ -1699,59 +2093,82 @@ func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module 
 				o.publishBrowserScreenshot(scanID, execRes.ScreenshotBase64)
 			}
 
-			type stepOutcome struct {
-				Action, Selector, Value, Reasoning, Error string
-				Success bool
-				Result  *browser.ActionResult
-			}
-			var outcome stepOutcome
+			success := (err == nil && execRes != nil && execRes.Success)
+			var failureReason string
 			if err != nil {
-				consecutiveFailures++
-				onLog(fmt.Sprintf("[AGENT] [ERROR] Execution of %s failed: %v", decideAction, err))
-				outcome = stepOutcome{
-					Action:    decideAction,
-					Selector:  decideSelector,
-					Value:     decideValue,
-					Success:   false,
-					Error:     err.Error(),
-					Reasoning: decideReason,
-					Result: &browser.ActionResult{
-						Success:       false,
-						FailureReason: err.Error(),
-					},
-				}
-			} else {
-				if !execRes.Success {
-					consecutiveFailures++
-				} else {
-					consecutiveFailures = 0
-				}
-				outcome = stepOutcome{
-					Action:    decideAction,
-					Selector:  decideSelector,
-					Value:     decideValue,
-					Success:   execRes.Success,
-					Error:     execRes.FailureReason,
-					Reasoning: decideReason,
-					Result:    execRes,
-				}
+				failureReason = err.Error()
+			} else if execRes != nil {
+				failureReason = execRes.FailureReason
 			}
 
-			// Add to history and persist to journal
+			if !success {
+				consecutiveFailures++
+				onLog(fmt.Sprintf("[AGENT] [ERROR] Action execution failed: %s", failureReason))
+			} else {
+				consecutiveFailures = 0
+			}
+
+			// Record in journal
 			_ = o.db.SaveJournalEntry(authCtx, &storage.JournalEntry{
 				ScanID:    scanID,
 				Step:      step,
-				Action:    outcome.Action,
-				Selector:  outcome.Selector,
-				Value:     outcome.Value,
-				Success:   outcome.Success,
-				Error:     outcome.Error,
-				Reasoning: outcome.Reasoning,
-				Result:    outcome.Result,
+				Action:    decision.Action,
+				Selector:  decision.Selector,
+				Value:     decision.Value,
+				Success:   success,
+				Error:     failureReason,
+				Reasoning: decision.Thought,
+				Result:    execRes,
 			})
 
-			// Small delay for animations
 			time.Sleep(500 * time.Millisecond)
+		}
+		return nil
+
+	case ModuleVisualExploit:
+		onLog("[AGENT] Starting visual exploitation phase...")
+		rows, err := o.db.QueryContext(ctx, "SELECT id, vulnerability_type, endpoint, payload FROM findings WHERE scan_id = ? AND is_false_positive = 0 AND payload != '' AND category = ? LIMIT 10", scanID, storage.StateVerifiedFinding)
+		if err != nil {
+			return nil
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+			}
+			var fID int64
+			var vulnType, endpoint, payload string
+			if err := rows.Scan(&fID, &vulnType, &endpoint, &payload); err != nil {
+				continue
+			}
+			onLog(fmt.Sprintf("[AGENT] Visually demonstrating %s at %s", vulnType, endpoint))
+			
+			var execErr error
+			if vulnType == "XSS" || vulnType == "SQL Injection" {
+				_, execErr = o.browserClient.ExecuteAction(ctx, browser.ActionRequest{
+					ScanID:    scanID,
+					WorkerID:  "visual_exploit",
+					URL:       endpoint,
+					Action:    "navigate",
+					ProxyPort: o.proxyPort,
+				})
+			}
+			if execErr == nil {
+				time.Sleep(2 * time.Second)
+				actionRes, _ := o.browserClient.ExecuteAction(ctx, browser.ActionRequest{
+					ScanID:    scanID,
+					WorkerID:  "visual_exploit",
+					URL:       "",
+					Action:    "wait",
+					ProxyPort: o.proxyPort,
+				})
+				if actionRes != nil && actionRes.ScreenshotBase64 != "" {
+					o.publishBrowserScreenshot(scanID, actionRes.ScreenshotBase64)
+				}
+			}
 		}
 		return nil
 
@@ -1803,10 +2220,15 @@ func isActiveScanModule(module string) bool {
 // emitNewFindings queries findings added since we started tracking and publishes finding.new events.
 // We use a simple approach: query the most recent findings for this scan and emit them.
 func (o *Orchestrator) emitNewFindings(ctx context.Context, scanID string) {
+	// Apply strict filtration: Only emit HIGH/CRITICAL severity or specific actionable exploit types.
+	// This prevents the UI from being flooded with hundreds of low-level misconfigurations.
 	rows, err := o.db.QueryContext(ctx,
 		`SELECT id, title, severity, vulnerability_type, endpoint, confidence, category
-		 FROM findings WHERE scan_id = ? AND is_false_positive = 0
-		 ORDER BY created_at DESC LIMIT 50`, scanID)
+		 FROM findings 
+		 WHERE scan_id = ? 
+		   AND is_false_positive = 0 
+		   AND (severity IN ('HIGH', 'CRITICAL') OR vulnerability_type IN ('SQL Injection', 'XSS', 'CSRF', 'Path Traversal'))
+		 ORDER BY created_at DESC LIMIT 10`, scanID)
 	if err != nil {
 		return
 	}
@@ -1835,14 +2257,15 @@ func (o *Orchestrator) emitNewFindings(ctx context.Context, scanID string) {
 	}
 }
 
-func (o *Orchestrator) runNucleiScan(ctx context.Context, scanID, targetURL string) error {
+func (o *Orchestrator) runNucleiScan(ctx context.Context, scanID, targetURL string, onLog func(string)) error {
 	if !attack.ToolAvailable("nuclei") {
 		o.publishAgentLog(scanID, "[Orchestrator] [WARNING] Nuclei is missing. Downgrading gracefully to internal Header/CORS/Misconfiguration checks.")
 		return nil
 	}
 
 	log.Printf("[Orchestrator] [Nuclei] Shelling out to Nuclei on %s", targetURL)
-	nucleiFindings, err := attack.RunNucleiScan(ctx, targetURL, o.proxyPort)
+	cookieStr := o.getAuthCookieString(ctx, scanID)
+	nucleiFindings, err := attack.RunNucleiScan(ctx, targetURL, o.proxyPort, cookieStr, onLog)
 	if err != nil {
 		log.Printf("[Orchestrator] [WARNING] Nuclei scan failed: %v", err)
 		return nil
@@ -1861,7 +2284,7 @@ func (o *Orchestrator) runNucleiScan(ctx context.Context, scanID, targetURL stri
 			Payload:           f.Payload,
 			ResponseStatus:    200,
 			Confidence:        0.90,
-			Category:          storage.StateVerifiedFinding,
+			Category:          storage.StatePotentialFinding,
 		}, storage.EvidenceInput{
 			FlowID:          0,
 			EvidenceType:    storage.EvidenceDOM,
@@ -1880,8 +2303,14 @@ func (o *Orchestrator) runNucleiScan(ctx context.Context, scanID, targetURL stri
 			}
 			verifID, verifErr := o.db.SaveVerification(ctx, findingID, scanID, vr)
 			if verifErr == nil {
-				_, _ = o.db.ExecContext(ctx, "UPDATE findings SET category = ?, verification_id = ? WHERE id = ?", storage.StateVerifiedFinding, verifID, findingID)
+				if _, updateErr := o.db.ExecContext(ctx, "UPDATE findings SET category = ?, verification_id = ? WHERE id = ?", storage.StateVerifiedFinding, verifID, findingID); updateErr != nil {
+					o.publishAgentLog(scanID, fmt.Sprintf("[ERROR] Failed to update finding category: %v", updateErr))
+				}
+			} else {
+				o.publishAgentLog(scanID, fmt.Sprintf("[ERROR] Failed to save verification: %v", verifErr))
 			}
+		} else {
+			o.publishAgentLog(scanID, fmt.Sprintf("[ERROR] Failed to save finding: %v", err))
 		}
 	}
 

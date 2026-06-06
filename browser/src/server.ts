@@ -4,7 +4,8 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { runBrowserCrawl } from './crawler';
 import { SessionManager } from './sessions';
-import { scrapePageContext } from './dom';
+import { scrapePageContext, getAXTreeString, dismissPopups } from './dom';
+import { NetworkCapture } from './capture';
 
 const app = express();
 const port = process.env.PORT || 3010;
@@ -138,7 +139,26 @@ async function injectOverlayAndStream(page: any, scanId: string, action: string,
         document.head.appendChild(style);
       }
 
-      const el = document.querySelector(selector) as HTMLElement;
+      let el: HTMLElement | null = null;
+      try {
+        el = document.querySelector(selector) as HTMLElement;
+      } catch (err) {
+        // Fallback for custom selectors like :has-text("...")
+        const hasTextMatch = selector.match(/^([a-zA-Z0-9*-]+):has-text\((["'])(.*?)\2\)$/i);
+        if (hasTextMatch) {
+          const tagName = hasTextMatch[1];
+          const targetText = hasTextMatch[3].trim();
+          const candidates = document.querySelectorAll(tagName === '*' ? '*' : tagName);
+          for (const cand of Array.from(candidates)) {
+            const htmlCand = cand as HTMLElement;
+            if (htmlCand.textContent && htmlCand.textContent.includes(targetText)) {
+              el = htmlCand;
+              break;
+            }
+          }
+        }
+      }
+
       if (!el) return;
 
       el.classList.add('lr-highlight');
@@ -208,8 +228,10 @@ app.post('/action', async (req: Request, res: Response) => {
   const screenshotsDir = path.join(__dirname, '..', '..', 'data', 'screenshots', scanId);
   const domsDir = path.join(__dirname, '..', '..', 'data', 'doms', scanId);
 
+  let networkCapture: NetworkCapture | null = null;
   try {
     const page = await sessionManager.getPageForWorker(scanId, workerId, proxyPort ? Number(proxyPort) : undefined);
+    networkCapture = new NetworkCapture(page);
 
     if (!fs.existsSync(screenshotsDir)) {
       fs.mkdirSync(screenshotsDir, { recursive: true });
@@ -220,6 +242,7 @@ app.post('/action', async (req: Request, res: Response) => {
 
     if (url) {
       await page.goto(url, { waitUntil: 'load' });
+      await dismissPopups(page);
       await streamPageScreenshot(page, scanId);
     }
 
@@ -236,22 +259,34 @@ app.post('/action', async (req: Request, res: Response) => {
 
     // Perform action
     try {
+      await dismissPopups(page);
       await injectOverlayAndStream(page, scanId, action, selector, value);
 
       if (action === 'click') {
-        await page.click(selector);
+        await page.click(selector, { timeout: 30000 });
       } else if (action === 'fill') {
-        await page.fill(selector, value);
+        await page.fill(selector, value, { timeout: 30000 });
       } else if (action === 'type') {
-        await page.type(selector, value);
+        await page.type(selector, value, { timeout: 30000 });
       } else if (action === 'evaluate') {
-        await page.evaluate(value);
+        // If the script looks like a form submission, wait for navigation
+        if (value.includes('form.submit()') || value.includes('fetch(')) {
+           await Promise.all([
+             page.waitForNavigation({ waitUntil: 'networkidle', timeout: 60000 }).catch(() => {}),
+             page.evaluate(value)
+           ]);
+        } else {
+          await page.evaluate(value);
+        }
       } else if (action === 'navigate' && url) {
         // already handled by goto above
       }
 
-      await page.waitForTimeout(1000);
+      await page.waitForTimeout(2000);
     } catch (actionErr: any) {
+      const networkEvents = networkCapture ? networkCapture.getCapturedRequests() : [];
+      if (networkCapture) networkCapture.dispose();
+
       // Capture post-action even on action failure
       let postScreenshotBase64 = '';
       let postDom = '';
@@ -275,7 +310,8 @@ app.post('/action', async (req: Request, res: Response) => {
         preActionScreenshot: preScreenshotBase64,
         preActionDOM: preDom,
         postActionScreenshot: postScreenshotBase64,
-        postActionDOM: postDom
+        postActionDOM: postDom,
+        networkEvents
       });
     }
 
@@ -287,7 +323,10 @@ app.post('/action', async (req: Request, res: Response) => {
     fs.writeFileSync(path.join(domsDir, `${prefix}_post.html`), postDom);
 
     const context = await scrapePageContext(page);
+    const axTree = await getAXTreeString(page);
     const cookies = await page.context().cookies();
+    const networkEvents = networkCapture ? networkCapture.getCapturedRequests() : [];
+    if (networkCapture) networkCapture.dispose();
 
     return res.json({
       success: true,
@@ -301,10 +340,12 @@ app.post('/action', async (req: Request, res: Response) => {
       forms: context.forms,
       cookies,
       localStorage: context.localStorage,
+      axTree,
       preActionScreenshot: preScreenshotBase64,
       preActionDOM: preDom,
       postActionScreenshot: postScreenshot.toString('base64'),
-      postActionDOM: postDom
+      postActionDOM: postDom,
+      networkEvents
     });
 
   } catch (error: any) {

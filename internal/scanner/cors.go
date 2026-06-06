@@ -34,11 +34,6 @@ func (as *ActiveScanner) ScanCORS(ctx context.Context, scanID, urlStr string) er
 		description := fmt.Sprintf("The server echoes arbitrary Origin headers ('%s') or wildcard ('*') in Access-Control-Allow-Origin while setting Access-Control-Allow-Credentials to true. This allows unauthorized cross-site requests to read response content.", allowOrigin)
 		severity := "HIGH"
 
-		flowID, flowErr := as.db.SaveFlow(ctx, scanID, "GET", urlStr, req.Header, nil, resp.Header, nil, resp.StatusCode)
-		if flowErr != nil {
-			return flowErr
-		}
-
 		_, err = as.db.SaveFindingWithEvidence(ctx, storage.FindingInput{
 			ScanID:            scanID,
 			Title:             title,
@@ -50,7 +45,7 @@ func (as *ActiveScanner) ScanCORS(ctx context.Context, scanID, urlStr string) er
 			ResponseStatus:    resp.StatusCode,
 			Confidence:        0.9,
 		}, storage.EvidenceInput{
-			FlowID:          flowID,
+			FlowID:          0,
 			EvidenceType:    storage.EvidenceHeader,
 			RequestExcerpt:  fmt.Sprintf("GET %s\nOrigin: %s", urlStr, testOrigin),
 			ResponseExcerpt: fmt.Sprintf("Access-Control-Allow-Origin: %s\nAccess-Control-Allow-Credentials: %s", allowOrigin, allowCredentials),

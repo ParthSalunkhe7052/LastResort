@@ -63,11 +63,20 @@ type ActionResult struct {
 	PageSource       string            `json:"pageSource"`
 	CurrentURL       string            `json:"currentUrl"`
 	PageTitle        string            `json:"pageTitle"`
+	AXTree           string            `json:"axTree"`
 	Links            []BrowserElement  `json:"links"`
 	Buttons          []BrowserElement  `json:"buttons"`
 	Forms            []BrowserForm     `json:"forms"`
 	Cookies          []Cookie          `json:"cookies"`
 	LocalStorage     map[string]string `json:"localStorage"`
+	NetworkEvents    []NetworkEvent    `json:"networkEvents"`
+}
+
+type NetworkEvent struct {
+	Method       string `json:"method"`
+	URL          string `json:"url"`
+	StatusCode   int    `json:"statusCode"`
+	ResourceType string `json:"resourceType"`
 }
 
 type Cookie struct {

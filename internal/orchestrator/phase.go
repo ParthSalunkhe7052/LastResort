@@ -18,7 +18,9 @@ const (
 	ModulePathTraversal  = "path_traversal"
 	ModuleAuthDiscovery  = "auth_discovery"
 	ModuleNuclei         = "nuclei"
+	ModuleVisualExploit  = "visual_exploit"
 	ModuleReport         = "report"
+	ModuleSqliAgent      = "sqli_agent"
 )
 
 // ProfileModules maps each ScanProfile to its list of enabled modules.
@@ -29,6 +31,7 @@ var ProfileModules = map[scanv1.ScanProfile][]string{
 		ModulePassive,
 		ModuleHeaders,
 		ModuleCors,
+		ModuleVisualExploit,
 		ModuleReport,
 	},
 	scanv1.ScanProfile_SCAN_PROFILE_STANDARD: {
@@ -40,9 +43,11 @@ var ProfileModules = map[scanv1.ScanProfile][]string{
 		ModuleCors,
 		ModuleXssReflected,
 		ModuleSqliBasic,
+		ModuleSqliAgent,
 		ModuleCsrfBasic,
 		ModulePathTraversal,
 		ModuleNuclei,
+		ModuleVisualExploit,
 		ModuleReport,
 	},
 	scanv1.ScanProfile_SCAN_PROFILE_DEEP: {
@@ -54,10 +59,12 @@ var ProfileModules = map[scanv1.ScanProfile][]string{
 		ModuleCors,
 		ModuleXssReflected,
 		ModuleSqliBasic,
+		ModuleSqliAgent,
 		ModuleCsrfBasic,
 		ModuleRateLimitBasic,
 		ModulePathTraversal,
 		ModuleNuclei,
+		ModuleVisualExploit,
 		ModuleReport,
 	},
 }

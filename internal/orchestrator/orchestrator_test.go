@@ -9,21 +9,19 @@ import (
 func TestProfileModuleSelection(t *testing.T) {
 	// 1. Verify QUICK profile maps to correct modules
 	quickMods := ProfileModules[scanv1.ScanProfile_SCAN_PROFILE_QUICK]
-	if len(quickMods) != 6 {
-		t.Errorf("expected 6 modules for QUICK profile, got %d", len(quickMods))
+	if len(quickMods) != 7 {
+		t.Errorf("expected 7 modules for QUICK profile, got %d", len(quickMods))
 	}
 
 	// 2. Verify STANDARD profile maps to correct modules
-	// ModuleAiHypotheses removed, ModuleNuclei added. Net count: 12.
 	standardMods := ProfileModules[scanv1.ScanProfile_SCAN_PROFILE_STANDARD]
-	if len(standardMods) != 12 {
-		t.Errorf("expected 12 modules for STANDARD profile, got %d", len(standardMods))
+	if len(standardMods) != 14 {
+		t.Errorf("expected 14 modules for STANDARD profile, got %d", len(standardMods))
 	}
 
 	// 3. Verify DEEP profile maps to correct modules
-	// ModuleAiHypotheses removed, ModuleNuclei added. Net count: 13.
 	deepMods := ProfileModules[scanv1.ScanProfile_SCAN_PROFILE_DEEP]
-	if len(deepMods) != 13 {
-		t.Errorf("expected 13 modules for DEEP profile, got %d", len(deepMods))
+	if len(deepMods) != 15 {
+		t.Errorf("expected 15 modules for DEEP profile, got %d", len(deepMods))
 	}
 }

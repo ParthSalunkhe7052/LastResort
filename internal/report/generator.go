@@ -142,18 +142,14 @@ type HTMLFinding struct {
 		// Fetch evidence flows
 		var rawReq, rawRes string
 		row := g.db.QueryRowContext(ctx, `
-			SELECT f.method, f.url, f.request_headers, f.request_body, f.response_headers, f.response_body
-			FROM finding_evidence e
-			JOIN http_flows f ON e.flow_id = f.id
-			WHERE e.finding_id = ?
+			SELECT request_excerpt, response_excerpt
+			FROM finding_evidence
+			WHERE finding_id = ?
+			ORDER BY created_at ASC
 			LIMIT 1
 		`, f.ID)
 		
-		var fMethod, fUrl, fReqHeaders, fResHeaders string
-		var fReqBody, fResBody []byte
-		if err := row.Scan(&fMethod, &fUrl, &fReqHeaders, &fReqBody, &fResHeaders, &fResBody); err == nil {
-			rawReq = fmt.Sprintf("%s %s HTTP/1.1\n%s\n\n%s", fMethod, fUrl, fReqHeaders, string(fReqBody))
-			rawRes = fmt.Sprintf("HTTP/1.1 %d\n%s\n\n%s", f.ResponseStatus, fResHeaders, string(fResBody))
+		if err := row.Scan(&rawReq, &rawRes); err == nil {
 			if len(rawRes) > 2000 {
 				rawRes = rawRes[:2000] + "\n...[TRUNCATED]..."
 			}

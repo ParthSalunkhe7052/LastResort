@@ -7,6 +7,8 @@ option go_package = "github.com/parth/lastresort/internal/gen/ai/v1;aiv1";
 service AiService {
   rpc Health(HealthRequest) returns (HealthResponse);
   rpc GenerateExecutiveSummary(GenerateExecutiveSummaryRequest) returns (GenerateExecutiveSummaryResponse);
+  rpc PlanSQLiAttack(PlanSQLiAttackRequest) returns (PlanSQLiAttackResponse);
+  rpc VerifyAttackResult(VerifyAttackResultRequest) returns (VerifyAttackResultResponse);
 }
 
 message HealthRequest {}
@@ -41,4 +43,87 @@ message GenerateExecutiveSummaryResponse {
   string summary = 1;
   string risk_rating = 2;
   repeated string key_recommendations = 3;
+}
+
+message BrowserElement {
+  string tag = 1;
+  string text = 2;
+  string selector = 3;
+  string href = 4;
+  string id = 5;
+  string name = 6;
+  string value = 7;
+  string type = 8;
+}
+
+message BrowserForm {
+  string selector = 1;
+  string action = 2;
+  string method = 3;
+  repeated BrowserElement inputs = 4;
+}
+
+message BrowserContext {
+  string session_id = 1;
+  string current_url = 2;
+  string page_title = 3;
+  string page_source = 4;
+  string screenshot = 5;
+  map<string, string> cookies = 6;
+  map<string, string> local_storage = 7;
+  repeated BrowserForm forms = 8;
+  repeated BrowserElement inputs = 9;
+  repeated BrowserElement buttons = 10;
+  repeated BrowserElement links = 11;
+  string auth_state = 12;
+}
+
+message NetworkEvent {
+  string method = 1;
+  string url = 2;
+  int32 status_code = 3;
+  string resource_type = 4;
+}
+
+message ActionResult {
+  bool success = 1;
+  string failure_reason = 2;
+  string current_url = 3;
+  string page_title = 4;
+  string screenshot = 5;
+  BrowserContext visible_elements = 6;
+  repeated NetworkEvent network_events = 7;
+  int64 duration_ms = 8;
+  int32 status_code = 9;
+  string response_body = 10;
+}
+
+message PlanSQLiAttackRequest {
+  BrowserContext current_context = 1;
+  string endpoint = 2;
+  repeated BrowserForm forms = 3;
+  repeated string parameters = 4;
+}
+
+message SQLiPayload {
+  string strategy = 1;
+  string value = 2;
+  string description = 3;
+}
+
+message PlanSQLiAttackResponse {
+  repeated SQLiPayload payloads = 1;
+  string reasoning = 2;
+}
+
+message VerifyAttackResultRequest {
+  string payload = 1;
+  ActionResult response = 2;
+}
+
+message VerifyAttackResultResponse {
+  bool confirmed = 1;
+  string reasoning = 2;
+  float confidence = 3;
+  string vulnerability_type = 4;
 }

@@ -23,7 +23,7 @@ func TestCrawlerDiscovery(t *testing.T) {
 	}
 
 	var endpoints []string
-	err := cm.Crawl(ctx, "scan-crawl-test", server.URL, onLog, func(method, urlStr, source string) {
+	err := cm.Crawl(ctx, "scan-crawl-test", server.URL, "", onLog, func(method, urlStr, source string) {
 		endpoints = append(endpoints, urlStr)
 	}, nil)
 	if err != nil {

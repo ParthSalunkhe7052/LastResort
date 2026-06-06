@@ -361,6 +361,790 @@ func (x *GenerateExecutiveSummaryResponse) GetKeyRecommendations() []string {
 	return nil
 }
 
+type BrowserElement struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Tag           string                 `protobuf:"bytes,1,opt,name=tag,proto3" json:"tag,omitempty"`
+	Text          string                 `protobuf:"bytes,2,opt,name=text,proto3" json:"text,omitempty"`
+	Selector      string                 `protobuf:"bytes,3,opt,name=selector,proto3" json:"selector,omitempty"`
+	Href          string                 `protobuf:"bytes,4,opt,name=href,proto3" json:"href,omitempty"`
+	Id            string                 `protobuf:"bytes,5,opt,name=id,proto3" json:"id,omitempty"`
+	Name          string                 `protobuf:"bytes,6,opt,name=name,proto3" json:"name,omitempty"`
+	Value         string                 `protobuf:"bytes,7,opt,name=value,proto3" json:"value,omitempty"`
+	Type          string                 `protobuf:"bytes,8,opt,name=type,proto3" json:"type,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BrowserElement) Reset() {
+	*x = BrowserElement{}
+	mi := &file_ai_v1_ai_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BrowserElement) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BrowserElement) ProtoMessage() {}
+
+func (x *BrowserElement) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_v1_ai_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BrowserElement.ProtoReflect.Descriptor instead.
+func (*BrowserElement) Descriptor() ([]byte, []int) {
+	return file_ai_v1_ai_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *BrowserElement) GetTag() string {
+	if x != nil {
+		return x.Tag
+	}
+	return ""
+}
+
+func (x *BrowserElement) GetText() string {
+	if x != nil {
+		return x.Text
+	}
+	return ""
+}
+
+func (x *BrowserElement) GetSelector() string {
+	if x != nil {
+		return x.Selector
+	}
+	return ""
+}
+
+func (x *BrowserElement) GetHref() string {
+	if x != nil {
+		return x.Href
+	}
+	return ""
+}
+
+func (x *BrowserElement) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *BrowserElement) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *BrowserElement) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
+}
+
+func (x *BrowserElement) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+type BrowserForm struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Selector      string                 `protobuf:"bytes,1,opt,name=selector,proto3" json:"selector,omitempty"`
+	Action        string                 `protobuf:"bytes,2,opt,name=action,proto3" json:"action,omitempty"`
+	Method        string                 `protobuf:"bytes,3,opt,name=method,proto3" json:"method,omitempty"`
+	Inputs        []*BrowserElement      `protobuf:"bytes,4,rep,name=inputs,proto3" json:"inputs,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BrowserForm) Reset() {
+	*x = BrowserForm{}
+	mi := &file_ai_v1_ai_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BrowserForm) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BrowserForm) ProtoMessage() {}
+
+func (x *BrowserForm) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_v1_ai_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BrowserForm.ProtoReflect.Descriptor instead.
+func (*BrowserForm) Descriptor() ([]byte, []int) {
+	return file_ai_v1_ai_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *BrowserForm) GetSelector() string {
+	if x != nil {
+		return x.Selector
+	}
+	return ""
+}
+
+func (x *BrowserForm) GetAction() string {
+	if x != nil {
+		return x.Action
+	}
+	return ""
+}
+
+func (x *BrowserForm) GetMethod() string {
+	if x != nil {
+		return x.Method
+	}
+	return ""
+}
+
+func (x *BrowserForm) GetInputs() []*BrowserElement {
+	if x != nil {
+		return x.Inputs
+	}
+	return nil
+}
+
+type BrowserContext struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	CurrentUrl    string                 `protobuf:"bytes,2,opt,name=current_url,json=currentUrl,proto3" json:"current_url,omitempty"`
+	PageTitle     string                 `protobuf:"bytes,3,opt,name=page_title,json=pageTitle,proto3" json:"page_title,omitempty"`
+	PageSource    string                 `protobuf:"bytes,4,opt,name=page_source,json=pageSource,proto3" json:"page_source,omitempty"`
+	Screenshot    string                 `protobuf:"bytes,5,opt,name=screenshot,proto3" json:"screenshot,omitempty"`
+	Cookies       map[string]string      `protobuf:"bytes,6,rep,name=cookies,proto3" json:"cookies,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	LocalStorage  map[string]string      `protobuf:"bytes,7,rep,name=local_storage,json=localStorage,proto3" json:"local_storage,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Forms         []*BrowserForm         `protobuf:"bytes,8,rep,name=forms,proto3" json:"forms,omitempty"`
+	Inputs        []*BrowserElement      `protobuf:"bytes,9,rep,name=inputs,proto3" json:"inputs,omitempty"`
+	Buttons       []*BrowserElement      `protobuf:"bytes,10,rep,name=buttons,proto3" json:"buttons,omitempty"`
+	Links         []*BrowserElement      `protobuf:"bytes,11,rep,name=links,proto3" json:"links,omitempty"`
+	AuthState     string                 `protobuf:"bytes,12,opt,name=auth_state,json=authState,proto3" json:"auth_state,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BrowserContext) Reset() {
+	*x = BrowserContext{}
+	mi := &file_ai_v1_ai_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BrowserContext) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BrowserContext) ProtoMessage() {}
+
+func (x *BrowserContext) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_v1_ai_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BrowserContext.ProtoReflect.Descriptor instead.
+func (*BrowserContext) Descriptor() ([]byte, []int) {
+	return file_ai_v1_ai_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *BrowserContext) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *BrowserContext) GetCurrentUrl() string {
+	if x != nil {
+		return x.CurrentUrl
+	}
+	return ""
+}
+
+func (x *BrowserContext) GetPageTitle() string {
+	if x != nil {
+		return x.PageTitle
+	}
+	return ""
+}
+
+func (x *BrowserContext) GetPageSource() string {
+	if x != nil {
+		return x.PageSource
+	}
+	return ""
+}
+
+func (x *BrowserContext) GetScreenshot() string {
+	if x != nil {
+		return x.Screenshot
+	}
+	return ""
+}
+
+func (x *BrowserContext) GetCookies() map[string]string {
+	if x != nil {
+		return x.Cookies
+	}
+	return nil
+}
+
+func (x *BrowserContext) GetLocalStorage() map[string]string {
+	if x != nil {
+		return x.LocalStorage
+	}
+	return nil
+}
+
+func (x *BrowserContext) GetForms() []*BrowserForm {
+	if x != nil {
+		return x.Forms
+	}
+	return nil
+}
+
+func (x *BrowserContext) GetInputs() []*BrowserElement {
+	if x != nil {
+		return x.Inputs
+	}
+	return nil
+}
+
+func (x *BrowserContext) GetButtons() []*BrowserElement {
+	if x != nil {
+		return x.Buttons
+	}
+	return nil
+}
+
+func (x *BrowserContext) GetLinks() []*BrowserElement {
+	if x != nil {
+		return x.Links
+	}
+	return nil
+}
+
+func (x *BrowserContext) GetAuthState() string {
+	if x != nil {
+		return x.AuthState
+	}
+	return ""
+}
+
+type NetworkEvent struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Method        string                 `protobuf:"bytes,1,opt,name=method,proto3" json:"method,omitempty"`
+	Url           string                 `protobuf:"bytes,2,opt,name=url,proto3" json:"url,omitempty"`
+	StatusCode    int32                  `protobuf:"varint,3,opt,name=status_code,json=statusCode,proto3" json:"status_code,omitempty"`
+	ResourceType  string                 `protobuf:"bytes,4,opt,name=resource_type,json=resourceType,proto3" json:"resource_type,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NetworkEvent) Reset() {
+	*x = NetworkEvent{}
+	mi := &file_ai_v1_ai_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NetworkEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NetworkEvent) ProtoMessage() {}
+
+func (x *NetworkEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_v1_ai_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NetworkEvent.ProtoReflect.Descriptor instead.
+func (*NetworkEvent) Descriptor() ([]byte, []int) {
+	return file_ai_v1_ai_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *NetworkEvent) GetMethod() string {
+	if x != nil {
+		return x.Method
+	}
+	return ""
+}
+
+func (x *NetworkEvent) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+func (x *NetworkEvent) GetStatusCode() int32 {
+	if x != nil {
+		return x.StatusCode
+	}
+	return 0
+}
+
+func (x *NetworkEvent) GetResourceType() string {
+	if x != nil {
+		return x.ResourceType
+	}
+	return ""
+}
+
+type ActionResult struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Success         bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	FailureReason   string                 `protobuf:"bytes,2,opt,name=failure_reason,json=failureReason,proto3" json:"failure_reason,omitempty"`
+	CurrentUrl      string                 `protobuf:"bytes,3,opt,name=current_url,json=currentUrl,proto3" json:"current_url,omitempty"`
+	PageTitle       string                 `protobuf:"bytes,4,opt,name=page_title,json=pageTitle,proto3" json:"page_title,omitempty"`
+	Screenshot      string                 `protobuf:"bytes,5,opt,name=screenshot,proto3" json:"screenshot,omitempty"`
+	VisibleElements *BrowserContext        `protobuf:"bytes,6,opt,name=visible_elements,json=visibleElements,proto3" json:"visible_elements,omitempty"`
+	NetworkEvents   []*NetworkEvent        `protobuf:"bytes,7,rep,name=network_events,json=networkEvents,proto3" json:"network_events,omitempty"`
+	DurationMs      int64                  `protobuf:"varint,8,opt,name=duration_ms,json=durationMs,proto3" json:"duration_ms,omitempty"`
+	StatusCode      int32                  `protobuf:"varint,9,opt,name=status_code,json=statusCode,proto3" json:"status_code,omitempty"`
+	ResponseBody    string                 `protobuf:"bytes,10,opt,name=response_body,json=responseBody,proto3" json:"response_body,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *ActionResult) Reset() {
+	*x = ActionResult{}
+	mi := &file_ai_v1_ai_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ActionResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ActionResult) ProtoMessage() {}
+
+func (x *ActionResult) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_v1_ai_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ActionResult.ProtoReflect.Descriptor instead.
+func (*ActionResult) Descriptor() ([]byte, []int) {
+	return file_ai_v1_ai_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *ActionResult) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *ActionResult) GetFailureReason() string {
+	if x != nil {
+		return x.FailureReason
+	}
+	return ""
+}
+
+func (x *ActionResult) GetCurrentUrl() string {
+	if x != nil {
+		return x.CurrentUrl
+	}
+	return ""
+}
+
+func (x *ActionResult) GetPageTitle() string {
+	if x != nil {
+		return x.PageTitle
+	}
+	return ""
+}
+
+func (x *ActionResult) GetScreenshot() string {
+	if x != nil {
+		return x.Screenshot
+	}
+	return ""
+}
+
+func (x *ActionResult) GetVisibleElements() *BrowserContext {
+	if x != nil {
+		return x.VisibleElements
+	}
+	return nil
+}
+
+func (x *ActionResult) GetNetworkEvents() []*NetworkEvent {
+	if x != nil {
+		return x.NetworkEvents
+	}
+	return nil
+}
+
+func (x *ActionResult) GetDurationMs() int64 {
+	if x != nil {
+		return x.DurationMs
+	}
+	return 0
+}
+
+func (x *ActionResult) GetStatusCode() int32 {
+	if x != nil {
+		return x.StatusCode
+	}
+	return 0
+}
+
+func (x *ActionResult) GetResponseBody() string {
+	if x != nil {
+		return x.ResponseBody
+	}
+	return ""
+}
+
+type PlanSQLiAttackRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	CurrentContext *BrowserContext        `protobuf:"bytes,1,opt,name=current_context,json=currentContext,proto3" json:"current_context,omitempty"`
+	Endpoint       string                 `protobuf:"bytes,2,opt,name=endpoint,proto3" json:"endpoint,omitempty"`
+	Forms          []*BrowserForm         `protobuf:"bytes,3,rep,name=forms,proto3" json:"forms,omitempty"`
+	Parameters     []string               `protobuf:"bytes,4,rep,name=parameters,proto3" json:"parameters,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *PlanSQLiAttackRequest) Reset() {
+	*x = PlanSQLiAttackRequest{}
+	mi := &file_ai_v1_ai_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PlanSQLiAttackRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PlanSQLiAttackRequest) ProtoMessage() {}
+
+func (x *PlanSQLiAttackRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_v1_ai_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PlanSQLiAttackRequest.ProtoReflect.Descriptor instead.
+func (*PlanSQLiAttackRequest) Descriptor() ([]byte, []int) {
+	return file_ai_v1_ai_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *PlanSQLiAttackRequest) GetCurrentContext() *BrowserContext {
+	if x != nil {
+		return x.CurrentContext
+	}
+	return nil
+}
+
+func (x *PlanSQLiAttackRequest) GetEndpoint() string {
+	if x != nil {
+		return x.Endpoint
+	}
+	return ""
+}
+
+func (x *PlanSQLiAttackRequest) GetForms() []*BrowserForm {
+	if x != nil {
+		return x.Forms
+	}
+	return nil
+}
+
+func (x *PlanSQLiAttackRequest) GetParameters() []string {
+	if x != nil {
+		return x.Parameters
+	}
+	return nil
+}
+
+type SQLiPayload struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Strategy      string                 `protobuf:"bytes,1,opt,name=strategy,proto3" json:"strategy,omitempty"`
+	Value         string                 `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	Description   string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SQLiPayload) Reset() {
+	*x = SQLiPayload{}
+	mi := &file_ai_v1_ai_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SQLiPayload) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SQLiPayload) ProtoMessage() {}
+
+func (x *SQLiPayload) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_v1_ai_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SQLiPayload.ProtoReflect.Descriptor instead.
+func (*SQLiPayload) Descriptor() ([]byte, []int) {
+	return file_ai_v1_ai_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *SQLiPayload) GetStrategy() string {
+	if x != nil {
+		return x.Strategy
+	}
+	return ""
+}
+
+func (x *SQLiPayload) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
+}
+
+func (x *SQLiPayload) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+type PlanSQLiAttackResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Payloads      []*SQLiPayload         `protobuf:"bytes,1,rep,name=payloads,proto3" json:"payloads,omitempty"`
+	Reasoning     string                 `protobuf:"bytes,2,opt,name=reasoning,proto3" json:"reasoning,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PlanSQLiAttackResponse) Reset() {
+	*x = PlanSQLiAttackResponse{}
+	mi := &file_ai_v1_ai_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PlanSQLiAttackResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PlanSQLiAttackResponse) ProtoMessage() {}
+
+func (x *PlanSQLiAttackResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_v1_ai_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PlanSQLiAttackResponse.ProtoReflect.Descriptor instead.
+func (*PlanSQLiAttackResponse) Descriptor() ([]byte, []int) {
+	return file_ai_v1_ai_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *PlanSQLiAttackResponse) GetPayloads() []*SQLiPayload {
+	if x != nil {
+		return x.Payloads
+	}
+	return nil
+}
+
+func (x *PlanSQLiAttackResponse) GetReasoning() string {
+	if x != nil {
+		return x.Reasoning
+	}
+	return ""
+}
+
+type VerifyAttackResultRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Payload       string                 `protobuf:"bytes,1,opt,name=payload,proto3" json:"payload,omitempty"`
+	Response      *ActionResult          `protobuf:"bytes,2,opt,name=response,proto3" json:"response,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VerifyAttackResultRequest) Reset() {
+	*x = VerifyAttackResultRequest{}
+	mi := &file_ai_v1_ai_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VerifyAttackResultRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifyAttackResultRequest) ProtoMessage() {}
+
+func (x *VerifyAttackResultRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_v1_ai_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifyAttackResultRequest.ProtoReflect.Descriptor instead.
+func (*VerifyAttackResultRequest) Descriptor() ([]byte, []int) {
+	return file_ai_v1_ai_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *VerifyAttackResultRequest) GetPayload() string {
+	if x != nil {
+		return x.Payload
+	}
+	return ""
+}
+
+func (x *VerifyAttackResultRequest) GetResponse() *ActionResult {
+	if x != nil {
+		return x.Response
+	}
+	return nil
+}
+
+type VerifyAttackResultResponse struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Confirmed         bool                   `protobuf:"varint,1,opt,name=confirmed,proto3" json:"confirmed,omitempty"`
+	Reasoning         string                 `protobuf:"bytes,2,opt,name=reasoning,proto3" json:"reasoning,omitempty"`
+	Confidence        float32                `protobuf:"fixed32,3,opt,name=confidence,proto3" json:"confidence,omitempty"`
+	VulnerabilityType string                 `protobuf:"bytes,4,opt,name=vulnerability_type,json=vulnerabilityType,proto3" json:"vulnerability_type,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *VerifyAttackResultResponse) Reset() {
+	*x = VerifyAttackResultResponse{}
+	mi := &file_ai_v1_ai_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VerifyAttackResultResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifyAttackResultResponse) ProtoMessage() {}
+
+func (x *VerifyAttackResultResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ai_v1_ai_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifyAttackResultResponse.ProtoReflect.Descriptor instead.
+func (*VerifyAttackResultResponse) Descriptor() ([]byte, []int) {
+	return file_ai_v1_ai_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *VerifyAttackResultResponse) GetConfirmed() bool {
+	if x != nil {
+		return x.Confirmed
+	}
+	return false
+}
+
+func (x *VerifyAttackResultResponse) GetReasoning() string {
+	if x != nil {
+		return x.Reasoning
+	}
+	return ""
+}
+
+func (x *VerifyAttackResultResponse) GetConfidence() float32 {
+	if x != nil {
+		return x.Confidence
+	}
+	return 0
+}
+
+func (x *VerifyAttackResultResponse) GetVulnerabilityType() string {
+	if x != nil {
+		return x.VulnerabilityType
+	}
+	return ""
+}
+
 var File_ai_v1_ai_proto protoreflect.FileDescriptor
 
 const file_ai_v1_ai_proto_rawDesc = "" +
@@ -396,10 +1180,101 @@ const file_ai_v1_ai_proto_rawDesc = "" +
 	"\asummary\x18\x01 \x01(\tR\asummary\x12\x1f\n" +
 	"\vrisk_rating\x18\x02 \x01(\tR\n" +
 	"riskRating\x12/\n" +
-	"\x13key_recommendations\x18\x03 \x03(\tR\x12keyRecommendations2\xaf\x01\n" +
+	"\x13key_recommendations\x18\x03 \x03(\tR\x12keyRecommendations\"\xb4\x01\n" +
+	"\x0eBrowserElement\x12\x10\n" +
+	"\x03tag\x18\x01 \x01(\tR\x03tag\x12\x12\n" +
+	"\x04text\x18\x02 \x01(\tR\x04text\x12\x1a\n" +
+	"\bselector\x18\x03 \x01(\tR\bselector\x12\x12\n" +
+	"\x04href\x18\x04 \x01(\tR\x04href\x12\x0e\n" +
+	"\x02id\x18\x05 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x06 \x01(\tR\x04name\x12\x14\n" +
+	"\x05value\x18\a \x01(\tR\x05value\x12\x12\n" +
+	"\x04type\x18\b \x01(\tR\x04type\"\x88\x01\n" +
+	"\vBrowserForm\x12\x1a\n" +
+	"\bselector\x18\x01 \x01(\tR\bselector\x12\x16\n" +
+	"\x06action\x18\x02 \x01(\tR\x06action\x12\x16\n" +
+	"\x06method\x18\x03 \x01(\tR\x06method\x12-\n" +
+	"\x06inputs\x18\x04 \x03(\v2\x15.ai.v1.BrowserElementR\x06inputs\"\x8f\x05\n" +
+	"\x0eBrowserContext\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x1f\n" +
+	"\vcurrent_url\x18\x02 \x01(\tR\n" +
+	"currentUrl\x12\x1d\n" +
+	"\n" +
+	"page_title\x18\x03 \x01(\tR\tpageTitle\x12\x1f\n" +
+	"\vpage_source\x18\x04 \x01(\tR\n" +
+	"pageSource\x12\x1e\n" +
+	"\n" +
+	"screenshot\x18\x05 \x01(\tR\n" +
+	"screenshot\x12<\n" +
+	"\acookies\x18\x06 \x03(\v2\".ai.v1.BrowserContext.CookiesEntryR\acookies\x12L\n" +
+	"\rlocal_storage\x18\a \x03(\v2'.ai.v1.BrowserContext.LocalStorageEntryR\flocalStorage\x12(\n" +
+	"\x05forms\x18\b \x03(\v2\x12.ai.v1.BrowserFormR\x05forms\x12-\n" +
+	"\x06inputs\x18\t \x03(\v2\x15.ai.v1.BrowserElementR\x06inputs\x12/\n" +
+	"\abuttons\x18\n" +
+	" \x03(\v2\x15.ai.v1.BrowserElementR\abuttons\x12+\n" +
+	"\x05links\x18\v \x03(\v2\x15.ai.v1.BrowserElementR\x05links\x12\x1d\n" +
+	"\n" +
+	"auth_state\x18\f \x01(\tR\tauthState\x1a:\n" +
+	"\fCookiesEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a?\n" +
+	"\x11LocalStorageEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"~\n" +
+	"\fNetworkEvent\x12\x16\n" +
+	"\x06method\x18\x01 \x01(\tR\x06method\x12\x10\n" +
+	"\x03url\x18\x02 \x01(\tR\x03url\x12\x1f\n" +
+	"\vstatus_code\x18\x03 \x01(\x05R\n" +
+	"statusCode\x12#\n" +
+	"\rresource_type\x18\x04 \x01(\tR\fresourceType\"\x94\x03\n" +
+	"\fActionResult\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12%\n" +
+	"\x0efailure_reason\x18\x02 \x01(\tR\rfailureReason\x12\x1f\n" +
+	"\vcurrent_url\x18\x03 \x01(\tR\n" +
+	"currentUrl\x12\x1d\n" +
+	"\n" +
+	"page_title\x18\x04 \x01(\tR\tpageTitle\x12\x1e\n" +
+	"\n" +
+	"screenshot\x18\x05 \x01(\tR\n" +
+	"screenshot\x12@\n" +
+	"\x10visible_elements\x18\x06 \x01(\v2\x15.ai.v1.BrowserContextR\x0fvisibleElements\x12:\n" +
+	"\x0enetwork_events\x18\a \x03(\v2\x13.ai.v1.NetworkEventR\rnetworkEvents\x12\x1f\n" +
+	"\vduration_ms\x18\b \x01(\x03R\n" +
+	"durationMs\x12\x1f\n" +
+	"\vstatus_code\x18\t \x01(\x05R\n" +
+	"statusCode\x12#\n" +
+	"\rresponse_body\x18\n" +
+	" \x01(\tR\fresponseBody\"\xbd\x01\n" +
+	"\x15PlanSQLiAttackRequest\x12>\n" +
+	"\x0fcurrent_context\x18\x01 \x01(\v2\x15.ai.v1.BrowserContextR\x0ecurrentContext\x12\x1a\n" +
+	"\bendpoint\x18\x02 \x01(\tR\bendpoint\x12(\n" +
+	"\x05forms\x18\x03 \x03(\v2\x12.ai.v1.BrowserFormR\x05forms\x12\x1e\n" +
+	"\n" +
+	"parameters\x18\x04 \x03(\tR\n" +
+	"parameters\"a\n" +
+	"\vSQLiPayload\x12\x1a\n" +
+	"\bstrategy\x18\x01 \x01(\tR\bstrategy\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value\x12 \n" +
+	"\vdescription\x18\x03 \x01(\tR\vdescription\"f\n" +
+	"\x16PlanSQLiAttackResponse\x12.\n" +
+	"\bpayloads\x18\x01 \x03(\v2\x12.ai.v1.SQLiPayloadR\bpayloads\x12\x1c\n" +
+	"\treasoning\x18\x02 \x01(\tR\treasoning\"f\n" +
+	"\x19VerifyAttackResultRequest\x12\x18\n" +
+	"\apayload\x18\x01 \x01(\tR\apayload\x12/\n" +
+	"\bresponse\x18\x02 \x01(\v2\x13.ai.v1.ActionResultR\bresponse\"\xa7\x01\n" +
+	"\x1aVerifyAttackResultResponse\x12\x1c\n" +
+	"\tconfirmed\x18\x01 \x01(\bR\tconfirmed\x12\x1c\n" +
+	"\treasoning\x18\x02 \x01(\tR\treasoning\x12\x1e\n" +
+	"\n" +
+	"confidence\x18\x03 \x01(\x02R\n" +
+	"confidence\x12-\n" +
+	"\x12vulnerability_type\x18\x04 \x01(\tR\x11vulnerabilityType2\xd9\x02\n" +
 	"\tAiService\x125\n" +
 	"\x06Health\x12\x14.ai.v1.HealthRequest\x1a\x15.ai.v1.HealthResponse\x12k\n" +
-	"\x18GenerateExecutiveSummary\x12&.ai.v1.GenerateExecutiveSummaryRequest\x1a'.ai.v1.GenerateExecutiveSummaryResponseB5Z3github.com/parth/lastresort/internal/gen/ai/v1;aiv1b\x06proto3"
+	"\x18GenerateExecutiveSummary\x12&.ai.v1.GenerateExecutiveSummaryRequest\x1a'.ai.v1.GenerateExecutiveSummaryResponse\x12M\n" +
+	"\x0ePlanSQLiAttack\x12\x1c.ai.v1.PlanSQLiAttackRequest\x1a\x1d.ai.v1.PlanSQLiAttackResponse\x12Y\n" +
+	"\x12VerifyAttackResult\x12 .ai.v1.VerifyAttackResultRequest\x1a!.ai.v1.VerifyAttackResultResponseB5Z3github.com/parth/lastresort/internal/gen/ai/v1;aiv1b\x06proto3"
 
 var (
 	file_ai_v1_ai_proto_rawDescOnce sync.Once
@@ -413,25 +1288,54 @@ func file_ai_v1_ai_proto_rawDescGZIP() []byte {
 	return file_ai_v1_ai_proto_rawDescData
 }
 
-var file_ai_v1_ai_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_ai_v1_ai_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_ai_v1_ai_proto_goTypes = []any{
 	(*HealthRequest)(nil),                    // 0: ai.v1.HealthRequest
 	(*HealthResponse)(nil),                   // 1: ai.v1.HealthResponse
 	(*FindingSummary)(nil),                   // 2: ai.v1.FindingSummary
 	(*GenerateExecutiveSummaryRequest)(nil),  // 3: ai.v1.GenerateExecutiveSummaryRequest
 	(*GenerateExecutiveSummaryResponse)(nil), // 4: ai.v1.GenerateExecutiveSummaryResponse
+	(*BrowserElement)(nil),                   // 5: ai.v1.BrowserElement
+	(*BrowserForm)(nil),                      // 6: ai.v1.BrowserForm
+	(*BrowserContext)(nil),                   // 7: ai.v1.BrowserContext
+	(*NetworkEvent)(nil),                     // 8: ai.v1.NetworkEvent
+	(*ActionResult)(nil),                     // 9: ai.v1.ActionResult
+	(*PlanSQLiAttackRequest)(nil),            // 10: ai.v1.PlanSQLiAttackRequest
+	(*SQLiPayload)(nil),                      // 11: ai.v1.SQLiPayload
+	(*PlanSQLiAttackResponse)(nil),           // 12: ai.v1.PlanSQLiAttackResponse
+	(*VerifyAttackResultRequest)(nil),        // 13: ai.v1.VerifyAttackResultRequest
+	(*VerifyAttackResultResponse)(nil),       // 14: ai.v1.VerifyAttackResultResponse
+	nil,                                      // 15: ai.v1.BrowserContext.CookiesEntry
+	nil,                                      // 16: ai.v1.BrowserContext.LocalStorageEntry
 }
 var file_ai_v1_ai_proto_depIdxs = []int32{
-	2, // 0: ai.v1.GenerateExecutiveSummaryRequest.findings:type_name -> ai.v1.FindingSummary
-	0, // 1: ai.v1.AiService.Health:input_type -> ai.v1.HealthRequest
-	3, // 2: ai.v1.AiService.GenerateExecutiveSummary:input_type -> ai.v1.GenerateExecutiveSummaryRequest
-	1, // 3: ai.v1.AiService.Health:output_type -> ai.v1.HealthResponse
-	4, // 4: ai.v1.AiService.GenerateExecutiveSummary:output_type -> ai.v1.GenerateExecutiveSummaryResponse
-	3, // [3:5] is the sub-list for method output_type
-	1, // [1:3] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	2,  // 0: ai.v1.GenerateExecutiveSummaryRequest.findings:type_name -> ai.v1.FindingSummary
+	5,  // 1: ai.v1.BrowserForm.inputs:type_name -> ai.v1.BrowserElement
+	15, // 2: ai.v1.BrowserContext.cookies:type_name -> ai.v1.BrowserContext.CookiesEntry
+	16, // 3: ai.v1.BrowserContext.local_storage:type_name -> ai.v1.BrowserContext.LocalStorageEntry
+	6,  // 4: ai.v1.BrowserContext.forms:type_name -> ai.v1.BrowserForm
+	5,  // 5: ai.v1.BrowserContext.inputs:type_name -> ai.v1.BrowserElement
+	5,  // 6: ai.v1.BrowserContext.buttons:type_name -> ai.v1.BrowserElement
+	5,  // 7: ai.v1.BrowserContext.links:type_name -> ai.v1.BrowserElement
+	7,  // 8: ai.v1.ActionResult.visible_elements:type_name -> ai.v1.BrowserContext
+	8,  // 9: ai.v1.ActionResult.network_events:type_name -> ai.v1.NetworkEvent
+	7,  // 10: ai.v1.PlanSQLiAttackRequest.current_context:type_name -> ai.v1.BrowserContext
+	6,  // 11: ai.v1.PlanSQLiAttackRequest.forms:type_name -> ai.v1.BrowserForm
+	11, // 12: ai.v1.PlanSQLiAttackResponse.payloads:type_name -> ai.v1.SQLiPayload
+	9,  // 13: ai.v1.VerifyAttackResultRequest.response:type_name -> ai.v1.ActionResult
+	0,  // 14: ai.v1.AiService.Health:input_type -> ai.v1.HealthRequest
+	3,  // 15: ai.v1.AiService.GenerateExecutiveSummary:input_type -> ai.v1.GenerateExecutiveSummaryRequest
+	10, // 16: ai.v1.AiService.PlanSQLiAttack:input_type -> ai.v1.PlanSQLiAttackRequest
+	13, // 17: ai.v1.AiService.VerifyAttackResult:input_type -> ai.v1.VerifyAttackResultRequest
+	1,  // 18: ai.v1.AiService.Health:output_type -> ai.v1.HealthResponse
+	4,  // 19: ai.v1.AiService.GenerateExecutiveSummary:output_type -> ai.v1.GenerateExecutiveSummaryResponse
+	12, // 20: ai.v1.AiService.PlanSQLiAttack:output_type -> ai.v1.PlanSQLiAttackResponse
+	14, // 21: ai.v1.AiService.VerifyAttackResult:output_type -> ai.v1.VerifyAttackResultResponse
+	18, // [18:22] is the sub-list for method output_type
+	14, // [14:18] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_ai_v1_ai_proto_init() }
@@ -445,7 +1349,7 @@ func file_ai_v1_ai_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ai_v1_ai_proto_rawDesc), len(file_ai_v1_ai_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

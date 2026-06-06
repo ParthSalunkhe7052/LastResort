@@ -7,23 +7,25 @@ import (
 	"strings"
 	"time"
 
+	"connectrpc.com/connect"
+	aiv1 "github.com/parth/lastresort/internal/gen/ai/v1"
+	"github.com/parth/lastresort/internal/gen/ai/v1/aiv1connect"
 	"github.com/parth/lastresort/internal/storage"
 )
 
 // VerificationEngine evaluates browser attack results and produces a VerificationResult.
-// This engine is fully deterministic — it uses regex patterns, DOM markers, and
-// heuristics. No AI calls are made here.
-type VerificationEngine struct{}
+type VerificationEngine struct {
+	aiClient aiv1connect.AiServiceClient
+}
 
 // NewVerificationEngine constructs a VerificationEngine.
-func NewVerificationEngine() *VerificationEngine {
-	return &VerificationEngine{}
+func NewVerificationEngine(aiClient aiv1connect.AiServiceClient) *VerificationEngine {
+	return &VerificationEngine{aiClient: aiClient}
 }
 
 
 // VerifyXSS checks whether an XSS payload was executed.
 func (ve *VerificationEngine) VerifyXSS(ctx context.Context, vulnType, endpoint, payload, pageSource, screenshotB64 string) *storage.VerificationResult {
-	_ = ctx
 	vr := &storage.VerificationResult{
 		EndpointURL: endpoint,
 		Payload:     payload,
@@ -55,6 +57,33 @@ func (ve *VerificationEngine) VerifyXSS(ctx context.Context, vulnType, endpoint,
 	}
 	vr.EvidenceArtifacts = artifacts
 
+	// Try AI-based verification first
+	if ve.aiClient != nil {
+		req := &aiv1.VerifyAttackResultRequest{
+			Payload: payload,
+			Response: &aiv1.ActionResult{
+				Success:    true,
+				CurrentUrl: endpoint,
+				PageTitle:  "",
+				Screenshot: screenshotB64,
+				VisibleElements: &aiv1.BrowserContext{
+					CurrentUrl: endpoint,
+					PageSource: pageSource,
+				},
+			},
+		}
+		aiRes, err := ve.aiClient.VerifyAttackResult(ctx, connect.NewRequest(req))
+		if err == nil && aiRes != nil && aiRes.Msg != nil {
+			if aiRes.Msg.Confirmed {
+				vr.Verified = true
+				vr.Confidence = float64(aiRes.Msg.Confidence)
+				vr.Method = storage.VerificationAIScored
+				vr.EvidenceSummary = fmt.Sprintf("AI verification confirmed XSS: %s", aiRes.Msg.Reasoning)
+				return vr
+			}
+		}
+	}
+
 	// 1. Alert execution (alert dialog triggered and Playwright injected the DOM marker)
 	if strings.Contains(pageSource, "lastresort-xss-alert-detected") {
 		vr.Verified = true
@@ -84,7 +113,6 @@ func (ve *VerificationEngine) VerifyXSS(ctx context.Context, vulnType, endpoint,
 
 // VerifySQLi checks whether an SQL injection payload produced a detectable anomaly.
 func (ve *VerificationEngine) VerifySQLi(ctx context.Context, endpoint, payload, pageSource, screenshotB64 string) *storage.VerificationResult {
-	_ = ctx
 	vr := &storage.VerificationResult{
 		EndpointURL: endpoint,
 		Payload:     payload,
@@ -115,6 +143,33 @@ func (ve *VerificationEngine) VerifySQLi(ctx context.Context, endpoint, payload,
 		})
 	}
 	vr.EvidenceArtifacts = artifacts
+
+	// Try AI-based verification first
+	if ve.aiClient != nil {
+		req := &aiv1.VerifyAttackResultRequest{
+			Payload: payload,
+			Response: &aiv1.ActionResult{
+				Success:    true,
+				CurrentUrl: endpoint,
+				PageTitle:  "",
+				Screenshot: screenshotB64,
+				VisibleElements: &aiv1.BrowserContext{
+					CurrentUrl: endpoint,
+					PageSource: pageSource,
+				},
+			},
+		}
+		aiRes, err := ve.aiClient.VerifyAttackResult(ctx, connect.NewRequest(req))
+		if err == nil && aiRes != nil && aiRes.Msg != nil {
+			if aiRes.Msg.Confirmed {
+				vr.Verified = true
+				vr.Confidence = float64(aiRes.Msg.Confidence)
+				vr.Method = storage.VerificationAIScored
+				vr.EvidenceSummary = fmt.Sprintf("AI verification confirmed SQLi: %s", aiRes.Msg.Reasoning)
+				return vr
+			}
+		}
+	}
 
 	sourceLower := strings.ToLower(pageSource)
 

@@ -6,7 +6,7 @@ interface MainLayoutProps {
   activeTab: string
   setActiveTab: (tab: any) => void
   goDaemonStatus: string
-  pythonAiStatus: string
+  aiEngineStatus: string
   targetUrl: string
   onSync: () => void
   currentObjective?: string
@@ -18,7 +18,7 @@ export default function MainLayout({
   activeTab,
   setActiveTab,
   goDaemonStatus,
-  pythonAiStatus,
+  aiEngineStatus,
   targetUrl,
   onSync,
   currentObjective = "Initializing...",
@@ -58,9 +58,9 @@ export default function MainLayout({
               <span className="font-mono text-zinc-500">Go</span>
             </div>
             
-            <div className="flex items-center space-x-1.5 border-l border-zinc-800 pl-3" title={`AI Engine: ${pythonAiStatus}`}>
+            <div className="flex items-center space-x-1.5 border-l border-zinc-800 pl-3" title={`AI Engine: ${aiEngineStatus}`}>
               <span className={`w-1.5 h-1.5 rounded-full ${
-                pythonAiStatus === 'connected' ? 'bg-emerald-500 shadow-[0_0_6px_#10b981]' : 'bg-rose-500'
+                aiEngineStatus === 'connected' ? 'bg-emerald-500 shadow-[0_0_6px_#10b981]' : 'bg-rose-500'
               }`} />
               <span className="font-mono text-zinc-500">AI</span>
             </div>

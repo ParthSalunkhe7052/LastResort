@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { GenerateExecutiveSummaryRequest, GenerateExecutiveSummaryResponse, HealthRequest, HealthResponse } from "./ai_pb.js";
+import { GenerateExecutiveSummaryRequest, GenerateExecutiveSummaryResponse, HealthRequest, HealthResponse, PlanSQLiAttackRequest, PlanSQLiAttackResponse, VerifyAttackResultRequest, VerifyAttackResultResponse } from "./ai_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -28,6 +28,24 @@ export const AiService = {
       name: "GenerateExecutiveSummary",
       I: GenerateExecutiveSummaryRequest,
       O: GenerateExecutiveSummaryResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * @generated from rpc ai.v1.AiService.PlanSQLiAttack
+     */
+    planSQLiAttack: {
+      name: "PlanSQLiAttack",
+      I: PlanSQLiAttackRequest,
+      O: PlanSQLiAttackResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * @generated from rpc ai.v1.AiService.VerifyAttackResult
+     */
+    verifyAttackResult: {
+      name: "VerifyAttackResult",
+      I: VerifyAttackResultRequest,
+      O: VerifyAttackResultResponse,
       kind: MethodKind.Unary,
     },
   }

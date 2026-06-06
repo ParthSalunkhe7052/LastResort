@@ -35,7 +35,7 @@ func TestActiveScanners(t *testing.T) {
 		t.Fatalf("failed to insert scan: %v", err)
 	}
 
-	as := NewActiveScanner(db)
+	as := NewActiveScanner(db, scanID, 0)
 
 	// 1. Test CORS Scanner on /unsafe-cors
 	err = as.ScanCORS(ctx, scanID, server.URL+"/unsafe-cors")

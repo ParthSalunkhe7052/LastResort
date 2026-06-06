@@ -33,10 +33,7 @@ func TestGenerateReport(t *testing.T) {
 		t.Fatalf("failed to insert scan: %v", err)
 	}
 
-	flowID, err := db.SaveFlow(ctx, scanID, "GET", "http://example.com/search?q=test", map[string][]string{}, nil, map[string][]string{}, []byte("<html>ok</html>"), 200)
-	if err != nil {
-		t.Fatalf("failed to save flow: %v", err)
-	}
+	flowID := int64(999)
 
 	_, err = db.SaveFindingWithEvidence(ctx, storage.FindingInput{
 		ScanID:            scanID,

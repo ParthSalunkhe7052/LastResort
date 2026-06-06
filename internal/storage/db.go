@@ -50,6 +50,7 @@ func InitDB(dbPath string) (*DB, error) {
 	}
 	// Migration for category column
 	_, _ = storageDB.Exec("ALTER TABLE findings ADD COLUMN category TEXT")
+	_, _ = storageDB.Exec("ALTER TABLE scans ADD COLUMN auth_cookies TEXT")
 
 	// Phase 6: attack journal table (idempotent).
 	if err := storageDB.CreateJournalTables(); err != nil {
@@ -105,18 +106,13 @@ func (db *DB) createTables() error {
 			started_at DATETIME,
 			finished_at DATETIME
 		);`,
-		`CREATE TABLE IF NOT EXISTS http_flows (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			scan_id TEXT NOT NULL,
-			method TEXT NOT NULL,
-			url TEXT NOT NULL,
-			request_headers TEXT,
-			request_body BLOB,
-			response_headers TEXT,
-			response_body BLOB,
-			response_status INTEGER,
+		`CREATE TABLE IF NOT EXISTS workflow_memory (
+			id TEXT PRIMARY KEY,
+			target_host TEXT NOT NULL,
+			flow_type TEXT NOT NULL,
+			actions_json TEXT NOT NULL,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			FOREIGN KEY (scan_id) REFERENCES scans(id) ON DELETE CASCADE
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		);`,
 		`CREATE TABLE IF NOT EXISTS findings (
 			id TEXT PRIMARY KEY,
@@ -130,6 +126,7 @@ func (db *DB) createTables() error {
 			response_status INTEGER,
 			confidence REAL,
 			category TEXT,
+			verification_id TEXT,
 			is_false_positive INTEGER DEFAULT 0,
 			fingerprint TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -198,6 +195,7 @@ func (db *DB) createTables() error {
 	_, _ = db.Exec("ALTER TABLE scans ADD COLUMN gemini_calls INTEGER DEFAULT 0;")
 	_, _ = db.Exec("ALTER TABLE scans ADD COLUMN gemini_time_ms INTEGER DEFAULT 0;")
 	_, _ = db.Exec("ALTER TABLE findings ADD COLUMN occurrence_count INTEGER DEFAULT 1;")
+	_, _ = db.Exec("ALTER TABLE findings ADD COLUMN verification_id TEXT;")
 	_, _ = db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_findings_scan_fingerprint ON findings (scan_id, fingerprint);")
 
 	_, _ = db.Exec("CREATE INDEX IF NOT EXISTS idx_evidence_finding_created ON finding_evidence (finding_id, created_at);")

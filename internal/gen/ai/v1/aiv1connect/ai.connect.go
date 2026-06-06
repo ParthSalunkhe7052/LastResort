@@ -38,12 +38,20 @@ const (
 	// AiServiceGenerateExecutiveSummaryProcedure is the fully-qualified name of the AiService's
 	// GenerateExecutiveSummary RPC.
 	AiServiceGenerateExecutiveSummaryProcedure = "/ai.v1.AiService/GenerateExecutiveSummary"
+	// AiServicePlanSQLiAttackProcedure is the fully-qualified name of the AiService's PlanSQLiAttack
+	// RPC.
+	AiServicePlanSQLiAttackProcedure = "/ai.v1.AiService/PlanSQLiAttack"
+	// AiServiceVerifyAttackResultProcedure is the fully-qualified name of the AiService's
+	// VerifyAttackResult RPC.
+	AiServiceVerifyAttackResultProcedure = "/ai.v1.AiService/VerifyAttackResult"
 )
 
 // AiServiceClient is a client for the ai.v1.AiService service.
 type AiServiceClient interface {
 	Health(context.Context, *connect.Request[v1.HealthRequest]) (*connect.Response[v1.HealthResponse], error)
 	GenerateExecutiveSummary(context.Context, *connect.Request[v1.GenerateExecutiveSummaryRequest]) (*connect.Response[v1.GenerateExecutiveSummaryResponse], error)
+	PlanSQLiAttack(context.Context, *connect.Request[v1.PlanSQLiAttackRequest]) (*connect.Response[v1.PlanSQLiAttackResponse], error)
+	VerifyAttackResult(context.Context, *connect.Request[v1.VerifyAttackResultRequest]) (*connect.Response[v1.VerifyAttackResultResponse], error)
 }
 
 // NewAiServiceClient constructs a client for the ai.v1.AiService service. By default, it uses the
@@ -69,6 +77,18 @@ func NewAiServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...c
 			connect.WithSchema(aiServiceMethods.ByName("GenerateExecutiveSummary")),
 			connect.WithClientOptions(opts...),
 		),
+		planSQLiAttack: connect.NewClient[v1.PlanSQLiAttackRequest, v1.PlanSQLiAttackResponse](
+			httpClient,
+			baseURL+AiServicePlanSQLiAttackProcedure,
+			connect.WithSchema(aiServiceMethods.ByName("PlanSQLiAttack")),
+			connect.WithClientOptions(opts...),
+		),
+		verifyAttackResult: connect.NewClient[v1.VerifyAttackResultRequest, v1.VerifyAttackResultResponse](
+			httpClient,
+			baseURL+AiServiceVerifyAttackResultProcedure,
+			connect.WithSchema(aiServiceMethods.ByName("VerifyAttackResult")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -76,6 +96,8 @@ func NewAiServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...c
 type aiServiceClient struct {
 	health                   *connect.Client[v1.HealthRequest, v1.HealthResponse]
 	generateExecutiveSummary *connect.Client[v1.GenerateExecutiveSummaryRequest, v1.GenerateExecutiveSummaryResponse]
+	planSQLiAttack           *connect.Client[v1.PlanSQLiAttackRequest, v1.PlanSQLiAttackResponse]
+	verifyAttackResult       *connect.Client[v1.VerifyAttackResultRequest, v1.VerifyAttackResultResponse]
 }
 
 // Health calls ai.v1.AiService.Health.
@@ -88,10 +110,22 @@ func (c *aiServiceClient) GenerateExecutiveSummary(ctx context.Context, req *con
 	return c.generateExecutiveSummary.CallUnary(ctx, req)
 }
 
+// PlanSQLiAttack calls ai.v1.AiService.PlanSQLiAttack.
+func (c *aiServiceClient) PlanSQLiAttack(ctx context.Context, req *connect.Request[v1.PlanSQLiAttackRequest]) (*connect.Response[v1.PlanSQLiAttackResponse], error) {
+	return c.planSQLiAttack.CallUnary(ctx, req)
+}
+
+// VerifyAttackResult calls ai.v1.AiService.VerifyAttackResult.
+func (c *aiServiceClient) VerifyAttackResult(ctx context.Context, req *connect.Request[v1.VerifyAttackResultRequest]) (*connect.Response[v1.VerifyAttackResultResponse], error) {
+	return c.verifyAttackResult.CallUnary(ctx, req)
+}
+
 // AiServiceHandler is an implementation of the ai.v1.AiService service.
 type AiServiceHandler interface {
 	Health(context.Context, *connect.Request[v1.HealthRequest]) (*connect.Response[v1.HealthResponse], error)
 	GenerateExecutiveSummary(context.Context, *connect.Request[v1.GenerateExecutiveSummaryRequest]) (*connect.Response[v1.GenerateExecutiveSummaryResponse], error)
+	PlanSQLiAttack(context.Context, *connect.Request[v1.PlanSQLiAttackRequest]) (*connect.Response[v1.PlanSQLiAttackResponse], error)
+	VerifyAttackResult(context.Context, *connect.Request[v1.VerifyAttackResultRequest]) (*connect.Response[v1.VerifyAttackResultResponse], error)
 }
 
 // NewAiServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -113,12 +147,28 @@ func NewAiServiceHandler(svc AiServiceHandler, opts ...connect.HandlerOption) (s
 		connect.WithSchema(aiServiceMethods.ByName("GenerateExecutiveSummary")),
 		connect.WithHandlerOptions(opts...),
 	)
+	aiServicePlanSQLiAttackHandler := connect.NewUnaryHandler(
+		AiServicePlanSQLiAttackProcedure,
+		svc.PlanSQLiAttack,
+		connect.WithSchema(aiServiceMethods.ByName("PlanSQLiAttack")),
+		connect.WithHandlerOptions(opts...),
+	)
+	aiServiceVerifyAttackResultHandler := connect.NewUnaryHandler(
+		AiServiceVerifyAttackResultProcedure,
+		svc.VerifyAttackResult,
+		connect.WithSchema(aiServiceMethods.ByName("VerifyAttackResult")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/ai.v1.AiService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case AiServiceHealthProcedure:
 			aiServiceHealthHandler.ServeHTTP(w, r)
 		case AiServiceGenerateExecutiveSummaryProcedure:
 			aiServiceGenerateExecutiveSummaryHandler.ServeHTTP(w, r)
+		case AiServicePlanSQLiAttackProcedure:
+			aiServicePlanSQLiAttackHandler.ServeHTTP(w, r)
+		case AiServiceVerifyAttackResultProcedure:
+			aiServiceVerifyAttackResultHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -134,4 +184,12 @@ func (UnimplementedAiServiceHandler) Health(context.Context, *connect.Request[v1
 
 func (UnimplementedAiServiceHandler) GenerateExecutiveSummary(context.Context, *connect.Request[v1.GenerateExecutiveSummaryRequest]) (*connect.Response[v1.GenerateExecutiveSummaryResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("ai.v1.AiService.GenerateExecutiveSummary is not implemented"))
+}
+
+func (UnimplementedAiServiceHandler) PlanSQLiAttack(context.Context, *connect.Request[v1.PlanSQLiAttackRequest]) (*connect.Response[v1.PlanSQLiAttackResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("ai.v1.AiService.PlanSQLiAttack is not implemented"))
+}
+
+func (UnimplementedAiServiceHandler) VerifyAttackResult(context.Context, *connect.Request[v1.VerifyAttackResultRequest]) (*connect.Response[v1.VerifyAttackResultResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("ai.v1.AiService.VerifyAttackResult is not implemented"))
 }

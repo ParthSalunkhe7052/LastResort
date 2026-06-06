@@ -2,7 +2,7 @@ import { Page } from 'playwright';
 import { NetworkCapture } from './capture';
 import { takeScreenshot } from './screenshot';
 import { Session, SessionManager } from './sessions';
-import { scrapePageContext } from './dom';
+import { scrapePageContext, dismissPopups } from './dom';
 import * as url from 'url';
 
 export interface CrawlResult {
@@ -61,6 +61,19 @@ function shouldCrawlUrl(urlStr: string): boolean {
   try {
     const u = new URL(urlStr);
     const pathname = u.pathname.toLowerCase();
+    const lowercaseUrl = urlStr.toLowerCase();
+    
+    // Prevent crawling logout/signoff pages to preserve session
+    if (
+      lowercaseUrl.includes('logout') || 
+      lowercaseUrl.includes('logoff') || 
+      lowercaseUrl.includes('signout') || 
+      lowercaseUrl.includes('signoff') ||
+      lowercaseUrl.includes('exit')
+    ) {
+      return false;
+    }
+
     const blacklistedExtensions = [
       '.pdf', '.xls', '.xlsx', '.doc', '.docx', '.ppt', '.pptx', 
       '.zip', '.tar', '.gz', '.tgz', '.rar', '.7z',
@@ -100,6 +113,9 @@ export async function runBrowserCrawl(
 
   const addEndpoint = (method: string, urlStr: string, source: string) => {
     try {
+      if (!isInCrawlScope(urlStr, targetUrl, targetHost)) {
+        return;
+      }
       const u = new URL(urlStr);
       u.hash = '';
       const normalized = u.toString();
@@ -142,6 +158,7 @@ export async function runBrowserCrawl(
       try {
         capture.clear();
         await page.goto(currentUrl, { waitUntil: 'load', timeout: 15000 });
+        await dismissPopups(page);
         await streamPageScreenshot(page, scanId);
         await page.waitForTimeout(2000);
         await streamPageScreenshot(page, scanId);
@@ -150,6 +167,14 @@ export async function runBrowserCrawl(
         if (screenshotPath) screenshots.push({ url: currentUrl, path: screenshotPath });
 
         addEndpoint('GET', currentUrl, 'browser_crawl');
+
+        const finalUrl = page.url();
+        if (!isInCrawlScope(finalUrl, targetUrl, targetHost)) {
+          const redirectLog = `[BROWSER CRAWLER] Skipped scraping out-of-scope redirected URL: ${finalUrl}`;
+          console.log(redirectLog);
+          await sendScanEvent(scanId, 'log.info', { message: redirectLog });
+          continue;
+        }
 
         const context = await scrapePageContext(page);
 

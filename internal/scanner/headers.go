@@ -47,11 +47,6 @@ func (as *ActiveScanner) ScanHeaders(ctx context.Context, scanID, urlStr string,
 				severity = "MEDIUM"
 			}
 
-			flowID, flowErr := as.db.SaveFlow(ctx, scanID, "GET", urlStr, map[string][]string{}, nil, respHeaders, nil, respStatus)
-			if flowErr != nil {
-				return flowErr
-			}
-
 			_, err := as.db.SaveFindingWithEvidence(ctx, storage.FindingInput{
 				ScanID:            scanID,
 				Title:             title,
@@ -64,7 +59,7 @@ func (as *ActiveScanner) ScanHeaders(ctx context.Context, scanID, urlStr string,
 				Confidence:        0.9,
 				Category:          "OBSERVATION",
 			}, storage.EvidenceInput{
-				FlowID:          flowID,
+				FlowID:          0,
 				EvidenceType:    storage.EvidenceHeader,
 				RequestExcerpt:  fmt.Sprintf("GET %s", urlStr),
 				ResponseExcerpt: fmt.Sprintf("missing header: %s", sh.header),

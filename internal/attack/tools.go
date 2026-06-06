@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // ToolFinding represents a vulnerability finding discovered by an external tool.
@@ -32,7 +33,7 @@ func ToolAvailable(name string) bool {
 
 // RunKatanaCrawl runs the Katana crawler on targetURL.
 // It calls onEndpoint for every discovered URL parsed from Katana's output.
-func RunKatanaCrawl(ctx context.Context, targetURL string, proxyPort int, onEndpoint func(method, urlStr, source string)) error {
+func RunKatanaCrawl(ctx context.Context, targetURL string, proxyPort int, cookieStr string, onEndpoint func(method, urlStr, source string)) error {
 	if !ToolAvailable("katana") {
 		return fmt.Errorf("katana binary not found in PATH")
 	}
@@ -49,6 +50,9 @@ func RunKatanaCrawl(ctx context.Context, targetURL string, proxyPort int, onEndp
 	args := []string{"-u", targetURL, "-d", "3", "-jc", "-silent", "-o", tmpPath}
 	if proxyPort > 0 {
 		args = append(args, "-proxy", fmt.Sprintf("http://127.0.0.1:%d", proxyPort))
+	}
+	if cookieStr != "" {
+		args = append(args, "-H", fmt.Sprintf("Cookie: %s", cookieStr))
 	}
 	cmd := exec.CommandContext(ctx, "katana", args...)
 	if err := cmd.Run(); err != nil {
@@ -83,10 +87,14 @@ type DalfoxJSONOutput struct {
 }
 
 // RunDalfoxScan executes Dalfox against targetURL.
-func RunDalfoxScan(ctx context.Context, targetURL string, proxyPort int) ([]ToolFinding, error) {
+func RunDalfoxScan(ctx context.Context, targetURL string, proxyPort int, cookieStr string, onLog func(string)) ([]ToolFinding, error) {
 	if !ToolAvailable("dalfox") {
 		return nil, fmt.Errorf("dalfox binary not found in PATH")
 	}
+
+	// 5-minute timeout for Dalfox
+	toolCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
 
 	tmpFile, err := os.CreateTemp("", "dalfox-*.json")
 	if err != nil {
@@ -101,17 +109,39 @@ func RunDalfoxScan(ctx context.Context, targetURL string, proxyPort int) ([]Tool
 	if proxyPort > 0 {
 		args = append(args, "--proxy", fmt.Sprintf("http://127.0.0.1:%d", proxyPort))
 	}
-	cmd := exec.CommandContext(ctx, "dalfox", args...)
-	if err := cmd.Run(); err != nil {
-		// Dalfox returns non-zero code sometimes if findings are found, or on scan issues.
+	if cookieStr != "" {
+		args = append(args, "--cookie", cookieStr)
+	}
+	cmd := exec.CommandContext(toolCtx, "dalfox", args...)
+	
+	// Stream output to UI
+	stdout, _ := cmd.StdoutPipe()
+	stderr, _ := cmd.StderrPipe()
+	go streamToolOutput(stdout, "[Dalfox]", onLog)
+	go streamToolOutput(stderr, "[Dalfox-ERR]", onLog)
 
-		// We proceed to check if the output file has content regardless.
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("failed to start dalfox: %w", err)
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+
+	select {
+	case <-toolCtx.Done():
+		if cmd.Process != nil { cmd.Process.Kill() }
+		onLog("[Dalfox] [TIMEOUT] Dalfox exceeded 5-minute budget. Terminating and collecting partial results.")
+	case err := <-done:
+		if err != nil {
+			onLog(fmt.Sprintf("[Dalfox] [WARNING] Dalfox exited with error: %v", err))
+		}
 	}
 
 	fileInfo, err := os.Stat(tmpPath)
 	if err != nil || fileInfo.Size() == 0 {
 		return nil, nil // No findings or couldn't read file
 	}
+	// ... (rest of the parsing logic remains same)
 
 	data, err := os.ReadFile(tmpPath)
 	if err != nil {
@@ -171,10 +201,14 @@ func RunDalfoxScan(ctx context.Context, targetURL string, proxyPort int) ([]Tool
 }
 
 // RunSQLMapScan runs SQLMap on targetURL.
-func RunSQLMapScan(ctx context.Context, targetURL string, proxyPort int) ([]ToolFinding, error) {
+func RunSQLMapScan(ctx context.Context, targetURL string, proxyPort int, cookieStr string, onLog func(string)) ([]ToolFinding, error) {
 	if !ToolAvailable("sqlmap") {
 		return nil, fmt.Errorf("sqlmap binary not found in PATH")
 	}
+
+	// 8-minute timeout for SQLMap
+	toolCtx, cancel := context.WithTimeout(ctx, 8*time.Minute)
+	defer cancel()
 
 	tmpDir, err := os.MkdirTemp("", "sqlmap-out-*")
 	if err != nil {
@@ -183,17 +217,39 @@ func RunSQLMapScan(ctx context.Context, targetURL string, proxyPort int) ([]Tool
 	defer os.RemoveAll(tmpDir)
 
 	// Command: sqlmap -u <targetURL> --batch --level=2 --risk=1 --output-dir=<tmpDir> --forms --non-interactive
-	// Note: --non-interactive is crucial on Windows to avoid prompt hangs at exit.
-	args := []string{"-u", targetURL, "--batch", "--level=2", "--risk=1", "--output-dir=" + tmpDir, "--forms", "--non-interactive"}
+	args := []string{"-u", targetURL, "--batch", "--level=2", "--risk=1", "--output-dir=" + tmpDir, "--forms", "--answers=ext=Y,quit=N,fill=Y", "--smart"}
 	if proxyPort > 0 {
 		args = append(args, "--proxy", fmt.Sprintf("http://127.0.0.1:%d", proxyPort))
 	}
-	cmd := exec.CommandContext(ctx, "sqlmap", args...)
-	if err := cmd.Run(); err != nil {
-		// sqlmap might return non-zero exit codes when finding injection or when encountering errors.
-
-		// We still parse the log file to extract injection details.
+	if cookieStr != "" {
+		args = append(args, "--cookie", cookieStr)
 	}
+	cmd := exec.CommandContext(toolCtx, "sqlmap", args...)
+	
+	// Stream output to UI
+	stdout, _ := cmd.StdoutPipe()
+	stderr, _ := cmd.StderrPipe()
+	go streamToolOutput(stdout, "[SQLMap]", onLog)
+	go streamToolOutput(stderr, "[SQLMap-ERR]", onLog)
+
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("failed to start sqlmap: %w", err)
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+
+	select {
+	case <-toolCtx.Done():
+		if cmd.Process != nil { cmd.Process.Kill() }
+		onLog("[SQLMap] [TIMEOUT] SQLMap exceeded 8-minute budget. Terminating and collecting partial results.")
+	case err := <-done:
+		if err != nil {
+			onLog(fmt.Sprintf("[SQLMap] [WARNING] SQLMap exited with error: %v", err))
+		}
+	}
+
+	// ... (rest of the log parsing logic)
 
 	// SQLMap writes output to subdirectories under the output-dir based on hostnames.
 	// We scan the directory to find any "log" files.
@@ -243,14 +299,18 @@ type NucleiJSONOutput struct {
 }
 
 // RunNucleiScan executes Nuclei scanner on targetURL.
-func RunNucleiScan(ctx context.Context, targetURL string, proxyPort int) ([]ToolFinding, error) {
+func RunNucleiScan(ctx context.Context, targetURL string, proxyPort int, cookieStr string, onLog func(string)) ([]ToolFinding, error) {
 	if !ToolAvailable("nuclei") {
 		return nil, fmt.Errorf("nuclei binary not found in PATH")
 	}
 
+	// 5-minute timeout for Nuclei
+	toolCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+
 	// Ensure templates are initialized if they appear to be missing
 	if !checkNucleiTemplatesExist() {
-		log.Printf("[Nuclei] Templates not found in default location. Attempting synchronous initialization...")
+		onLog("[Nuclei] Templates not found in default location. Attempting synchronous initialization...")
 		InitNucleiTemplates()
 	}
 
@@ -267,26 +327,40 @@ func RunNucleiScan(ctx context.Context, targetURL string, proxyPort int) ([]Tool
 	if proxyPort > 0 {
 		args = append(args, "-proxy", fmt.Sprintf("http://127.0.0.1:%d", proxyPort))
 	}
-	cmd := exec.CommandContext(ctx, "nuclei", args...)
+	if cookieStr != "" {
+		args = append(args, "-H", fmt.Sprintf("Cookie: %s", cookieStr))
+	}
+	cmd := exec.CommandContext(toolCtx, "nuclei", args...)
 	cmd.Env = os.Environ()
 
-	// Create buffers to capture stderr to help debug failures
-	var stderrBuf bytes.Buffer
-	cmd.Stdout = io.Discard
-	cmd.Stderr = &stderrBuf
+	// Stream output to UI
+	stdout, _ := cmd.StdoutPipe()
+	stderr, _ := cmd.StderrPipe()
+	go streamToolOutput(stdout, "[Nuclei]", onLog)
+	go streamToolOutput(stderr, "[Nuclei-ERR]", onLog)
 
-	if err := cmd.Run(); err != nil {
-		stderrStr := strings.TrimSpace(stderrBuf.String())
-		if strings.Contains(stderrStr, "no templates provided") {
-			return nil, fmt.Errorf("nuclei failed: no templates found. Ensure 'nuclei -ut' has been run and templates are accessible: %s", stderrStr)
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("failed to start nuclei: %w", err)
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+
+	select {
+	case <-toolCtx.Done():
+		if cmd.Process != nil { cmd.Process.Kill() }
+		onLog("[Nuclei] [TIMEOUT] Nuclei exceeded 5-minute budget. Terminating.")
+	case err := <-done:
+		if err != nil {
+			onLog(fmt.Sprintf("[Nuclei] [WARNING] Nuclei exited with error: %v", err))
 		}
-		return nil, fmt.Errorf("nuclei execution failed (stderr: %s): %w", stderrStr, err)
 	}
 
 	data, err := os.ReadFile(tmpPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read nuclei output: %w", err)
 	}
+	// ... (rest of the parsing logic)
 
 	var findings []ToolFinding
 	lines := strings.Split(string(data), "\n")
@@ -318,6 +392,40 @@ func RunNucleiScan(ctx context.Context, targetURL string, proxyPort int) ([]Tool
 	}
 
 	return findings, nil
+}
+
+func streamToolOutput(r io.Reader, prefix string, onLog func(string)) {
+	scanner := strings.NewReader("") // dummy
+	_ = scanner
+	bufR := io.TeeReader(r, &bytes.Buffer{}) // just to be safe
+	_ = bufR
+	
+	lineScanner := strings.NewReader("")
+	_ = lineScanner
+	
+	// Real implementation
+	rd := io.Reader(r)
+	b := make([]byte, 1024)
+	var currentLine strings.Builder
+	for {
+		n, err := rd.Read(b)
+		if n > 0 {
+			for i := 0; i < n; i++ {
+				if b[i] == '\n' {
+					onLog(fmt.Sprintf("%s %s", prefix, currentLine.String()))
+					currentLine.Reset()
+				} else if b[i] != '\r' {
+					currentLine.WriteByte(b[i])
+				}
+			}
+		}
+		if err != nil {
+			if currentLine.Len() > 0 {
+				onLog(fmt.Sprintf("%s %s", prefix, currentLine.String()))
+			}
+			break
+		}
+	}
 }
 
 // checkNucleiTemplatesExist performs a basic check for the existence of the nuclei-templates directory.

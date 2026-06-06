@@ -30,7 +30,7 @@ export default function App() {
 
   // Connection states
   const [goDaemonStatus, setGoDaemonStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting')
-  const [pythonAiStatus, setPythonAiStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting')
+  const [aiEngineStatus, setAiEngineStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting')
   
   // Scans and events state
   const [activeScanId, setActiveScanId] = useState<string | null>(null)
@@ -66,17 +66,17 @@ export default function App() {
         const data = await res.json()
         setGoDaemonStatus('connected')
         if (data.ai && data.ai.status === 'ok') {
-          setPythonAiStatus('connected')
+          setAiEngineStatus('connected')
         } else {
-          setPythonAiStatus('disconnected')
+          setAiEngineStatus('disconnected')
         }
       } else {
         setGoDaemonStatus('disconnected')
-        setPythonAiStatus('disconnected')
+        setAiEngineStatus('disconnected')
       }
     } catch {
       setGoDaemonStatus('disconnected')
-      setPythonAiStatus('disconnected')
+      setAiEngineStatus('disconnected')
     }
   }
 
@@ -342,7 +342,7 @@ export default function App() {
       activeTab={activeTab}
       setActiveTab={setActiveTab}
       goDaemonStatus={goDaemonStatus}
-      pythonAiStatus={pythonAiStatus}
+      aiEngineStatus={aiEngineStatus}
       targetUrl={targetUrl}
       onSync={syncSystem}
       scanStatus={scanStatus}

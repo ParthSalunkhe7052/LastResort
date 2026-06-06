@@ -61,5 +61,17 @@ func (as *ActiveScanner) GetHTTPClient() *http.Client {
 	return as.client
 }
 
+// AttackSurface represents the request parameter details for injection testing.
+type AttackSurface struct {
+	URL         string
+	Method      string
+	BaseBody    []byte
+	ContentType string
+	Point       InsertionPoint
+	IsForm      bool
+	FormSel     string
+	FormPageURL string
+}
+
 // Ensure interface functions compile cleanly
 var _ context.Context
