@@ -3,6 +3,7 @@ package report
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"os"
@@ -56,7 +57,7 @@ func (g *Generator) GenerateScanReport(ctx context.Context, scanID string) (stri
 
 	// 2. Fetch findings
 	rows, err := g.db.QueryContext(ctx,
-		`SELECT id, title, description, severity, vulnerability_type, endpoint, payload, response_status, confidence, category, is_false_positive
+		`SELECT id, title, description, severity, vulnerability_type, endpoint, payload, response_status, confidence, category, is_false_positive, COALESCE(verification_id, '')
 		 FROM findings WHERE scan_id = ? ORDER BY severity DESC, vulnerability_type`, scanID,
 	)
 	if err != nil {
@@ -72,7 +73,7 @@ func (g *Generator) GenerateScanReport(ctx context.Context, scanID string) (stri
 		var f storage.Finding
 		var isFP int
 		var category sql.NullString
-		err := rows.Scan(&f.ID, &f.Title, &f.Description, &f.Severity, &f.VulnerabilityType, &f.Endpoint, &f.Payload, &f.ResponseStatus, &f.Confidence, &category, &isFP)
+		err := rows.Scan(&f.ID, &f.Title, &f.Description, &f.Severity, &f.VulnerabilityType, &f.Endpoint, &f.Payload, &f.ResponseStatus, &f.Confidence, &category, &isFP, &f.VerificationID)
 		if err != nil {
 			return "", "", fmt.Errorf("failed to scan finding row: %w", err)
 		}
@@ -139,20 +140,68 @@ type HTMLFinding struct {
 			Confidence:        float32(f.Confidence),
 		})
 
-		// Fetch evidence flows
+		// Fetch evidence from multiple sources (best available)
 		var rawReq, rawRes string
-		row := g.db.QueryRowContext(ctx, `
-			SELECT request_excerpt, response_excerpt
-			FROM finding_evidence
-			WHERE finding_id = ?
-			ORDER BY created_at ASC
-			LIMIT 1
-		`, f.ID)
-		
-		if err := row.Scan(&rawReq, &rawRes); err == nil {
-			if len(rawRes) > 2000 {
-				rawRes = rawRes[:2000] + "\n...[TRUNCATED]..."
+
+		// Source 1: Attack Verification Artifacts
+		if f.VerificationID != "" {
+			if sv, err := g.db.GetVerificationForFinding(ctx, f.ID); err == nil && sv.ArtifactsJSON != "" {
+				var artifacts []storage.EvidenceArtifact
+				if err := json.Unmarshal([]byte(sv.ArtifactsJSON), &artifacts); err == nil {
+					for _, art := range artifacts {
+						if art.ArtifactType == "REQUEST" && rawReq == "" {
+							rawReq = art.Content
+						}
+						if art.ArtifactType == "RESPONSE" && rawRes == "" {
+							rawRes = art.Content
+						}
+					}
+				}
 			}
+		}
+
+		// Source 2: Finding Evidence (fallback)
+		if rawReq == "" || rawRes == "" {
+			var feReq, feRes string
+			row := g.db.QueryRowContext(ctx, `
+				SELECT request_excerpt, response_excerpt
+				FROM finding_evidence
+				WHERE finding_id = ?
+				ORDER BY created_at ASC
+				LIMIT 1
+			`, f.ID)
+			if err := row.Scan(&feReq, &feRes); err == nil {
+				if rawReq == "" {
+					rawReq = feReq
+				}
+				if rawRes == "" {
+					rawRes = feRes
+				}
+			}
+		}
+
+		// Source 3: Attack Attempts (last resort)
+		if rawReq == "" || rawRes == "" {
+			var aaReq, aaRes string
+			row := g.db.QueryRowContext(ctx, `
+				SELECT request_captured, response_captured
+				FROM attack_attempts
+				WHERE scan_id = ? AND endpoint = ? AND payload = ?
+				ORDER BY created_at DESC
+				LIMIT 1
+			`, scanID, f.Endpoint, f.Payload)
+			if err := row.Scan(&aaReq, &aaRes); err == nil {
+				if rawReq == "" {
+					rawReq = aaReq
+				}
+				if rawRes == "" {
+					rawRes = aaRes
+				}
+			}
+		}
+
+		if len(rawRes) > 2000 {
+			rawRes = rawRes[:2000] + "\n...[TRUNCATED]..."
 		}
 
 		htmlFindings = append(htmlFindings, HTMLFinding{
