@@ -12,7 +12,6 @@ const (
 	ModuleHeaders        = "headers"
 	ModuleCors           = "cors"
 	ModuleXssReflected   = "xss_reflected"
-	ModuleSqliBasic      = "sqli_basic"
 	ModuleCsrfBasic      = "csrf_basic"
 	ModuleRateLimitBasic = "rate_limit_basic"
 	ModulePathTraversal  = "path_traversal"
@@ -42,7 +41,6 @@ var ProfileModules = map[scanv1.ScanProfile][]string{
 		ModuleHeaders,
 		ModuleCors,
 		ModuleXssReflected,
-		ModuleSqliBasic,
 		ModuleSqliAgent,
 		ModuleCsrfBasic,
 		ModulePathTraversal,
@@ -58,7 +56,6 @@ var ProfileModules = map[scanv1.ScanProfile][]string{
 		ModuleHeaders,
 		ModuleCors,
 		ModuleXssReflected,
-		ModuleSqliBasic,
 		ModuleSqliAgent,
 		ModuleCsrfBasic,
 		ModuleRateLimitBasic,

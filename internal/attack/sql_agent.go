@@ -231,27 +231,39 @@ func ConvertToProtoActionResult(res *browser.ActionResult) *aiv1.ActionResult {
 }
 
 func (e *AgentSQLiExecutor) Execute(ctx context.Context, surf scanner.AttackSurface) error {
-	e.onLog(fmt.Sprintf("[AGENT] SQLi AI planning started for: %s %s (parameter: %s)", surf.Method, surf.URL, surf.Point.Name))
+	e.onLog(fmt.Sprintf("[AGENT] SQLi attack started for: %s %s (parameter: %s)", surf.Method, surf.URL, surf.Point.Name))
 
+	// Phase 1: Static Payloads
+	for _, payload := range scanner.SQLiPayloads {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		if err := e.executeAndVerifyPayload(ctx, surf, payload.Value, fmt.Sprintf("Static (%s)", payload.Strategy), "Deterministic rule-set"); err != nil {
+			if strings.Contains(err.Error(), "EXPLOIT_SUCCESS") {
+				return nil
+			}
+		}
+	}
+
+	// Phase 2: AI-Planned Payloads
 	actionRes, err := e.executePayloadViaBrowser(ctx, surf.Method, surf.URL, surf.BaseBody, surf.FormPageURL)
 	if err != nil {
 		return fmt.Errorf("baseline request failed: %w", err)
 	}
 
-	req := &aiv1.PlanSQLiAttackRequest{
+	resp, err := e.aiClient.PlanSQLiAttack(ctx, connect.NewRequest(&aiv1.PlanSQLiAttackRequest{
 		CurrentContext: ConvertToProtoContext(actionRes),
 		Endpoint:       surf.URL,
 		Parameters:     []string{surf.Point.Name},
-	}
-
-	resp, err := e.aiClient.PlanSQLiAttack(ctx, connect.NewRequest(req))
+	}))
 	if err != nil {
 		return fmt.Errorf("AI planning failed: %w", err)
 	}
 
 	e.onLog(fmt.Sprintf("[AGENT] AI planned %d payloads. Reasoning: %s", len(resp.Msg.Payloads), resp.Msg.Reasoning))
-
-	step, _ := e.db.GetLastJournalStep(ctx, e.scanID)
 
 	for _, payload := range resp.Msg.Payloads {
 		select {
@@ -260,77 +272,85 @@ func (e *AgentSQLiExecutor) Execute(ctx context.Context, surf scanner.AttackSurf
 		default:
 		}
 
-		e.onLog(fmt.Sprintf("[AGENT] Executing SQLi payload: %s (%s)", payload.Value, payload.Strategy))
-		_ = e.db.IncrementAttackExecuted(ctx, e.scanID)
-
-		injectedURL, injectedBody := scanner.BuildInjectedRequest(surf.Method, surf.URL, surf.BaseBody, surf.ContentType, surf.Point, payload.Value)
-
-		attemptID, _ := e.db.SaveAttackAttempt(ctx, storage.AttackAttemptInput{
-			ScanID:           e.scanID,
-			AttackType:       "SQL Injection (Agent)",
-			Endpoint:         injectedURL,
-			Payload:          payload.Value,
-			RequestCaptured:  fmt.Sprintf("%s %s\nContent-Type: %s\n\n%s", surf.Method, injectedURL, surf.ContentType, string(injectedBody)),
-			ResponseCaptured: "",
-			EvidenceFound:    "",
-			Result:           "failed",
-		})
-
-		result, err := e.executePayloadViaBrowser(ctx, surf.Method, injectedURL, injectedBody, surf.FormPageURL)
-		if err != nil || result == nil {
-			_ = e.db.IncrementAttackFailed(ctx, e.scanID)
-			e.onLog("[AGENT] Playwright execution failed for payload.")
-			continue
-		}
-
-		if attemptID != "" && result.PageSource != "" {
-			resExcerpt := result.PageSource
-			if len(resExcerpt) > 1000 {
-				resExcerpt = resExcerpt[:1000]
+		if err := e.executeAndVerifyPayload(ctx, surf, payload.Value, fmt.Sprintf("AI (%s)", payload.Strategy), resp.Msg.Reasoning); err != nil {
+			if strings.Contains(err.Error(), "EXPLOIT_SUCCESS") {
+				return nil
 			}
-			_, _ = e.db.ExecContext(ctx, "UPDATE attack_attempts SET response_captured = ? WHERE id = ?", resExcerpt, attemptID)
 		}
-
-		resultProto := ConvertToProtoActionResult(result)
-
-		step++
-		_ = e.db.SaveJournalEntry(ctx, &storage.JournalEntry{
-			ScanID:    e.scanID,
-			Step:      step,
-			Action:    "sqli_test",
-			Selector:  surf.Point.Name,
-			Value:     payload.Value,
-			Success:   result.Success,
-			Error:     result.FailureReason,
-			Reasoning: resp.Msg.Reasoning,
-			Result:    result,
-		})
-
-		verifyReq := &aiv1.VerifyAttackResultRequest{
-			Payload:  payload.Value,
-			Response: resultProto,
-		}
-
-		verifyResp, err := e.aiClient.VerifyAttackResult(ctx, connect.NewRequest(verifyReq))
-		if err != nil {
-			e.onLog(fmt.Sprintf("[AGENT] AI verification error: %v. Falling back to deterministic rules.", err))
-			// Fallback to deterministic verification rules inside Orchestrator
-			continue
-		}
-
-		if verifyResp.Msg.Confirmed {
-			e.onLog(fmt.Sprintf("[AGENT] EXPLOIT SUCCESSFUL! AI verified SQLi: %s", verifyResp.Msg.Reasoning))
-			_, _ = e.db.ExecContext(ctx, "UPDATE attack_attempts SET result = ?, evidence_found = ? WHERE id = ?", "verified", verifyResp.Msg.Reasoning, attemptID)
-
-			return e.saveAgentFinding(ctx, surf, payload.Value, result, verifyResp.Msg.Reasoning, float64(verifyResp.Msg.Confidence))
-		}
-
-		e.onLog(fmt.Sprintf("[AGENT] Payload verify failed. Reasoning: %s", verifyResp.Msg.Reasoning))
-		_ = e.db.IncrementAttackFailed(ctx, e.scanID)
 	}
 
 	return nil
-}
+	}
+
+	func (e *AgentSQLiExecutor) executeAndVerifyPayload(ctx context.Context, surf scanner.AttackSurface, payloadValue, strategy, reasoning string) error {
+	e.onLog(fmt.Sprintf("[AGENT] Executing SQLi: %s (%s)", payloadValue, strategy))
+	_ = e.db.IncrementAttackExecuted(ctx, e.scanID)
+
+	injectedURL, injectedBody := scanner.BuildInjectedRequest(surf.Method, surf.URL, surf.BaseBody, surf.ContentType, surf.Point, payloadValue)
+
+	attemptID, _ := e.db.SaveAttackAttempt(ctx, storage.AttackAttemptInput{
+		ScanID:           e.scanID,
+		AttackType:       "SQL Injection",
+		Endpoint:         injectedURL,
+		Payload:          payloadValue,
+		RequestCaptured:  fmt.Sprintf("%s %s\nContent-Type: %s\n\n%s", surf.Method, injectedURL, surf.ContentType, string(injectedBody)),
+		ResponseCaptured: "",
+		EvidenceFound:    "",
+		Result:           "failed",
+	})
+
+	result, err := e.executePayloadViaBrowser(ctx, surf.Method, injectedURL, injectedBody, surf.FormPageURL)
+	if err != nil || result == nil {
+		_ = e.db.IncrementAttackFailed(ctx, e.scanID)
+		return nil
+	}
+
+	if attemptID != "" && result.PageSource != "" {
+		resExcerpt := result.PageSource
+		if len(resExcerpt) > 1000 {
+			resExcerpt = resExcerpt[:1000]
+		}
+		_, _ = e.db.ExecContext(ctx, "UPDATE attack_attempts SET response_captured = ? WHERE id = ?", resExcerpt, attemptID)
+	}
+
+	step, _ := e.db.GetLastJournalStep(ctx, e.scanID)
+	_ = e.db.SaveJournalEntry(ctx, &storage.JournalEntry{
+		ScanID:    e.scanID,
+		Step:      step + 1,
+		Action:    "sqli_test",
+		Selector:  surf.Point.Name,
+		Value:     payloadValue,
+		Success:   result.Success,
+		Error:     result.FailureReason,
+		Reasoning: reasoning,
+		Result:    result,
+	})
+
+	if e.aiClient != nil {
+		verifyResp, err := e.aiClient.VerifyAttackResult(ctx, connect.NewRequest(&aiv1.VerifyAttackResultRequest{
+			Payload:  payloadValue,
+			Response: ConvertToProtoActionResult(result),
+		}))
+		if err == nil && verifyResp != nil && verifyResp.Msg.Confirmed {
+			e.onLog(fmt.Sprintf("[AGENT] EXPLOIT SUCCESSFUL! AI verified SQLi: %s", verifyResp.Msg.Reasoning))
+			_, _ = e.db.ExecContext(ctx, "UPDATE attack_attempts SET result = ?, evidence_found = ? WHERE id = ?", "verified", verifyResp.Msg.Reasoning, attemptID)
+			_ = e.saveAgentFinding(ctx, surf, payloadValue, result, verifyResp.Msg.Reasoning, float64(verifyResp.Msg.Confidence))
+			return fmt.Errorf("EXPLOIT_SUCCESS")
+		}
+	}
+
+	dvr := scanner.VerifySQLiDeterministic(surf.URL, payloadValue, result.PageSource, result.ScreenshotBase64)
+	if dvr.Verified {
+		e.onLog(fmt.Sprintf("[AGENT] EXPLOIT SUCCESSFUL! Deterministic verification confirmed SQLi: %s", dvr.EvidenceSummary))
+		_, _ = e.db.ExecContext(ctx, "UPDATE attack_attempts SET result = ?, evidence_found = ? WHERE id = ?", "verified", dvr.EvidenceSummary, attemptID)
+		_ = e.saveAgentFinding(ctx, surf, payloadValue, result, dvr.EvidenceSummary, dvr.Confidence)
+		return fmt.Errorf("EXPLOIT_SUCCESS")
+	}
+
+	_ = e.db.IncrementAttackFailed(ctx, e.scanID)
+	return nil
+	}
+
 
 func (e *AgentSQLiExecutor) saveAgentFinding(ctx context.Context, surf scanner.AttackSurface, payload string, result *browser.ActionResult, evidence string, confidence float64) error {
 	_ = e.db.IncrementAttackVerified(ctx, e.scanID)

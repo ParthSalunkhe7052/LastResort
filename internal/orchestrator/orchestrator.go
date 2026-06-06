@@ -86,6 +86,13 @@ func (o *Orchestrator) Start(scanID string) {
 		weights := GetModuleWeights(modules)
 		cumulative := 0.0
 
+		// Check browser health before starting
+		if !o.browserClient.IsOnline(ctx) {
+			log.Printf("[Orchestrator] [ERROR] Browser service is offline at %s. Aborting scan.", "http://127.0.0.1:3010")
+			o.failScan(scanID, fmt.Errorf("browser service is offline"))
+			return
+		}
+
 		// Update database status to Running
 		o.updateScanStatus(scanID, scanv1.ScanStatus_SCAN_STATUS_RUNNING, 0.0)
 		o.publishProgress(scanID, 0.0)
@@ -105,7 +112,7 @@ func (o *Orchestrator) Start(scanID string) {
 			switch m {
 			case ModuleRecon, ModuleAuthDiscovery, ModuleCrawlStatic, ModulePassive:
 				prepModules = append(prepModules, m)
-			case ModuleHeaders, ModuleCors, ModuleXssReflected, ModuleSqliBasic, ModuleCsrfBasic, ModuleRateLimitBasic, ModuleNuclei, ModulePathTraversal:
+			case ModuleHeaders, ModuleCors, ModuleXssReflected, ModuleCsrfBasic, ModuleRateLimitBasic, ModuleNuclei, ModulePathTraversal:
 				parallelModules = append(parallelModules, m)
 			case ModuleVisualExploit, ModuleReport:
 				completionModules = append(completionModules, m)
@@ -481,8 +488,6 @@ func moduleDisplayName(module string) string {
 		return "CORS Checks"
 	case ModuleXssReflected:
 		return "Active Scan: XSS"
-	case ModuleSqliBasic:
-		return "Active Scan: SQLi"
 	case ModuleCsrfBasic:
 		return "Active Scan: CSRF"
 	case ModuleRateLimitBasic:
@@ -760,215 +765,6 @@ func (o *Orchestrator) runAgentSqliAgent(ctx context.Context, scanID, targetURL 
 	}
 	return nil
 }
-
-func (o *Orchestrator) runAgentSqli(ctx context.Context, scanID, targetURL string, onLog func(string)) error {
-	surfaces, err := o.getAttackSurfaces(ctx, scanID, targetURL)
-	if err != nil {
-		return err
-	}
-
-	for _, surf := range surfaces {
-		o.publishAgentLog(scanID, fmt.Sprintf("[AGENT] Target endpoint identified: %s %s (parameter: %s)", surf.Method, surf.URL, surf.Point.Name))
-		for _, payload := range scanner.SQLiPayloads {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			default:
-			}
-
-			o.publishAgentLog(scanID, fmt.Sprintf("[AGENT] Testing SQL Injection payload: %s", payload.Value))
-			_ = o.db.IncrementAttackExecuted(ctx, scanID)
-
-			injectedURL, injectedBody := scanner.BuildInjectedRequest(surf.Method, surf.URL, surf.BaseBody, surf.ContentType, surf.Point, payload.Value)
-
-			attemptID, _ := o.db.SaveAttackAttempt(ctx, storage.AttackAttemptInput{
-				ScanID:           scanID,
-				AttackType:       "SQL Injection",
-				Endpoint:         injectedURL,
-				Payload:          payload.Value,
-				RequestCaptured:  fmt.Sprintf("%s %s\nContent-Type: %s\n\n%s", surf.Method, injectedURL, surf.ContentType, string(injectedBody)),
-				ResponseCaptured: "",
-				EvidenceFound:    "",
-				Result:           "failed",
-			})
-
-			actionRes, err := o.executeDeterministicAttack(ctx, scanID, "sqli", surf.Method, injectedURL, injectedBody, surf.FormPageURL)
-			if err != nil || actionRes == nil {
-				_ = o.db.IncrementAttackFailed(ctx, scanID)
-				o.publishAgentLog(scanID, fmt.Sprintf("[AGENT] Browser action failed or timed out during attack."))
-				continue
-			}
-
-			if attemptID != "" && actionRes.PageSource != "" {
-				resExcerpt := actionRes.PageSource
-				if len(resExcerpt) > 1000 {
-					resExcerpt = resExcerpt[:1000]
-				}
-				_, _ = o.db.ExecContext(ctx, "UPDATE attack_attempts SET response_captured = ? WHERE id = ?", resExcerpt, attemptID)
-			}
-
-			vr := o.verification.VerifySQLi(ctx, injectedURL, payload.Value, actionRes.PageSource, actionRes.ScreenshotBase64)
-
-			if !vr.Verified {
-				_ = o.db.IncrementAttackFailed(ctx, scanID)
-				o.publishAgentLog(scanID, fmt.Sprintf("[AGENT] Exploit failed: verification returned negative result."))
-				continue
-			}
-
-			_ = o.db.IncrementAttackVerified(ctx, scanID)
-			o.publishAgentLog(scanID, fmt.Sprintf("[AGENT] EXPLOIT SUCCESSFUL! Verified SQL Injection on parameter %s. Evidence: %s", surf.Point.Name, vr.EvidenceSummary))
-			_, _ = o.db.ExecContext(ctx, "UPDATE attack_attempts SET result = ?, evidence_found = ? WHERE id = ?", "verified", vr.EvidenceSummary, attemptID)
-
-			findingID, err := o.db.SaveFindingWithEvidence(ctx, storage.FindingInput{
-				ScanID:            scanID,
-				Title:             fmt.Sprintf("SQL Injection - %s", surf.Point.Name),
-				Description:       fmt.Sprintf("[%s] %s\n\nVerification: %s", payload.Strategy, payload.Description, vr.EvidenceSummary),
-				Severity:          "HIGH",
-				VulnerabilityType: "SQL Injection",
-				Endpoint:          injectedURL,
-				Payload:           payload.Value,
-				ResponseStatus:    200,
-				Confidence:        vr.Confidence,
-				Category:          storage.StatePotentialFinding,
-			}, storage.EvidenceInput{
-				FlowID:          0,
-				EvidenceType:    storage.EvidenceScreenshot,
-				RequestExcerpt:  fmt.Sprintf("%s %s\n\n%s", surf.Method, injectedURL, string(injectedBody)),
-				ResponseExcerpt: actionRes.PageSource,
-				ScreenshotB64:   actionRes.ScreenshotBase64,
-			})
-
-			if err == nil {
-				verifID, verifErr := o.db.SaveVerification(ctx, findingID, scanID, vr)
-				if verifErr == nil {
-					if _, updateErr := o.db.ExecContext(ctx, "UPDATE findings SET category = ?, verification_id = ? WHERE id = ?", storage.StateVerifiedFinding, verifID, findingID); updateErr != nil {
-						o.publishAgentLog(scanID, fmt.Sprintf("[ERROR] Failed to update finding category: %v", updateErr))
-					}
-				} else {
-					o.publishAgentLog(scanID, fmt.Sprintf("[ERROR] Failed to save verification: %v", verifErr))
-				}
-			} else {
-				o.publishAgentLog(scanID, fmt.Sprintf("[ERROR] Failed to save finding: %v", err))
-			}
-		}
-	}
-
-	// 2. Call SQLMap fuzzer loop if tool is available
-	if !attack.ToolAvailable("sqlmap") {
-		o.publishAgentLog(scanID, "[Orchestrator] [WARNING] SQLMap fuzzer not found in PATH. Downgrading gracefully to internal SQLi fuzzer.")
-	} else {
-		o.publishAgentLog(scanID, "[Orchestrator] [SQLi] SQLMap is available. Fuzzing discovered endpoints...")
-		cookieStr := o.getAuthCookieString(ctx, scanID)
-		endpoints, err := o.db.ListEndpoints(ctx, scanID)
-		if err == nil {
-			var fuzzedAny bool
-			for _, ep := range endpoints {
-				if strings.Contains(ep.URL, "?") {
-					o.publishAgentLog(scanID, fmt.Sprintf("[Orchestrator] [SQLi] Running SQLMap on parameter endpoint: %s", ep.URL))
-					sqliFindings, err := attack.RunSQLMapScan(ctx, ep.URL, o.proxyPort, cookieStr, onLog)
-					if err == nil && len(sqliFindings) > 0 {
-						fuzzedAny = true
-						for _, f := range sqliFindings {
-							_ = o.db.IncrementAttackExecuted(ctx, scanID)
-							_ = o.db.IncrementAttackVerified(ctx, scanID)
-							findingID, err := o.db.SaveFindingWithEvidence(ctx, storage.FindingInput{
-								ScanID:            scanID,
-								Title:             f.Title,
-								Description:       fmt.Sprintf("%s\n\nVerification: Verified by SQLMap fuzzer.", f.Evidence),
-								Severity:          f.Severity,
-								VulnerabilityType: f.VulnerabilityType,
-								Endpoint:          f.Endpoint,
-								Payload:           f.Payload,
-								ResponseStatus:    200,
-								Confidence:        0.95,
-								Category:          storage.StatePotentialFinding,
-							}, storage.EvidenceInput{
-								FlowID:          0,
-								EvidenceType:    storage.EvidenceDOM,
-								RequestExcerpt:  fmt.Sprintf("SQLMap vulnerability scan: %s", f.Endpoint),
-								ResponseExcerpt: f.Evidence,
-							})
-							if err == nil {
-								vr := &storage.VerificationResult{
-									EndpointURL:     f.Endpoint,
-									Payload:         f.Payload,
-									VerifiedAt:      time.Now(),
-									Verified:        true,
-									Confidence:      0.95,
-									Method:          storage.VerificationDOMMarker,
-									EvidenceSummary: fmt.Sprintf("SQLMap verified vulnerability details: %s", f.Evidence),
-								}
-								verifID, verifErr := o.db.SaveVerification(ctx, findingID, scanID, vr)
-								if verifErr == nil {
-									if _, updateErr := o.db.ExecContext(ctx, "UPDATE findings SET category = ?, verification_id = ? WHERE id = ?", storage.StateVerifiedFinding, verifID, findingID); updateErr != nil {
-										o.publishAgentLog(scanID, fmt.Sprintf("[ERROR] Failed to update finding category: %v", updateErr))
-									}
-								} else {
-									o.publishAgentLog(scanID, fmt.Sprintf("[ERROR] Failed to save verification: %v", verifErr))
-								}
-							} else {
-								o.publishAgentLog(scanID, fmt.Sprintf("[ERROR] Failed to save finding: %v", err))
-							}
-						}
-					}
-				}
-			}
-			// Fallback to seed target URL if no parameter-based endpoints were found
-			if !fuzzedAny {
-				o.publishAgentLog(scanID, fmt.Sprintf("[Orchestrator] [SQLi] Running SQLMap on seed URL: %s", targetURL))
-				sqliFindings, err := attack.RunSQLMapScan(ctx, targetURL, o.proxyPort, cookieStr, onLog)
-
-				if err == nil {
-					for _, f := range sqliFindings {
-						_ = o.db.IncrementAttackExecuted(ctx, scanID)
-						_ = o.db.IncrementAttackVerified(ctx, scanID)
-						findingID, err := o.db.SaveFindingWithEvidence(ctx, storage.FindingInput{
-							ScanID:            scanID,
-							Title:             f.Title,
-							Description:       fmt.Sprintf("%s\n\nVerification: Verified by SQLMap fuzzer.", f.Evidence),
-							Severity:          f.Severity,
-							VulnerabilityType: f.VulnerabilityType,
-							Endpoint:          f.Endpoint,
-							Payload:           f.Payload,
-							ResponseStatus:    200,
-							Confidence:        0.95,
-							Category:          storage.StatePotentialFinding,
-						}, storage.EvidenceInput{
-							FlowID:          0,
-							EvidenceType:    storage.EvidenceDOM,
-							RequestExcerpt:  fmt.Sprintf("SQLMap vulnerability scan: %s", f.Endpoint),
-							ResponseExcerpt: f.Evidence,
-						})
-						if err == nil {
-							vr := &storage.VerificationResult{
-								EndpointURL:     f.Endpoint,
-								Payload:         f.Payload,
-								VerifiedAt:      time.Now(),
-								Verified:        true,
-								Confidence:      0.95,
-								Method:          storage.VerificationDOMMarker,
-								EvidenceSummary: fmt.Sprintf("SQLMap verified vulnerability details: %s", f.Evidence),
-							}
-							verifID, verifErr := o.db.SaveVerification(ctx, findingID, scanID, vr)
-							if verifErr == nil {
-								if _, updateErr := o.db.ExecContext(ctx, "UPDATE findings SET category = ?, verification_id = ? WHERE id = ?", storage.StateVerifiedFinding, verifID, findingID); updateErr != nil {
-									o.publishAgentLog(scanID, fmt.Sprintf("[ERROR] Failed to update finding category: %v", updateErr))
-								}
-							} else {
-								o.publishAgentLog(scanID, fmt.Sprintf("[ERROR] Failed to save verification: %v", verifErr))
-							}
-						} else {
-							o.publishAgentLog(scanID, fmt.Sprintf("[ERROR] Failed to save finding: %v", err))
-						}
-					}
-				}
-			}
-		}
-	}
-
-	return nil
-}
-
 
 func (o *Orchestrator) runAgentXss(ctx context.Context, scanID, targetURL string, onLog func(string)) error {
 	surfaces, err := o.getAttackSurfaces(ctx, scanID, targetURL)
@@ -1832,9 +1628,6 @@ func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module 
 	case ModuleXssReflected:
 		return o.runAgentXss(ctx, scanID, targetURL, onLog)
 
-	case ModuleSqliBasic:
-		return o.runAgentSqli(ctx, scanID, targetURL, onLog)
-
 	case ModuleSqliAgent:
 		return o.runAgentSqliAgent(ctx, scanID, targetURL, onLog)
 
@@ -2211,7 +2004,7 @@ func severityFromConfidence(conf float64) string {
 // isActiveScanModule returns true for modules that generate findings via HTTP probes.
 func isActiveScanModule(module string) bool {
 	switch module {
-	case ModuleHeaders, ModuleCors, ModuleXssReflected, ModuleSqliBasic, ModuleRateLimitBasic, ModuleNuclei:
+	case ModuleHeaders, ModuleCors, ModuleXssReflected, ModuleRateLimitBasic, ModuleNuclei:
 		return true
 	}
 	return false
