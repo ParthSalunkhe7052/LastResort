@@ -402,31 +402,36 @@ func truncateSentence(s string) string {
 
 // FindingRecord represents a single finding for API responses.
 type FindingRecord struct {
-	ID               string  `json:"id"`
-	Title            string  `json:"title"`
-	Severity         string  `json:"severity"`
-	VulnerabilityType string `json:"vulnerability_type"`
-	Endpoint         string  `json:"endpoint"`
-	Payload          string  `json:"payload"`
-	Description      string  `json:"description"`
-	Confidence       float64 `json:"confidence"`
+	ID                string  `json:"id"`
+	Title             string  `json:"title"`
+	Severity          string  `json:"severity"`
+	VulnerabilityType string  `json:"vulnerability_type"`
+	Endpoint          string  `json:"endpoint"`
+	Payload           string  `json:"payload"`
+	Description       string  `json:"description"`
+	Confidence        float64 `json:"confidence"`
+	Category          string  `json:"category"`
+	Verified          bool    `json:"verified"`
+	VerificationMethod string  `json:"verification_method"`
 }
 
 // ListFindingsForScan returns all non-false-positive findings for a scan, ordered by severity.
 func (db *DB) ListFindingsForScan(ctx context.Context, scanID string) ([]FindingRecord, error) {
 	rows, err := db.QueryContext(ctx,
-		`SELECT id, title, severity, vulnerability_type, endpoint, COALESCE(payload,''), description, COALESCE(confidence,0)
-		 FROM findings
-		 WHERE scan_id = ? AND is_false_positive = 0
+		`SELECT f.id, f.title, f.severity, f.vulnerability_type, f.endpoint, COALESCE(f.payload,''), f.description, COALESCE(f.confidence,0),
+		        f.category, COALESCE(v.verified, 0), COALESCE(v.method, '')
+		 FROM findings f
+		 LEFT JOIN attack_verifications v ON f.verification_id = v.id
+		 WHERE f.scan_id = ? AND f.is_false_positive = 0
 		 ORDER BY
-			CASE severity
+			CASE f.severity
 				WHEN 'CRITICAL' THEN 1
 				WHEN 'HIGH' THEN 2
 				WHEN 'MEDIUM' THEN 3
 				WHEN 'LOW' THEN 4
 				ELSE 5
 			END ASC,
-			created_at DESC`,
+			f.created_at DESC`,
 		scanID,
 	)
 	if err != nil {
@@ -437,7 +442,7 @@ func (db *DB) ListFindingsForScan(ctx context.Context, scanID string) ([]Finding
 	var findings []FindingRecord
 	for rows.Next() {
 		var f FindingRecord
-		if err := rows.Scan(&f.ID, &f.Title, &f.Severity, &f.VulnerabilityType, &f.Endpoint, &f.Payload, &f.Description, &f.Confidence); err != nil {
+		if err := rows.Scan(&f.ID, &f.Title, &f.Severity, &f.VulnerabilityType, &f.Endpoint, &f.Payload, &f.Description, &f.Confidence, &f.Category, &f.Verified, &f.VerificationMethod); err != nil {
 			continue
 		}
 		findings = append(findings, f)

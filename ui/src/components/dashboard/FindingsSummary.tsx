@@ -11,6 +11,9 @@ interface Finding {
   payload: string
   description: string
   confidence: number
+  category: string
+  verified: boolean
+  verification_method: string
 }
 
 interface FindingsSummaryProps {
@@ -46,6 +49,34 @@ export default function FindingsSummary({ scanId }: FindingsSummaryProps) {
     } finally {
       setLoading(false)
     }
+  }
+
+  const renderTrustBadge = (finding: Finding) => {
+    if (finding.verified) {
+      return (
+        <span className="text-[8px] font-mono font-bold text-green-400 px-1.5 py-0.5 rounded bg-green-500/10 border border-green-500/20">
+          VERIFIED ({finding.verification_method})
+        </span>
+      )
+    }
+
+    if (finding.category === 'HYPOTHESIS') {
+      return (
+        <span className="text-[8px] font-mono font-bold text-amber-400 px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20">
+          UNVERIFIED
+        </span>
+      )
+    }
+
+    if (finding.category === 'OBSERVATION') {
+      return (
+        <span className="text-[8px] font-mono font-bold text-zinc-500 px-1.5 py-0.5 rounded bg-zinc-500/10 border border-zinc-500/20">
+          OBSERVATION
+        </span>
+      )
+    }
+
+    return null
   }
 
   const severityCounts = findings.reduce((acc, f) => {
@@ -107,9 +138,10 @@ export default function FindingsSummary({ scanId }: FindingsSummaryProps) {
                   <span className={`text-[9px] font-mono font-bold ${config.text} px-1.5 py-0.5 rounded bg-black/20`}>
                     {finding.severity}
                   </span>
-                  <span className="text-[11px] font-mono text-zinc-300 truncate max-w-[200px]">
+                  <span className="text-[11px] font-mono text-zinc-300 truncate max-w-[140px]">
                     {finding.title}
                   </span>
+                  {renderTrustBadge(finding)}
                 </div>
                 {isExpanded ? (
                   <ChevronDown className="w-3 h-3 text-zinc-500" />
