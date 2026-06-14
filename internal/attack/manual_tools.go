@@ -375,53 +375,7 @@ func RunHTTPxProbe(ctx context.Context, targetURL string, onLog func(string)) ([
 	}
 
 	data := stdoutBuf.Bytes()
-	var findings []NormalizedFinding
-	lines := strings.Split(string(data), "\n")
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" {
-			continue
-		}
-		var result struct {
-			URL          string   `json:"url"`
-			StatusCode   int      `json:"status_code"`
-			Title        string   `json:"title"`
-			WebServer    string   `json:"webserver"`
-			Technologies []string `json:"tech"`
-			ContentLength int     `json:"content_length"`
-		}
-		if err := json.Unmarshal([]byte(trimmed), &result); err != nil {
-			continue
-		}
-
-		if result.WebServer != "" {
-			findings = append(findings, NormalizedFinding{
-				Tool:        "httpx",
-				ToolVersion: info,
-				Severity:    "INFO",
-				Category:    "Technology Detection",
-				Title:       fmt.Sprintf("Web Server: %s", result.WebServer),
-				Description: fmt.Sprintf("Server header reveals: %s", result.WebServer),
-				URL:         result.URL,
-				Evidence:    fmt.Sprintf("Status: %d, Server: %s, Title: %s", result.StatusCode, result.WebServer, result.Title),
-			})
-		}
-
-		for _, tech := range result.Technologies {
-			findings = append(findings, NormalizedFinding{
-				Tool:        "httpx",
-				ToolVersion: info,
-				Severity:    "INFO",
-				Category:    "Technology Detection",
-				Title:       fmt.Sprintf("Detected Technology: %s", tech),
-				Description: fmt.Sprintf("Technology stack includes: %s", tech),
-				URL:         result.URL,
-			})
-		}
-	}
-
-	onLog(fmt.Sprintf("[HTTPx] Probe complete. Found %d items.", len(findings)))
-	return findings, nil
+	return parseHTTPxOutput(data, info), nil
 }
 
 // RunWhatWebScan runs WhatWeb for technology fingerprinting.
@@ -441,42 +395,18 @@ func RunWhatWebScan(ctx context.Context, targetURL string, onLog func(string)) (
 	tmpPath := tmpFile.Name()
 	tmpFile.Close()
 	defer os.Remove(tmpPath)
-
-	data, err := runToolExec(ctx, "whatweb", []string{
-		targetURL, "--log-json=" + tmpPath, "--color=never",
-	}, 3*time.Minute, onLog)
-	if err != nil {
-		return nil, err
-	}
-
-	_ = data
-	var findings []NormalizedFinding
+_, err = runToolExec(ctx, "whatweb", []string{
+	targetURL, "--log-json=" + tmpPath, "--color=never",
+}, 3*time.Minute, onLog)
+if err != nil {
+	return nil, err
+}
 
 	output, readErr := os.ReadFile(tmpPath)
-	if readErr == nil && len(output) > 0 {
-		var results []map[string]interface{}
-		if json.Unmarshal(output, &results) == nil {
-			for _, r := range results {
-				if plugins, ok := r["plugins"].(map[string]interface{}); ok {
-					for name, details := range plugins {
-						findings = append(findings, NormalizedFinding{
-							Tool:        "whatweb",
-							ToolVersion: info,
-							Severity:    "INFO",
-							Category:    "Technology Detection",
-							Title:       fmt.Sprintf("Technology: %s", name),
-							Description: fmt.Sprintf("Detected on %s", targetURL),
-							URL:         targetURL,
-							Evidence:    fmt.Sprintf("%v", details),
-						})
-					}
-				}
-			}
-		}
+	if readErr != nil {
+		return nil, readErr
 	}
-
-	onLog(fmt.Sprintf("[WhatWeb] Scan complete. Found %d technologies.", len(findings)))
-	return findings, nil
+	return parseWhatWebOutput(output, info, targetURL), nil
 }
 
 // WapitiJSONOutput represents Wapiti JSON output format.
@@ -519,89 +449,13 @@ func RunWapitiScan(ctx context.Context, targetURL string, onLog func(string)) ([
 		onLog(fmt.Sprintf("[Wapiti] Scan completed with error: %v", err))
 	}
 
-	var findings []NormalizedFinding
 	data, readErr := os.ReadFile(outputJSON)
 	if readErr != nil {
 		onLog("[Wapiti] No output file found, scan may not have completed.")
-		return findings, nil
+		return nil, nil
 	}
 
-	var wapitiResult WapitiJSONOutput
-	if err := json.Unmarshal(data, &wapitiResult); err != nil {
-		onLog(fmt.Sprintf("[Wapiti] Failed to parse JSON output: %v", err))
-		return findings, nil
-	}
-
-	severityMap := map[string]string{
-		"sql_injection":    "CRITICAL",
-		"xss":             "HIGH",
-		"ssrf":            "CRITICAL",
-		"file_inclusion":  "HIGH",
-		"csrf":            "MEDIUM",
-		"commands_execution": "CRITICAL",
-		"open_redirect":   "MEDIUM",
-		"backup":          "HIGH",
-		"brute_force":     "MEDIUM",
-		"denial_of_service": "MEDIUM",
-		"internal_error":  "LOW",
-		"weak_password":   "MEDIUM",
-		"server_misconfig": "LOW",
-		"redirection":     "LOW",
-	}
-
-	categoryMap := map[string]string{
-		"sql_injection":    "SQL Injection",
-		"xss":             "Cross-Site Scripting",
-		"ssrf":            "Server-Side Request Forgery",
-		"file_inclusion":  "File Inclusion",
-		"csrf":            "Cross-Site Request Forgery",
-		"commands_execution": "Command Injection",
-		"open_redirect":   "Open Redirect",
-		"backup":          "Backup File Exposure",
-		"brute_force":     "Brute Force",
-		"denial_of_service": "Denial of Service",
-		"internal_error":  "Internal Error",
-		"weak_password":   "Weak Password",
-		"server_misconfig": "Server Misconfiguration",
-		"redirection":     "Redirection",
-	}
-
-	for vulnType, vulns := range wapitiResult.Vulnerabilities {
-		severity := severityMap[vulnType]
-		if severity == "" {
-			severity = "MEDIUM"
-		}
-		category := categoryMap[vulnType]
-		if category == "" {
-			category = vulnType
-		}
-
-		for _, v := range vulns {
-			findingURL := targetURL
-			if v.Path != "" {
-				if strings.HasPrefix(v.Path, "http") {
-					findingURL = v.Path
-				} else {
-					findingURL = targetURL + v.Path
-				}
-			}
-
-			findings = append(findings, NormalizedFinding{
-				Tool:        "wapiti",
-				Severity:    severity,
-				Category:    category,
-				Title:       fmt.Sprintf("[%s] %s", category, v.Info),
-				Description: v.Info,
-				URL:         findingURL,
-				Parameter:   v.Parameter,
-				Evidence:    fmt.Sprintf("Method: %s, Path: %s, Parameter: %s", v.Method, v.Path, v.Parameter),
-				CurlCommand: v.CurlCommand,
-			})
-		}
-	}
-
-	onLog(fmt.Sprintf("[Wapiti] Scan complete. Found %d vulnerabilities.", len(findings)))
-	return findings, nil
+	return parseWapitiOutput(data, targetURL), nil
 }
 
 // CorsyJSONOutput represents Corsy JSON output format.
@@ -669,32 +523,11 @@ func RunCorsyScan(ctx context.Context, targetURL string, onLog func(string)) ([]
 		return nil, err
 	}
 
-	var findings []NormalizedFinding
 	data, readErr := os.ReadFile(tmpPath)
-	if readErr == nil && len(data) > 0 {
-		var corsyResults []CorsyJSONOutput
-		if json.Unmarshal(data, &corsyResults) == nil {
-			for _, r := range corsyResults {
-				severity := strings.ToUpper(r.Severity)
-				if severity == "" {
-					severity = "MEDIUM"
-				}
-				findings = append(findings, NormalizedFinding{
-					Tool:        "corsy",
-					Severity:    severity,
-					Category:    "CORS Misconfiguration",
-					Title:       fmt.Sprintf("CORS: %s", r.VulnerabilityType),
-					Description: r.Description,
-					URL:         r.URL,
-					Payload:     r.Payload,
-					Evidence:    r.Description,
-				})
-			}
-		}
+	if readErr != nil {
+		return nil, readErr
 	}
-
-	onLog(fmt.Sprintf("[Corsy] Scan complete. Found %d CORS issues.", len(findings)))
-	return findings, nil
+	return parseCorsyOutput(data, targetURL), nil
 }
 
 // NiktoJSONWrapper represents the full Nikto JSON output structure.
@@ -739,46 +572,11 @@ func RunNiktoScan(ctx context.Context, targetURL string, onLog func(string)) ([]
 		onLog(fmt.Sprintf("[Nikto] Scan completed with error: %v", err))
 	}
 
-	var findings []NormalizedFinding
 	data, readErr := os.ReadFile(tmpPath)
-	if readErr == nil && len(data) > 0 {
-		var niktoWrapper NiktoJSONWrapper
-		var niktoResults []NiktoJSONOutput
-
-		// Try the wrapped format first: { "host": "...", "vulnerabilities": [...] }
-		if json.Unmarshal(data, &niktoWrapper) == nil && len(niktoWrapper.Vulnerabilities) > 0 {
-			niktoResults = niktoWrapper.Vulnerabilities
-		} else {
-			// Fallback: try flat array format (older Nikto versions)
-			_ = json.Unmarshal(data, &niktoResults)
-		}
-
-		for _, r := range niktoResults {
-			severity := "MEDIUM"
-			msgLower := strings.ToLower(r.Message)
-			if strings.Contains(msgLower, "critical") || strings.Contains(msgLower, "remote code") {
-				severity = "HIGH"
-			} else if strings.Contains(msgLower, "warning") || strings.Contains(msgLower, "misconfiguration") {
-				severity = "MEDIUM"
-			} else {
-				severity = "LOW"
-			}
-
-			findings = append(findings, NormalizedFinding{
-				Tool:        "nikto",
-				Severity:    severity,
-				Category:    "Server Misconfiguration",
-				Title:       r.Message,
-				Description: r.Message,
-				URL:         r.URL,
-				Evidence:    fmt.Sprintf("OSVDB: %s, Method: %s", r.OSVDB, r.Method),
-				References:  []string{fmt.Sprintf("https://www.osvdb.org/show/%s", r.OSVDB)},
-			})
-		}
+	if readErr != nil {
+		return nil, readErr
 	}
-
-	onLog(fmt.Sprintf("[Nikto] Scan complete. Found %d issues.", len(findings)))
-	return findings, nil
+	return parseNiktoOutput(data), nil
 }
 
 // SSLyzeJSONOutput represents SSLyze JSON output.
@@ -851,77 +649,11 @@ func RunSSLyzeScan(ctx context.Context, targetURL string, onLog func(string)) ([
 		return nil, err
 	}
 
-	var findings []NormalizedFinding
 	data, readErr := os.ReadFile(tmpPath)
-	if readErr == nil && len(data) > 0 {
-		var sslyzeResult SSLyzeJSONOutput
-		if json.Unmarshal(data, &sslyzeResult) == nil {
-			for _, scan := range sslyzeResult.ServerScanResults {
-				result := scan.ScanResult.SSLScanResult
-
-				if result.IsVulnerableToHeartbleed {
-					findings = append(findings, NormalizedFinding{
-						Tool:        "sslyze",
-						Severity:    "CRITICAL",
-						Category:    "SSL/TLS Vulnerability",
-						Title:       "Heartbleed Vulnerability (CVE-2014-0160)",
-						Description: "Server is vulnerable to Heartbleed, allowing memory disclosure.",
-						URL:         targetURL,
-						Evidence:    "SSLyze confirmed Heartbleed vulnerability.",
-						References:  []string{"https://heartbleed.com/"},
-					})
-				}
-				if result.IsVulnerableToCRIME {
-					findings = append(findings, NormalizedFinding{
-						Tool:        "sslyze",
-						Severity:    "HIGH",
-						Category:    "SSL/TLS Vulnerability",
-						Title:       "CRIME Vulnerability",
-						Description: "Server is vulnerable to CRIME attack, enabling session cookie theft.",
-						URL:         targetURL,
-					})
-				}
-				if result.IsVulnerableToROBOT {
-					findings = append(findings, NormalizedFinding{
-						Tool:        "sslyze",
-						Severity:    "HIGH",
-						Category:    "SSL/TLS Vulnerability",
-						Title:       "ROBOT Vulnerability",
-						Description: "Server is vulnerable to Return Of Bleichenbacher's Oracle Threat.",
-						URL:         targetURL,
-					})
-				}
-				if result.IsVulnerableToPaddingOracle {
-					findings = append(findings, NormalizedFinding{
-						Tool:        "sslyze",
-						Severity:    "HIGH",
-						Category:    "SSL/TLS Vulnerability",
-						Title:       "Padding Oracle Vulnerability",
-						Description: "Server is vulnerable to padding oracle attack.",
-						URL:         targetURL,
-					})
-				}
-
-				for _, ver := range result.TLSVersions {
-					if strings.Contains(strings.ToLower(ver.Name), "ssl") || strings.Contains(ver.Version, "1.0") || strings.Contains(ver.Version, "1.1") {
-						findings = append(findings, NormalizedFinding{
-							Tool:        "sslyze",
-							Severity:    "MEDIUM",
-							Category:    "SSL/TLS Misconfiguration",
-							Title:       fmt.Sprintf("Deprecated TLS Version: %s", ver.Name),
-							Description: fmt.Sprintf("Server supports %s which is deprecated and insecure.", ver.Name),
-							URL:         targetURL,
-							Evidence:    fmt.Sprintf("Supported: %s (%s)", ver.Name, ver.Version),
-							Remediation: "Disable TLS 1.0 and 1.1. Only allow TLS 1.2 and 1.3.",
-						})
-					}
-				}
-			}
-		}
+	if readErr != nil {
+		return nil, readErr
 	}
-
-	onLog(fmt.Sprintf("[SSLyze] Scan complete. Found %d issues.", len(findings)))
-	return findings, nil
+	return parseSSLyzeOutput(data, targetURL), nil
 }
 
 // RunNucleiScanAllTemplates runs Nuclei with ALL templates (not just safe ones) for manual mode.
@@ -950,7 +682,7 @@ func RunNucleiScanAllTemplates(ctx context.Context, targetURL string, proxyPort 
 	tmpFile.Close()
 	defer os.Remove(tmpPath)
 
-	args := []string{"-u", targetURL, "-json-export", tmpPath, "-silent", "-as"}
+	args := []string{"-u", targetURL, "-jsonl-export", tmpPath, "-silent", "-as"}
 	if proxyPort > 0 {
 		args = append(args, "-proxy", fmt.Sprintf("http://127.0.0.1:%d", proxyPort))
 	}
@@ -997,7 +729,7 @@ func RunNucleiScanAllTemplates(ctx context.Context, targetURL string, proxyPort 
 	go func() { done <- cmd.Wait() }()
 
 	select {
-	case <-ctx.Done():
+	case <-toolCtx.Done():
 		if cmd.Process != nil {
 			cmd.Process.Kill()
 		}
@@ -1008,12 +740,315 @@ func RunNucleiScanAllTemplates(ctx context.Context, targetURL string, proxyPort 
 		}
 	}
 
-	var findings []NormalizedFinding
 	data, readErr := os.ReadFile(tmpPath)
 	if readErr != nil {
-		return findings, nil
+		return nil, readErr
 	}
 
+	return parseNucleiManualOutput(data, info), nil
+}
+
+// parseHTTPxOutput parses ProjectDiscovery httpx JSONL output.
+func parseHTTPxOutput(data []byte, info string) []NormalizedFinding {
+	var findings []NormalizedFinding
+	lines := strings.Split(string(data), "\n")
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		var result struct {
+			URL           string   `json:"url"`
+			StatusCode    int      `json:"status_code"`
+			Title         string   `json:"title"`
+			WebServer     string   `json:"webserver"`
+			Technologies  []string `json:"tech"`
+			ContentLength int      `json:"content_length"`
+		}
+		if err := json.Unmarshal([]byte(trimmed), &result); err != nil {
+			continue
+		}
+
+		if result.WebServer != "" {
+			findings = append(findings, NormalizedFinding{
+				Tool:        "httpx",
+				ToolVersion: info,
+				Severity:    "INFO",
+				Category:    "Technology Detection",
+				Title:       fmt.Sprintf("Web Server: %s", result.WebServer),
+				Description: fmt.Sprintf("Server header reveals: %s", result.WebServer),
+				URL:         result.URL,
+				Evidence:    fmt.Sprintf("Status: %d, Server: %s, Title: %s", result.StatusCode, result.WebServer, result.Title),
+			})
+		}
+
+		for _, tech := range result.Technologies {
+			findings = append(findings, NormalizedFinding{
+				Tool:        "httpx",
+				ToolVersion: info,
+				Severity:    "INFO",
+				Category:    "Technology Detection",
+				Title:       fmt.Sprintf("Detected Technology: %s", tech),
+				Description: fmt.Sprintf("Technology stack includes: %s", tech),
+				URL:         result.URL,
+			})
+		}
+	}
+	return findings
+}
+
+// parseWhatWebOutput parses WhatWeb JSON output.
+func parseWhatWebOutput(data []byte, info string, targetURL string) []NormalizedFinding {
+	var findings []NormalizedFinding
+	if len(data) == 0 {
+		return findings
+	}
+	var results []map[string]interface{}
+	if json.Unmarshal(data, &results) == nil {
+		for _, r := range results {
+			if plugins, ok := r["plugins"].(map[string]interface{}); ok {
+				for name, details := range plugins {
+					findings = append(findings, NormalizedFinding{
+						Tool:        "whatweb",
+						ToolVersion: info,
+						Severity:    "INFO",
+						Category:    "Technology Detection",
+						Title:       fmt.Sprintf("Technology: %s", name),
+						Description: fmt.Sprintf("Detected on %s", targetURL),
+						URL:         targetURL,
+						Evidence:    fmt.Sprintf("%v", details),
+					})
+				}
+			}
+		}
+	}
+	return findings
+}
+
+// parseWapitiOutput parses Wapiti JSON output.
+func parseWapitiOutput(data []byte, targetURL string) []NormalizedFinding {
+	var findings []NormalizedFinding
+	var wapitiResult WapitiJSONOutput
+	if err := json.Unmarshal(data, &wapitiResult); err != nil {
+		return findings
+	}
+
+	severityMap := map[string]string{
+		"sql_injection":      "CRITICAL",
+		"xss":                "HIGH",
+		"ssrf":               "CRITICAL",
+		"file_inclusion":     "HIGH",
+		"csrf":               "MEDIUM",
+		"commands_execution": "CRITICAL",
+		"open_redirect":      "MEDIUM",
+		"backup":             "HIGH",
+		"brute_force":        "MEDIUM",
+		"denial_of_service":  "MEDIUM",
+		"internal_error":     "LOW",
+		"weak_password":      "MEDIUM",
+		"server_misconfig":   "LOW",
+		"redirection":        "LOW",
+	}
+
+	categoryMap := map[string]string{
+		"sql_injection":      "SQL Injection",
+		"xss":                "Cross-Site Scripting",
+		"ssrf":               "Server-Side Request Forgery",
+		"file_inclusion":     "File Inclusion",
+		"csrf":               "Cross-Site Request Forgery",
+		"commands_execution": "Command Injection",
+		"open_redirect":      "Open Redirect",
+		"backup":             "Backup File Exposure",
+		"brute_force":        "Brute Force",
+		"denial_of_service":  "Denial of Service",
+		"internal_error":     "Internal Error",
+		"weak_password":      "Weak Password",
+		"server_misconfig":   "Server Misconfiguration",
+		"redirection":        "Redirection",
+	}
+
+	for vulnType, vulns := range wapitiResult.Vulnerabilities {
+		severity := severityMap[vulnType]
+		if severity == "" {
+			severity = "MEDIUM"
+		}
+		category := categoryMap[vulnType]
+		if category == "" {
+			category = vulnType
+		}
+
+		for _, v := range vulns {
+			findingURL := targetURL
+			if v.Path != "" {
+				if strings.HasPrefix(v.Path, "http") {
+					findingURL = v.Path
+				} else {
+					findingURL = targetURL + v.Path
+				}
+			}
+
+			findings = append(findings, NormalizedFinding{
+				Tool:        "wapiti",
+				Severity:    severity,
+				Category:    category,
+				Title:       fmt.Sprintf("[%s] %s", category, v.Info),
+				Description: v.Info,
+				URL:         findingURL,
+				Parameter:   v.Parameter,
+				Evidence:    fmt.Sprintf("Method: %s, Path: %s, Parameter: %s", v.Method, v.Path, v.Parameter),
+				CurlCommand: v.CurlCommand,
+			})
+		}
+	}
+	return findings
+}
+
+// parseCorsyOutput parses Corsy JSON output.
+func parseCorsyOutput(data []byte, targetURL string) []NormalizedFinding {
+	var findings []NormalizedFinding
+	if len(data) == 0 {
+		return findings
+	}
+	var corsyResults []CorsyJSONOutput
+	if json.Unmarshal(data, &corsyResults) == nil {
+		for _, r := range corsyResults {
+			severity := strings.ToUpper(r.Severity)
+			if severity == "" {
+				severity = "MEDIUM"
+			}
+			findings = append(findings, NormalizedFinding{
+				Tool:        "corsy",
+				Severity:    severity,
+				Category:    "CORS Misconfiguration",
+				Title:       fmt.Sprintf("CORS: %s", r.VulnerabilityType),
+				Description: r.Description,
+				URL:         r.URL,
+				Payload:     r.Payload,
+				Evidence:    r.Description,
+			})
+		}
+	}
+	return findings
+}
+
+// parseNiktoOutput parses Nikto JSON output.
+func parseNiktoOutput(data []byte) []NormalizedFinding {
+	var findings []NormalizedFinding
+	if len(data) == 0 {
+		return findings
+	}
+	var niktoWrapper NiktoJSONWrapper
+	var niktoResults []NiktoJSONOutput
+
+	// Try the wrapped format first: { "host": "...", "vulnerabilities": [...] }
+	if json.Unmarshal(data, &niktoWrapper) == nil && len(niktoWrapper.Vulnerabilities) > 0 {
+		niktoResults = niktoWrapper.Vulnerabilities
+	} else {
+		// Fallback: try flat array format (older Nikto versions)
+		_ = json.Unmarshal(data, &niktoResults)
+	}
+
+	for _, r := range niktoResults {
+		severity := "MEDIUM"
+		msgLower := strings.ToLower(r.Message)
+		if strings.Contains(msgLower, "critical") || strings.Contains(msgLower, "remote code") {
+			severity = "HIGH"
+		} else if strings.Contains(msgLower, "warning") || strings.Contains(msgLower, "misconfiguration") {
+			severity = "MEDIUM"
+		} else {
+			severity = "LOW"
+		}
+
+		findings = append(findings, NormalizedFinding{
+			Tool:        "nikto",
+			Severity:    severity,
+			Category:    "Server Misconfiguration",
+			Title:       r.Message,
+			Description: r.Message,
+			URL:         r.URL,
+			Evidence:    fmt.Sprintf("OSVDB: %s, Method: %s", r.OSVDB, r.Method),
+			References:  []string{fmt.Sprintf("https://www.osvdb.org/show/%s", r.OSVDB)},
+		})
+	}
+	return findings
+}
+
+// parseSSLyzeOutput parses SSLyze JSON output.
+func parseSSLyzeOutput(data []byte, targetURL string) []NormalizedFinding {
+	var findings []NormalizedFinding
+	if len(data) == 0 {
+		return findings
+	}
+	var sslyzeResult SSLyzeJSONOutput
+	if json.Unmarshal(data, &sslyzeResult) == nil {
+		for _, scan := range sslyzeResult.ServerScanResults {
+			result := scan.ScanResult.SSLScanResult
+
+			if result.IsVulnerableToHeartbleed {
+				findings = append(findings, NormalizedFinding{
+					Tool:        "sslyze",
+					Severity:    "CRITICAL",
+					Category:    "SSL/TLS Vulnerability",
+					Title:       "Heartbleed Vulnerability (CVE-2014-0160)",
+					Description: "Server is vulnerable to Heartbleed, allowing memory disclosure.",
+					URL:         targetURL,
+					Evidence:    "SSLyze confirmed Heartbleed vulnerability.",
+					References:  []string{"https://heartbleed.com/"},
+				})
+			}
+			if result.IsVulnerableToCRIME {
+				findings = append(findings, NormalizedFinding{
+					Tool:        "sslyze",
+					Severity:    "HIGH",
+					Category:    "SSL/TLS Vulnerability",
+					Title:       "CRIME Vulnerability",
+					Description: "Server is vulnerable to CRIME attack, enabling session cookie theft.",
+					URL:         targetURL,
+				})
+			}
+			if result.IsVulnerableToROBOT {
+				findings = append(findings, NormalizedFinding{
+					Tool:        "sslyze",
+					Severity:    "HIGH",
+					Category:    "SSL/TLS Vulnerability",
+					Title:       "ROBOT Vulnerability",
+					Description: "Server is vulnerable to Return Of Bleichenbacher's Oracle Threat.",
+					URL:         targetURL,
+				})
+			}
+			if result.IsVulnerableToPaddingOracle {
+				findings = append(findings, NormalizedFinding{
+					Tool:        "sslyze",
+					Severity:    "HIGH",
+					Category:    "SSL/TLS Vulnerability",
+					Title:       "Padding Oracle Vulnerability",
+					Description: "Server is vulnerable to padding oracle attack.",
+					URL:         targetURL,
+				})
+			}
+
+			for _, ver := range result.TLSVersions {
+				if strings.Contains(strings.ToLower(ver.Name), "ssl") || strings.Contains(ver.Version, "1.0") || strings.Contains(ver.Version, "1.1") {
+					findings = append(findings, NormalizedFinding{
+						Tool:        "sslyze",
+						Severity:    "MEDIUM",
+						Category:    "SSL/TLS Misconfiguration",
+						Title:       fmt.Sprintf("Deprecated TLS Version: %s", ver.Name),
+						Description: fmt.Sprintf("Server supports %s which is deprecated and insecure.", ver.Name),
+						URL:         targetURL,
+						Evidence:    fmt.Sprintf("Supported: %s (%s)", ver.Name, ver.Version),
+						Remediation: "Disable TLS 1.0 and 1.1. Only allow TLS 1.2 and 1.3.",
+					})
+				}
+			}
+		}
+	}
+	return findings
+}
+
+// parseNucleiManualOutput parses Nuclei JSONL output for manual scan.
+func parseNucleiManualOutput(data []byte, info string) []NormalizedFinding {
+	var findings []NormalizedFinding
 	lines := strings.Split(string(data), "\n")
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
@@ -1026,11 +1061,9 @@ func RunNucleiScanAllTemplates(ctx context.Context, targetURL string, proxyPort 
 			if severity == "" {
 				severity = "INFO"
 			}
-			if severity == "CRITICAL" {
-				severity = "CRITICAL"
-			}
 
 			category := "Security Misconfiguration"
+
 			severityLower := strings.ToLower(item.Info.Severity)
 			switch {
 			case strings.Contains(severityLower, "critical") || strings.Contains(severityLower, "high"):
@@ -1058,7 +1091,5 @@ func RunNucleiScanAllTemplates(ctx context.Context, targetURL string, proxyPort 
 			})
 		}
 	}
-
-	onLog(fmt.Sprintf("[Nuclei] Full scan complete. Found %d vulnerabilities.", len(findings)))
-	return findings, nil
+	return findings
 }

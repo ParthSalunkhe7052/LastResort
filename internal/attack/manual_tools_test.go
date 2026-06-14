@@ -66,3 +66,38 @@ func TestCheckAllToolAvailability(t *testing.T) {
 		t.Errorf("httpx not found in CheckAllToolAvailability results")
 	}
 }
+
+func TestParsers(t *testing.T) {
+	t.Run("parseHTTPxOutput", func(t *testing.T) {
+		data := []byte("{\"url\":\"https://example.com\",\"status_code\":200,\"title\":\"Example Domain\",\"webserver\":\"Apache\",\"tech\":[\"PHP\",\"MySQL\"],\"content_length\":1256}\n")
+		findings := parseHTTPxOutput(data, "v2.5.0")
+		if len(findings) != 3 { // 1 server + 2 tech
+			t.Errorf("Expected 3 findings, got %d", len(findings))
+		}
+		if findings[0].Tool != "httpx" || findings[0].Category != "Technology Detection" {
+			t.Errorf("Unexpected finding[0]: %+v", findings[0])
+		}
+	})
+
+	t.Run("parseNucleiManualOutput", func(t *testing.T) {
+		data := []byte("{\"template-id\":\"exposed-git\",\"info\":{\"name\":\"Exposed Git Repository\",\"severity\":\"high\",\"description\":\"Git repo found\"},\"type\":\"http\",\"host\":\"https://example.com\",\"matched-at\":\"https://example.com/.git/\"}\n")
+		findings := parseNucleiManualOutput(data, "v3.1.0")
+		if len(findings) != 1 {
+			t.Errorf("Expected 1 finding, got %d", len(findings))
+		}
+		if findings[0].Severity != "HIGH" || findings[0].Category != "Critical Vulnerability" {
+			t.Errorf("Unexpected finding[0]: %+v", findings[0])
+		}
+	})
+
+	t.Run("parseWapitiOutput", func(t *testing.T) {
+		data := []byte("{\"vulnerabilities\":{\"sql_injection\":[{\"method\":\"GET\",\"info\":\"SQLi found\",\"path\":\"/index.php\",\"parameter\":\"id\"}]}}\n")
+		findings := parseWapitiOutput(data, "https://example.com")
+		if len(findings) != 1 {
+			t.Errorf("Expected 1 finding, got %d", len(findings))
+		}
+		if findings[0].Severity != "CRITICAL" || findings[0].Category != "SQL Injection" {
+			t.Errorf("Unexpected finding[0]: %+v", findings[0])
+		}
+	})
+}
