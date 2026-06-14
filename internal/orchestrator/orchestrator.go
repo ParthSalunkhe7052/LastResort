@@ -1584,7 +1584,7 @@ Your response MUST be in JSON format matching this schema:
                 // Collect all findings from the database
                 var allNormalized []attack.NormalizedFinding
                 rows, err := o.db.QueryContext(ctx, `
-                        SELECT title, severity, vulnerability_type, endpoint, payload, description
+                        SELECT title, severity, vulnerability_type, endpoint, payload, description, category
                         FROM findings
                         WHERE scan_id = ? AND is_false_positive = 0
                         ORDER BY 
@@ -1604,8 +1604,8 @@ Your response MUST be in JSON format matching this schema:
                 defer rows.Close()
 
                 for rows.Next() {
-                        var title, severity, vulnType, endpoint, payload, description string
-                        if err := rows.Scan(&title, &severity, &vulnType, &endpoint, &payload, &description); err != nil {
+                        var title, severity, vulnType, endpoint, payload, description, state string
+                        if err := rows.Scan(&title, &severity, &vulnType, &endpoint, &payload, &description, &state); err != nil {
                                 continue
                         }
                         allNormalized = append(allNormalized, attack.NormalizedFinding{
@@ -1615,6 +1615,7 @@ Your response MUST be in JSON format matching this schema:
                                 URL:         endpoint,
                                 Payload:     payload,
                                 Description: description,
+                                State:       state,
                         })
                 }
 
@@ -1681,28 +1682,23 @@ VULNERABILITIES FOUND (ranked by severity, deduplicated):
 
 For EACH vulnerability, provide a dedicated section with:
 1. **Risk Level** (Critical/High/Medium/Low with color emoji: 🔴 Critical, 🟠 High, 🟡 Medium, 🟢 Low)
-2. **What is this?** (2-3 sentence explanation a 10-year-old could understand)
-3. **Prerequisites** (What tools/access you need: browser, curl, Burp Suite, etc.)
-4. **Step-by-Step Manual Exploitation:**
-   a. Open browser and go to: [exact URL]
-   b. In the address bar or input field, type/paste: [exact payload]
-   c. Press Enter / Click [specific button]
-   d. Look for: [specific visual indicator]
-5. **Expected Result** (What success looks like on screen - describe the exact visual feedback)
-6. **If It Does Not Work** (Troubleshooting: "If you see X instead, try Y")
-7. **Real-World Impact** (Why this matters: "An attacker could...")
-8. **How to Fix** (Remediation for developers)
+2. **Status** (State clearly if this is a "CONFIRMED VULNERABILITY" or a "POTENTIAL VULNERABILITY (HYPOTHESIS)")
+3. **What is this?** (2-3 sentence explanation a 10-year-old could understand)
+4. **Manual Verification / Reproduction:**
+   - If the State is "VERIFIED_ATTACK": Provide "Step-by-Step Reproduction Steps". Use exact URLs and payloads. Describe exactly what success looks like based on the confirmed evidence.
+   - If the State is NOT "VERIFIED_ATTACK": Provide a "Verification Checklist". DO NOT invent a success state or "what you will see". Instead, list specific manual tests to perform and what indicators would CONFIRM the vulnerability versus what would disprove it.
+5. **Prerequisites** (What tools/access you need: browser, curl, Burp Suite, etc.)
+6. **Real-World Impact** (Why this matters: "An attacker could...")
+7. **How to Fix** (Remediation for developers)
 
 IMPORTANT RULES:
-- Write for someone who has NEVER coded before
-- Use exact URLs, exact commands, exact copy-paste text
-- Include descriptions of what to look for: "You should see a red error message that says..."
-- Use fenced code blocks with triple backticks for anything that needs to be typed or copied
-- Number every step sequentially
-- If a step requires a tool like Burp Suite or curl, explain how to open/use it first
-- Add a "Quick Reference" table at the very top listing all vulnerabilities with severity and URL
-- Be encouraging and empowering - make the reader feel capable
-- If multiple vulnerabilities affect the same URL, group them logically
+- **STRICTLY FORBIDDEN**: Do NOT invent success outcomes, specific visual feedback (e.g. "You will see a popup"), or screenshots for findings where State is NOT "VERIFIED_ATTACK".
+- For unverified findings (HYPOTHESIS), focus on manual confirmation steps: "Check if the response contains X", "Observe if the page behaves like Y".
+- Write for someone who has NEVER coded before.
+- Use exact URLs, exact commands, and exact copy-paste text where provided.
+- Use fenced code blocks with triple backticks for anything that needs to be typed or copied.
+- Add a "Quick Reference" table at the very top listing all vulnerabilities with severity and URL.
+- Be encouraging and empowering - make the reader feel capable.
 `, targetURL, detectedTechs, authModel, summaryText, findingsText)
 
                 var guideStr string
