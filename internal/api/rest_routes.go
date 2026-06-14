@@ -62,7 +62,9 @@ func writeJSONError(w http.ResponseWriter, code int, msg string) {
 
 
 
-// handleScanEvent handles POST /api/v1/scan/event to push events to the scan global broker
+// handleScanEvent handles POST /api/v1/scan/event to push events to the scan global broker.
+// SECURITY: Only logging and progress events are allowed from public REST callers.
+// Lifecycle and phase control events must be emitted internally by the orchestrator.
 func (s *ScanServer) handleScanEvent(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeJSONError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -85,9 +87,22 @@ func (s *ScanServer) handleScanEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Restrict allowed event types
+	eType := orchestrator.EventType(req.EventType)
+	allowed := false
+	switch eType {
+	case orchestrator.EventLogInfo, orchestrator.EventLogWarning, orchestrator.EventLogError, orchestrator.EventProgress:
+		allowed = true
+	}
+
+	if !allowed {
+		writeJSONError(w, http.StatusForbidden, "event type not allowed via public API")
+		return
+	}
+
 	event := orchestrator.Event{
 		ScanID:    req.ScanID,
-		Type:      orchestrator.EventType(req.EventType),
+		Type:      eType,
 		Timestamp: time.Now(),
 		Data:      req.Data,
 	}

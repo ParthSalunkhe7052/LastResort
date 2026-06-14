@@ -33,10 +33,13 @@ func (db *DB) GetScanPerformance(ctx context.Context, scanID string) (*ScanPerfo
 	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM forms WHERE scan_id = ?", scanID).Scan(&metrics.FormsFound)
 
 	// Findings and Fuzzing Metrics
-	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM findings WHERE scan_id = ? AND category = 'VERIFIED_FINDING'", scanID).Scan(&metrics.SuccessfulAttacks)
-	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM findings WHERE scan_id = ? AND category = 'POTENTIAL_FINDING'", scanID).Scan(&metrics.FailedAttempts)
-	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM findings WHERE scan_id = ? AND category = 'OBSERVATION'", scanID).Scan(&metrics.Observations)
-	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM attack_attempts WHERE scan_id = ?", scanID).Scan(&metrics.AttackAttempts)
+	am, _ := db.GetAttackMetrics(ctx, scanID)
+	if am != nil {
+		metrics.SuccessfulAttacks = am.AttacksVerified
+		metrics.FailedAttempts = am.AttacksFailed
+		metrics.AttackAttempts = am.AttacksExecuted
+	}
+	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM findings WHERE scan_id = ? AND category = ?", scanID, StateObservation).Scan(&metrics.Observations)
 
 	// Execution Metadata
 	var startedAtNull, finishedAtNull sql.NullTime

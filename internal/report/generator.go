@@ -66,8 +66,13 @@ func (g *Generator) GenerateScanReport(ctx context.Context, scanID string) (stri
 	defer rows.Close()
 
 	var findings []storage.Finding
-	severityCounts := map[string]int{"HIGH": 0, "MEDIUM": 0, "LOW": 0, "INFO": 0}
-	categoryCounts := map[string]int{"VERIFIED_ATTACK": 0, "ATTEMPT": 0, "OBSERVATION": 0, "HYPOTHESIS": 0}
+	severityCounts := map[string]int{"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0, "INFO": 0}
+	categoryCounts := map[string]int{
+		storage.StateVerifiedFinding:  0,
+		storage.StateNeedsReview:      0,
+		storage.StateObservation:       0,
+		storage.StatePotentialFinding: 0,
+	}
 
 	for rows.Next() {
 		var f storage.Finding
@@ -78,25 +83,14 @@ func (g *Generator) GenerateScanReport(ctx context.Context, scanID string) (stri
 			return "", "", fmt.Errorf("failed to scan finding row: %w", err)
 		}
 		f.IsFalsePositive = isFP
-		catStr := category.String
-		switch catStr {
-		case "VERIFIED_FINDING":
-			catStr = "VERIFIED_ATTACK"
-		case "POTENTIAL_FINDING":
-			catStr = "HYPOTHESIS"
-		case "FALSE_POSITIVE":
-			catStr = "ATTEMPT"
-		case "OBSERVATION":
-			catStr = "OBSERVATION"
-		case "":
-			catStr = "OBSERVATION"
-		}
-		f.Category = catStr
+		f.Category = storage.MapCategoryForCompatibility(category.String)
 		findings = append(findings, f)
 
 		if isFP == 0 {
 			severityCounts[f.Severity]++
-			categoryCounts[f.Category]++
+			if _, ok := categoryCounts[f.Category]; ok {
+				categoryCounts[f.Category]++
+			}
 		}
 	}
 
@@ -226,7 +220,7 @@ type HTMLFinding struct {
 		aiCtx, aiCancel := context.WithTimeout(ctx, 45*time.Second)
 		aiReq := &aiv1.GenerateExecutiveSummaryRequest{
 			TargetUrl:            targetURL,
-			HighCount:            int32(severityCounts["HIGH"]),
+			HighCount:            int32(severityCounts["CRITICAL"] + severityCounts["HIGH"]),
 			MediumCount:          int32(severityCounts["MEDIUM"]),
 			LowCount:             int32(severityCounts["LOW"]),
 			InfoCount:            int32(severityCounts["INFO"]),
@@ -254,7 +248,7 @@ type HTMLFinding struct {
 			)
 		} else {
 			// Fallback logic
-			if severityCounts["HIGH"] > 0 {
+			if severityCounts["CRITICAL"] > 0 || severityCounts["HIGH"] > 0 {
 				riskRating = "HIGH"
 			}
 		}
@@ -268,9 +262,10 @@ type HTMLFinding struct {
 	md += fmt.Sprintf("- **Duration:** %s\n", durationStr)
 	md += fmt.Sprintf("- **Overall Risk Rating:** %s\n", riskRating)
 	md += fmt.Sprintf("- **Endpoints Explored:** %d\n", endpointCount)
-	md += fmt.Sprintf("- **Attack Scenarios Attempted:** %d\n", categoryCounts["ATTEMPT"]+categoryCounts["VERIFIED_ATTACK"])
-	md += fmt.Sprintf("- **Successful Exploits:** %d\n", categoryCounts["VERIFIED_ATTACK"])
-	md += fmt.Sprintf("- **Security Observations:** %d\n\n", categoryCounts["OBSERVATION"])
+	md += fmt.Sprintf("- **Attack Scenarios Attempted:** %d\n", categoryCounts[storage.StateNeedsReview]+categoryCounts[storage.StateVerifiedFinding])
+	md += fmt.Sprintf("- **Successful Exploits:** %d\n", categoryCounts[storage.StateVerifiedFinding])
+	md += fmt.Sprintf("- **Security Hypotheses:** %d\n", categoryCounts[storage.StatePotentialFinding])
+	md += fmt.Sprintf("- **Security Observations:** %d\n\n", categoryCounts[storage.StateObservation])
 
 	md += "### Key Security Recommendations\n"
 	for _, rec := range keyRecs {
@@ -281,6 +276,7 @@ type HTMLFinding struct {
 	md += "### Vulnerabilities Found by Severity\n"
 	md += "| Severity | Count |\n"
 	md += "|----------|-------|\n"
+	md += fmt.Sprintf("| **CRITICAL** | %d |\n", severityCounts["CRITICAL"])
 	md += fmt.Sprintf("| **HIGH** | %d |\n", severityCounts["HIGH"])
 	md += fmt.Sprintf("| **MEDIUM** | %d |\n", severityCounts["MEDIUM"])
 	md += fmt.Sprintf("| **LOW** | %d |\n", severityCounts["LOW"])
@@ -345,6 +341,7 @@ type HTMLFinding struct {
 		TargetURL      string
 		TechStack      string
 		AuthModel      string
+		CriticalCount  int
 		HighCount      int
 		MediumCount    int
 		LowCount       int
@@ -360,6 +357,7 @@ type HTMLFinding struct {
 		TargetURL:       targetURL,
 		TechStack:       detectedTechs,
 		AuthModel:       authModel,
+		CriticalCount:   severityCounts["CRITICAL"],
 		HighCount:       severityCounts["HIGH"],
 		MediumCount:     severityCounts["MEDIUM"],
 		LowCount:        severityCounts["LOW"],
@@ -431,7 +429,7 @@ const DefaultHTMLTemplate = `<!DOCTYPE html>
         }
         .summary-grid {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: repeat(5, 1fr);
             gap: 15px;
             margin: 20px 0;
         }
@@ -442,6 +440,7 @@ const DefaultHTMLTemplate = `<!DOCTYPE html>
             text-align: center;
             border-top: 4px solid #334155;
         }
+        .summary-card.critical { border-top-color: #7c3aed; }
         .summary-card.high { border-top-color: #ef4444; }
         .summary-card.medium { border-top-color: #f97316; }
         .summary-card.low { border-top-color: #3b82f6; }
@@ -458,6 +457,7 @@ const DefaultHTMLTemplate = `<!DOCTYPE html>
             margin: 20px 0;
             border-left: 4px solid #334155;
         }
+        .finding-card.CRITICAL { border-left-color: #7c3aed; }
         .finding-card.HIGH { border-left-color: #ef4444; }
         .finding-card.MEDIUM { border-left-color: #f97316; }
         .finding-card.LOW { border-left-color: #3b82f6; }
@@ -515,6 +515,10 @@ const DefaultHTMLTemplate = `<!DOCTYPE html>
 
         <h2>Severity Summary</h2>
         <div class="summary-grid">
+            <div class="summary-card critical">
+                <div class="summary-val">{{.CriticalCount}}</div>
+                <div>CRITICAL</div>
+            </div>
             <div class="summary-card high">
                 <div class="summary-val">{{.HighCount}}</div>
                 <div>HIGH</div>
