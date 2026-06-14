@@ -9,13 +9,11 @@ import (
 	"github.com/google/uuid"
 )
 
-// ─── Finding State Machine ──────────────────────────────────────────────────
-// Findings can only advance forward through these states.
 const (
 	StateObservation       = "OBSERVATION"
-	StatePotentialFinding   = "POTENTIAL_FINDING"
-	StateVerifiedFinding   = "VERIFIED_FINDING"
-	StateNeedsReview       = "NEEDS_REVIEW"
+	StatePotentialFinding  = "HYPOTHESIS"
+	StateVerifiedFinding   = "VERIFIED_ATTACK"
+	StateNeedsReview       = "ATTEMPT"
 	StateFalsePositive     = "FALSE_POSITIVE"
 )
 
@@ -40,17 +38,19 @@ func isValidTransition(from, to string) bool {
 	return stateWeight(to) >= stateWeight(from)
 }
 
-// Map compatibility strings from old database schemas (HYPOTHESIS, ATTEMPT, VERIFIED_ATTACK)
+// Map compatibility strings from old database schemas to canonical state enum values
 func mapCategoryForCompatibility(category string) string {
 	switch category {
-	case "VERIFIED_ATTACK":
-		return StateVerifiedFinding
-	case "HYPOTHESIS":
-		return StatePotentialFinding
-	case "ATTEMPT":
-		return StateFalsePositive
+	case "POTENTIAL_FINDING", "HYPOTHESIS":
+		return StatePotentialFinding // "HYPOTHESIS"
+	case "VERIFIED_FINDING", "VERIFIED_ATTACK":
+		return StateVerifiedFinding // "VERIFIED_ATTACK"
+	case "NEEDS_REVIEW", "ATTEMPT":
+		return StateNeedsReview // "ATTEMPT"
+	case "FALSE_POSITIVE":
+		return StateFalsePositive // "FALSE_POSITIVE"
 	case "":
-		return StateObservation
+		return StateObservation // "OBSERVATION"
 	default:
 		return category
 	}
@@ -398,6 +398,51 @@ func truncateSentence(s string) string {
 		s = s + "."
 	}
 	return s
+}
+
+// FindingRecord represents a single finding for API responses.
+type FindingRecord struct {
+	ID               string  `json:"id"`
+	Title            string  `json:"title"`
+	Severity         string  `json:"severity"`
+	VulnerabilityType string `json:"vulnerability_type"`
+	Endpoint         string  `json:"endpoint"`
+	Payload          string  `json:"payload"`
+	Description      string  `json:"description"`
+	Confidence       float64 `json:"confidence"`
+}
+
+// ListFindingsForScan returns all non-false-positive findings for a scan, ordered by severity.
+func (db *DB) ListFindingsForScan(ctx context.Context, scanID string) ([]FindingRecord, error) {
+	rows, err := db.QueryContext(ctx,
+		`SELECT id, title, severity, vulnerability_type, endpoint, COALESCE(payload,''), description, COALESCE(confidence,0)
+		 FROM findings
+		 WHERE scan_id = ? AND is_false_positive = 0
+		 ORDER BY
+			CASE severity
+				WHEN 'CRITICAL' THEN 1
+				WHEN 'HIGH' THEN 2
+				WHEN 'MEDIUM' THEN 3
+				WHEN 'LOW' THEN 4
+				ELSE 5
+			END ASC,
+			created_at DESC`,
+		scanID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var findings []FindingRecord
+	for rows.Next() {
+		var f FindingRecord
+		if err := rows.Scan(&f.ID, &f.Title, &f.Severity, &f.VulnerabilityType, &f.Endpoint, &f.Payload, &f.Description, &f.Confidence); err != nil {
+			continue
+		}
+		findings = append(findings, f)
+	}
+	return findings, nil
 }
 
 

@@ -44,14 +44,9 @@ const (
 	// ScanServiceStreamScanEventsProcedure is the fully-qualified name of the ScanService's
 	// StreamScanEvents RPC.
 	ScanServiceStreamScanEventsProcedure = "/scan.v1.ScanService/StreamScanEvents"
-	// ScanServiceListFlowsProcedure is the fully-qualified name of the ScanService's ListFlows RPC.
-	ScanServiceListFlowsProcedure = "/scan.v1.ScanService/ListFlows"
 	// ScanServiceListFindingsProcedure is the fully-qualified name of the ScanService's ListFindings
 	// RPC.
 	ScanServiceListFindingsProcedure = "/scan.v1.ScanService/ListFindings"
-	// ScanServiceSendRepeaterRequestProcedure is the fully-qualified name of the ScanService's
-	// SendRepeaterRequest RPC.
-	ScanServiceSendRepeaterRequestProcedure = "/scan.v1.ScanService/SendRepeaterRequest"
 	// ScanServiceListEndpointsProcedure is the fully-qualified name of the ScanService's ListEndpoints
 	// RPC.
 	ScanServiceListEndpointsProcedure = "/scan.v1.ScanService/ListEndpoints"
@@ -70,9 +65,7 @@ type ScanServiceClient interface {
 	ListScans(context.Context, *connect.Request[v1.ListScansRequest]) (*connect.Response[v1.ListScansResponse], error)
 	StreamScanEvents(context.Context, *connect.Request[v1.StreamScanEventsRequest]) (*connect.ServerStreamForClient[v1.ScanEvent], error)
 	// New Dashboard APIs
-	ListFlows(context.Context, *connect.Request[v1.ListFlowsRequest]) (*connect.Response[v1.ListFlowsResponse], error)
 	ListFindings(context.Context, *connect.Request[v1.ListFindingsRequest]) (*connect.Response[v1.ListFindingsResponse], error)
-	SendRepeaterRequest(context.Context, *connect.Request[v1.SendRepeaterRequestRequest]) (*connect.Response[v1.SendRepeaterRequestResponse], error)
 	ListEndpoints(context.Context, *connect.Request[v1.ListEndpointsRequest]) (*connect.Response[v1.ListEndpointsResponse], error)
 	GenerateReport(context.Context, *connect.Request[v1.GenerateReportRequest]) (*connect.Response[v1.GenerateReportResponse], error)
 	ListReports(context.Context, *connect.Request[v1.ListReportsRequest]) (*connect.Response[v1.ListReportsResponse], error)
@@ -119,22 +112,10 @@ func NewScanServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(scanServiceMethods.ByName("StreamScanEvents")),
 			connect.WithClientOptions(opts...),
 		),
-		listFlows: connect.NewClient[v1.ListFlowsRequest, v1.ListFlowsResponse](
-			httpClient,
-			baseURL+ScanServiceListFlowsProcedure,
-			connect.WithSchema(scanServiceMethods.ByName("ListFlows")),
-			connect.WithClientOptions(opts...),
-		),
 		listFindings: connect.NewClient[v1.ListFindingsRequest, v1.ListFindingsResponse](
 			httpClient,
 			baseURL+ScanServiceListFindingsProcedure,
 			connect.WithSchema(scanServiceMethods.ByName("ListFindings")),
-			connect.WithClientOptions(opts...),
-		),
-		sendRepeaterRequest: connect.NewClient[v1.SendRepeaterRequestRequest, v1.SendRepeaterRequestResponse](
-			httpClient,
-			baseURL+ScanServiceSendRepeaterRequestProcedure,
-			connect.WithSchema(scanServiceMethods.ByName("SendRepeaterRequest")),
 			connect.WithClientOptions(opts...),
 		),
 		listEndpoints: connect.NewClient[v1.ListEndpointsRequest, v1.ListEndpointsResponse](
@@ -160,17 +141,15 @@ func NewScanServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 
 // scanServiceClient implements ScanServiceClient.
 type scanServiceClient struct {
-	createScan          *connect.Client[v1.CreateScanRequest, v1.CreateScanResponse]
-	startScan           *connect.Client[v1.StartScanRequest, v1.StartScanResponse]
-	getScan             *connect.Client[v1.GetScanRequest, v1.GetScanResponse]
-	listScans           *connect.Client[v1.ListScansRequest, v1.ListScansResponse]
-	streamScanEvents    *connect.Client[v1.StreamScanEventsRequest, v1.ScanEvent]
-	listFlows           *connect.Client[v1.ListFlowsRequest, v1.ListFlowsResponse]
-	listFindings        *connect.Client[v1.ListFindingsRequest, v1.ListFindingsResponse]
-	sendRepeaterRequest *connect.Client[v1.SendRepeaterRequestRequest, v1.SendRepeaterRequestResponse]
-	listEndpoints       *connect.Client[v1.ListEndpointsRequest, v1.ListEndpointsResponse]
-	generateReport      *connect.Client[v1.GenerateReportRequest, v1.GenerateReportResponse]
-	listReports         *connect.Client[v1.ListReportsRequest, v1.ListReportsResponse]
+	createScan       *connect.Client[v1.CreateScanRequest, v1.CreateScanResponse]
+	startScan        *connect.Client[v1.StartScanRequest, v1.StartScanResponse]
+	getScan          *connect.Client[v1.GetScanRequest, v1.GetScanResponse]
+	listScans        *connect.Client[v1.ListScansRequest, v1.ListScansResponse]
+	streamScanEvents *connect.Client[v1.StreamScanEventsRequest, v1.ScanEvent]
+	listFindings     *connect.Client[v1.ListFindingsRequest, v1.ListFindingsResponse]
+	listEndpoints    *connect.Client[v1.ListEndpointsRequest, v1.ListEndpointsResponse]
+	generateReport   *connect.Client[v1.GenerateReportRequest, v1.GenerateReportResponse]
+	listReports      *connect.Client[v1.ListReportsRequest, v1.ListReportsResponse]
 }
 
 // CreateScan calls scan.v1.ScanService.CreateScan.
@@ -198,19 +177,9 @@ func (c *scanServiceClient) StreamScanEvents(ctx context.Context, req *connect.R
 	return c.streamScanEvents.CallServerStream(ctx, req)
 }
 
-// ListFlows calls scan.v1.ScanService.ListFlows.
-func (c *scanServiceClient) ListFlows(ctx context.Context, req *connect.Request[v1.ListFlowsRequest]) (*connect.Response[v1.ListFlowsResponse], error) {
-	return c.listFlows.CallUnary(ctx, req)
-}
-
 // ListFindings calls scan.v1.ScanService.ListFindings.
 func (c *scanServiceClient) ListFindings(ctx context.Context, req *connect.Request[v1.ListFindingsRequest]) (*connect.Response[v1.ListFindingsResponse], error) {
 	return c.listFindings.CallUnary(ctx, req)
-}
-
-// SendRepeaterRequest calls scan.v1.ScanService.SendRepeaterRequest.
-func (c *scanServiceClient) SendRepeaterRequest(ctx context.Context, req *connect.Request[v1.SendRepeaterRequestRequest]) (*connect.Response[v1.SendRepeaterRequestResponse], error) {
-	return c.sendRepeaterRequest.CallUnary(ctx, req)
 }
 
 // ListEndpoints calls scan.v1.ScanService.ListEndpoints.
@@ -236,9 +205,7 @@ type ScanServiceHandler interface {
 	ListScans(context.Context, *connect.Request[v1.ListScansRequest]) (*connect.Response[v1.ListScansResponse], error)
 	StreamScanEvents(context.Context, *connect.Request[v1.StreamScanEventsRequest], *connect.ServerStream[v1.ScanEvent]) error
 	// New Dashboard APIs
-	ListFlows(context.Context, *connect.Request[v1.ListFlowsRequest]) (*connect.Response[v1.ListFlowsResponse], error)
 	ListFindings(context.Context, *connect.Request[v1.ListFindingsRequest]) (*connect.Response[v1.ListFindingsResponse], error)
-	SendRepeaterRequest(context.Context, *connect.Request[v1.SendRepeaterRequestRequest]) (*connect.Response[v1.SendRepeaterRequestResponse], error)
 	ListEndpoints(context.Context, *connect.Request[v1.ListEndpointsRequest]) (*connect.Response[v1.ListEndpointsResponse], error)
 	GenerateReport(context.Context, *connect.Request[v1.GenerateReportRequest]) (*connect.Response[v1.GenerateReportResponse], error)
 	ListReports(context.Context, *connect.Request[v1.ListReportsRequest]) (*connect.Response[v1.ListReportsResponse], error)
@@ -281,22 +248,10 @@ func NewScanServiceHandler(svc ScanServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(scanServiceMethods.ByName("StreamScanEvents")),
 		connect.WithHandlerOptions(opts...),
 	)
-	scanServiceListFlowsHandler := connect.NewUnaryHandler(
-		ScanServiceListFlowsProcedure,
-		svc.ListFlows,
-		connect.WithSchema(scanServiceMethods.ByName("ListFlows")),
-		connect.WithHandlerOptions(opts...),
-	)
 	scanServiceListFindingsHandler := connect.NewUnaryHandler(
 		ScanServiceListFindingsProcedure,
 		svc.ListFindings,
 		connect.WithSchema(scanServiceMethods.ByName("ListFindings")),
-		connect.WithHandlerOptions(opts...),
-	)
-	scanServiceSendRepeaterRequestHandler := connect.NewUnaryHandler(
-		ScanServiceSendRepeaterRequestProcedure,
-		svc.SendRepeaterRequest,
-		connect.WithSchema(scanServiceMethods.ByName("SendRepeaterRequest")),
 		connect.WithHandlerOptions(opts...),
 	)
 	scanServiceListEndpointsHandler := connect.NewUnaryHandler(
@@ -329,12 +284,8 @@ func NewScanServiceHandler(svc ScanServiceHandler, opts ...connect.HandlerOption
 			scanServiceListScansHandler.ServeHTTP(w, r)
 		case ScanServiceStreamScanEventsProcedure:
 			scanServiceStreamScanEventsHandler.ServeHTTP(w, r)
-		case ScanServiceListFlowsProcedure:
-			scanServiceListFlowsHandler.ServeHTTP(w, r)
 		case ScanServiceListFindingsProcedure:
 			scanServiceListFindingsHandler.ServeHTTP(w, r)
-		case ScanServiceSendRepeaterRequestProcedure:
-			scanServiceSendRepeaterRequestHandler.ServeHTTP(w, r)
 		case ScanServiceListEndpointsProcedure:
 			scanServiceListEndpointsHandler.ServeHTTP(w, r)
 		case ScanServiceGenerateReportProcedure:
@@ -370,16 +321,8 @@ func (UnimplementedScanServiceHandler) StreamScanEvents(context.Context, *connec
 	return connect.NewError(connect.CodeUnimplemented, errors.New("scan.v1.ScanService.StreamScanEvents is not implemented"))
 }
 
-func (UnimplementedScanServiceHandler) ListFlows(context.Context, *connect.Request[v1.ListFlowsRequest]) (*connect.Response[v1.ListFlowsResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("scan.v1.ScanService.ListFlows is not implemented"))
-}
-
 func (UnimplementedScanServiceHandler) ListFindings(context.Context, *connect.Request[v1.ListFindingsRequest]) (*connect.Response[v1.ListFindingsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("scan.v1.ScanService.ListFindings is not implemented"))
-}
-
-func (UnimplementedScanServiceHandler) SendRepeaterRequest(context.Context, *connect.Request[v1.SendRepeaterRequestRequest]) (*connect.Response[v1.SendRepeaterRequestResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("scan.v1.ScanService.SendRepeaterRequest is not implemented"))
 }
 
 func (UnimplementedScanServiceHandler) ListEndpoints(context.Context, *connect.Request[v1.ListEndpointsRequest]) (*connect.Response[v1.ListEndpointsResponse], error) {

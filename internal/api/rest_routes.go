@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/parth/lastresort/internal/attack"
 	"github.com/parth/lastresort/internal/orchestrator"
 	"github.com/parth/lastresort/internal/storage"
 )
@@ -20,6 +21,8 @@ func (s *ScanServer) RegisterRestRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/replays", s.handleListReplays)
 	mux.HandleFunc("/api/v1/journal", s.handleListJournal)
 	mux.HandleFunc("/api/v1/settings", s.handleSettings)
+	mux.HandleFunc("/api/v1/tools/status", s.handleToolStatus)
+	mux.HandleFunc("/api/v1/scan/findings", s.handleListFindings)
 }
 
 
@@ -241,4 +244,38 @@ func (s *ScanServer) handleSettings(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeJSONError(w, http.StatusMethodNotAllowed, "method not allowed")
 	}
+}
+
+// handleToolStatus responds to GET /api/v1/tools/status
+// Returns availability status of all manual testing tools.
+func (s *ScanServer) handleToolStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSONError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	tools := attack.CheckAllToolAvailability()
+	writeJSON(w, map[string]interface{}{"tools": tools})
+}
+
+// handleListFindings responds to GET /api/v1/scan/findings?scan_id=...
+// Returns all non-false-positive findings for a scan, ordered by severity.
+func (s *ScanServer) handleListFindings(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSONError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	scanID := r.URL.Query().Get("scan_id")
+	if scanID == "" {
+		writeJSONError(w, http.StatusBadRequest, "scan_id is required")
+		return
+	}
+	findings, err := s.DB.ListFindingsForScan(r.Context(), scanID)
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if findings == nil {
+		findings = []storage.FindingRecord{}
+	}
+	writeJSON(w, map[string]interface{}{"findings": findings})
 }

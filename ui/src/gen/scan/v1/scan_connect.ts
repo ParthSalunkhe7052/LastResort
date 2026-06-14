@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { CreateScanRequest, CreateScanResponse, GenerateReportRequest, GenerateReportResponse, GetScanRequest, GetScanResponse, ListEndpointsRequest, ListEndpointsResponse, ListFindingsRequest, ListFindingsResponse, ListFlowsRequest, ListFlowsResponse, ListReportsRequest, ListReportsResponse, ListScansRequest, ListScansResponse, ScanEvent, SendRepeaterRequestRequest, SendRepeaterRequestResponse, StartScanRequest, StartScanResponse, StreamScanEventsRequest } from "./scan_pb.js";
+import { CreateScanRequest, CreateScanResponse, GenerateReportRequest, GenerateReportResponse, GetScanRequest, GetScanResponse, ListEndpointsRequest, ListEndpointsResponse, ListFindingsRequest, ListFindingsResponse, ListReportsRequest, ListReportsResponse, ListScansRequest, ListScansResponse, ScanEvent, StartScanRequest, StartScanResponse, StreamScanEventsRequest } from "./scan_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -60,30 +60,12 @@ export const ScanService = {
     /**
      * New Dashboard APIs
      *
-     * @generated from rpc scan.v1.ScanService.ListFlows
-     */
-    listFlows: {
-      name: "ListFlows",
-      I: ListFlowsRequest,
-      O: ListFlowsResponse,
-      kind: MethodKind.Unary,
-    },
-    /**
      * @generated from rpc scan.v1.ScanService.ListFindings
      */
     listFindings: {
       name: "ListFindings",
       I: ListFindingsRequest,
       O: ListFindingsResponse,
-      kind: MethodKind.Unary,
-    },
-    /**
-     * @generated from rpc scan.v1.ScanService.SendRepeaterRequest
-     */
-    sendRepeaterRequest: {
-      name: "SendRepeaterRequest",
-      I: SendRepeaterRequestRequest,
-      O: SendRepeaterRequestResponse,
       kind: MethodKind.Unary,
     },
     /**

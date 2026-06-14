@@ -4,7 +4,7 @@
 // @ts-nocheck
 
 import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
-import { Message, proto3, protoInt64, Struct, Timestamp } from "@bufbuild/protobuf";
+import { Message, proto3, Struct, Timestamp } from "@bufbuild/protobuf";
 
 /**
  * @generated from enum scan.v1.ScanStatus
@@ -83,6 +83,32 @@ proto3.util.setEnumType(ScanProfile, "scan.v1.ScanProfile", [
 ]);
 
 /**
+ * @generated from enum scan.v1.TestingMode
+ */
+export enum TestingMode {
+  /**
+   * @generated from enum value: TESTING_MODE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: TESTING_MODE_AUTOMATED = 1;
+   */
+  AUTOMATED = 1,
+
+  /**
+   * @generated from enum value: TESTING_MODE_MANUAL = 2;
+   */
+  MANUAL = 2,
+}
+// Retrieve enum metadata with: proto3.getEnumType(TestingMode)
+proto3.util.setEnumType(TestingMode, "scan.v1.TestingMode", [
+  { no: 0, name: "TESTING_MODE_UNSPECIFIED" },
+  { no: 1, name: "TESTING_MODE_AUTOMATED" },
+  { no: 2, name: "TESTING_MODE_MANUAL" },
+]);
+
+/**
  * @generated from message scan.v1.ScanConfig
  */
 export class ScanConfig extends Message<ScanConfig> {
@@ -101,6 +127,16 @@ export class ScanConfig extends Message<ScanConfig> {
    */
   profile = ScanProfile.UNSPECIFIED;
 
+  /**
+   * @generated from field: string auth_cookies = 4;
+   */
+  authCookies = "";
+
+  /**
+   * @generated from field: scan.v1.TestingMode testing_mode = 5;
+   */
+  testingMode = TestingMode.UNSPECIFIED;
+
   constructor(data?: PartialMessage<ScanConfig>) {
     super();
     proto3.util.initPartial(data, this);
@@ -112,6 +148,8 @@ export class ScanConfig extends Message<ScanConfig> {
     { no: 1, name: "target_url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "scope_patterns", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
     { no: 3, name: "profile", kind: "enum", T: proto3.getEnumType(ScanProfile) },
+    { no: 4, name: "auth_cookies", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "testing_mode", kind: "enum", T: proto3.getEnumType(TestingMode) },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ScanConfig {
@@ -566,175 +604,6 @@ export class ScanEvent extends Message<ScanEvent> {
 }
 
 /**
- * Flow and history messages
- *
- * @generated from message scan.v1.ListFlowsRequest
- */
-export class ListFlowsRequest extends Message<ListFlowsRequest> {
-  /**
-   * if empty, list all
-   *
-   * @generated from field: string scan_id = 1;
-   */
-  scanId = "";
-
-  constructor(data?: PartialMessage<ListFlowsRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
-  }
-
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "scan.v1.ListFlowsRequest";
-  static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "scan_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
-
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListFlowsRequest {
-    return new ListFlowsRequest().fromBinary(bytes, options);
-  }
-
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListFlowsRequest {
-    return new ListFlowsRequest().fromJson(jsonValue, options);
-  }
-
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListFlowsRequest {
-    return new ListFlowsRequest().fromJsonString(jsonString, options);
-  }
-
-  static equals(a: ListFlowsRequest | PlainMessage<ListFlowsRequest> | undefined, b: ListFlowsRequest | PlainMessage<ListFlowsRequest> | undefined): boolean {
-    return proto3.util.equals(ListFlowsRequest, a, b);
-  }
-}
-
-/**
- * @generated from message scan.v1.FlowRecord
- */
-export class FlowRecord extends Message<FlowRecord> {
-  /**
-   * @generated from field: int64 id = 1;
-   */
-  id = protoInt64.zero;
-
-  /**
-   * @generated from field: string scan_id = 2;
-   */
-  scanId = "";
-
-  /**
-   * @generated from field: string method = 3;
-   */
-  method = "";
-
-  /**
-   * @generated from field: string url = 4;
-   */
-  url = "";
-
-  /**
-   * @generated from field: string request_headers = 5;
-   */
-  requestHeaders = "";
-
-  /**
-   * @generated from field: bytes request_body = 6;
-   */
-  requestBody = new Uint8Array(0);
-
-  /**
-   * @generated from field: string response_headers = 7;
-   */
-  responseHeaders = "";
-
-  /**
-   * @generated from field: bytes response_body = 8;
-   */
-  responseBody = new Uint8Array(0);
-
-  /**
-   * @generated from field: int32 response_status = 9;
-   */
-  responseStatus = 0;
-
-  /**
-   * @generated from field: string created_at = 10;
-   */
-  createdAt = "";
-
-  constructor(data?: PartialMessage<FlowRecord>) {
-    super();
-    proto3.util.initPartial(data, this);
-  }
-
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "scan.v1.FlowRecord";
-  static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "id", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
-    { no: 2, name: "scan_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "method", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 4, name: "url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 5, name: "request_headers", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 6, name: "request_body", kind: "scalar", T: 12 /* ScalarType.BYTES */ },
-    { no: 7, name: "response_headers", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 8, name: "response_body", kind: "scalar", T: 12 /* ScalarType.BYTES */ },
-    { no: 9, name: "response_status", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
-    { no: 10, name: "created_at", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
-
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): FlowRecord {
-    return new FlowRecord().fromBinary(bytes, options);
-  }
-
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): FlowRecord {
-    return new FlowRecord().fromJson(jsonValue, options);
-  }
-
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): FlowRecord {
-    return new FlowRecord().fromJsonString(jsonString, options);
-  }
-
-  static equals(a: FlowRecord | PlainMessage<FlowRecord> | undefined, b: FlowRecord | PlainMessage<FlowRecord> | undefined): boolean {
-    return proto3.util.equals(FlowRecord, a, b);
-  }
-}
-
-/**
- * @generated from message scan.v1.ListFlowsResponse
- */
-export class ListFlowsResponse extends Message<ListFlowsResponse> {
-  /**
-   * @generated from field: repeated scan.v1.FlowRecord flows = 1;
-   */
-  flows: FlowRecord[] = [];
-
-  constructor(data?: PartialMessage<ListFlowsResponse>) {
-    super();
-    proto3.util.initPartial(data, this);
-  }
-
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "scan.v1.ListFlowsResponse";
-  static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "flows", kind: "message", T: FlowRecord, repeated: true },
-  ]);
-
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListFlowsResponse {
-    return new ListFlowsResponse().fromBinary(bytes, options);
-  }
-
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListFlowsResponse {
-    return new ListFlowsResponse().fromJson(jsonValue, options);
-  }
-
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListFlowsResponse {
-    return new ListFlowsResponse().fromJsonString(jsonString, options);
-  }
-
-  static equals(a: ListFlowsResponse | PlainMessage<ListFlowsResponse> | undefined, b: ListFlowsResponse | PlainMessage<ListFlowsResponse> | undefined): boolean {
-    return proto3.util.equals(ListFlowsResponse, a, b);
-  }
-}
-
-/**
  * Findings and vulnerability messages
  *
  * @generated from message scan.v1.ListFindingsRequest
@@ -920,96 +789,6 @@ export class ListFindingsResponse extends Message<ListFindingsResponse> {
 
   static equals(a: ListFindingsResponse | PlainMessage<ListFindingsResponse> | undefined, b: ListFindingsResponse | PlainMessage<ListFindingsResponse> | undefined): boolean {
     return proto3.util.equals(ListFindingsResponse, a, b);
-  }
-}
-
-/**
- * Repeater messages
- *
- * @generated from message scan.v1.SendRepeaterRequestRequest
- */
-export class SendRepeaterRequestRequest extends Message<SendRepeaterRequestRequest> {
-  /**
-   * @generated from field: string raw_request = 1;
-   */
-  rawRequest = "";
-
-  /**
-   * e.g. "example.com:443"
-   *
-   * @generated from field: string target_host = 2;
-   */
-  targetHost = "";
-
-  /**
-   * @generated from field: bool use_tls = 3;
-   */
-  useTls = false;
-
-  constructor(data?: PartialMessage<SendRepeaterRequestRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
-  }
-
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "scan.v1.SendRepeaterRequestRequest";
-  static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "raw_request", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "target_host", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "use_tls", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-  ]);
-
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SendRepeaterRequestRequest {
-    return new SendRepeaterRequestRequest().fromBinary(bytes, options);
-  }
-
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SendRepeaterRequestRequest {
-    return new SendRepeaterRequestRequest().fromJson(jsonValue, options);
-  }
-
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SendRepeaterRequestRequest {
-    return new SendRepeaterRequestRequest().fromJsonString(jsonString, options);
-  }
-
-  static equals(a: SendRepeaterRequestRequest | PlainMessage<SendRepeaterRequestRequest> | undefined, b: SendRepeaterRequestRequest | PlainMessage<SendRepeaterRequestRequest> | undefined): boolean {
-    return proto3.util.equals(SendRepeaterRequestRequest, a, b);
-  }
-}
-
-/**
- * @generated from message scan.v1.SendRepeaterRequestResponse
- */
-export class SendRepeaterRequestResponse extends Message<SendRepeaterRequestResponse> {
-  /**
-   * @generated from field: string raw_response = 1;
-   */
-  rawResponse = "";
-
-  constructor(data?: PartialMessage<SendRepeaterRequestResponse>) {
-    super();
-    proto3.util.initPartial(data, this);
-  }
-
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "scan.v1.SendRepeaterRequestResponse";
-  static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "raw_response", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
-
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SendRepeaterRequestResponse {
-    return new SendRepeaterRequestResponse().fromBinary(bytes, options);
-  }
-
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SendRepeaterRequestResponse {
-    return new SendRepeaterRequestResponse().fromJson(jsonValue, options);
-  }
-
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SendRepeaterRequestResponse {
-    return new SendRepeaterRequestResponse().fromJsonString(jsonString, options);
-  }
-
-  static equals(a: SendRepeaterRequestResponse | PlainMessage<SendRepeaterRequestResponse> | undefined, b: SendRepeaterRequestResponse | PlainMessage<SendRepeaterRequestResponse> | undefined): boolean {
-    return proto3.util.equals(SendRepeaterRequestResponse, a, b);
   }
 }
 

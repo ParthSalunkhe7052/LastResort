@@ -20,6 +20,16 @@ const (
 	ModuleVisualExploit  = "visual_exploit"
 	ModuleReport         = "report"
 	ModuleSqliAgent      = "sqli_agent"
+	ModuleManualGuide    = "manual_guide"
+
+	// Manual testing pipeline modules
+	ModuleManualRecon  = "manual_recon"
+	ModuleManualNuclei = "manual_nuclei"
+	ModuleManualWapiti = "manual_wapiti"
+	ModuleManualDalfox = "manual_dalfox"
+	ModuleManualCorsy  = "manual_corsy"
+	ModuleManualNikto  = "manual_nikto"
+	ModuleManualSSLyze = "manual_sslyze"
 )
 
 // ProfileModules maps each ScanProfile to its list of enabled modules.

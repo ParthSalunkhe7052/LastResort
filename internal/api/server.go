@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -39,10 +40,18 @@ func (s *ScanServer) CreateScan(ctx context.Context, req *connect.Request[scanv1
 	scanID := uuid.New().String()
 	targetURL := req.Msg.Config.TargetUrl
 	profile := req.Msg.Config.Profile
+	testingMode := req.Msg.Config.TestingMode
+	authCookies := req.Msg.Config.AuthCookies
+	scopePatternsJSON := "[]"
+	if len(req.Msg.Config.ScopePatterns) > 0 {
+	        if data, err := json.Marshal(req.Msg.Config.ScopePatterns); err == nil {
+	                scopePatternsJSON = string(data)
+	        }
+	}
 
 	_, err := s.DB.ExecContext(ctx,
-		"INSERT INTO scans (id, target_url, status, progress, profile, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-		scanID, targetURL, scanv1.ScanStatus_SCAN_STATUS_QUEUED, 0.0, profile, time.Now(),
+		"INSERT INTO scans (id, target_url, status, progress, profile, testing_mode, auth_cookies, scope_patterns, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		scanID, targetURL, scanv1.ScanStatus_SCAN_STATUS_QUEUED, 0.0, profile, testingMode, authCookies, scopePatternsJSON, time.Now(),
 	)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to save scan to db: %w", err))
@@ -81,37 +90,38 @@ func (s *ScanServer) GetScan(ctx context.Context, req *connect.Request[scanv1.Ge
 	var targetURL string
 	var status int
 	var progress float64
-	var profile int
+	var profile, testingMode int
 	var createdAt time.Time
 	var startedAtNull, finishedAtNull sql.NullTime
 	var detectedTechsNull, authModelNull sql.NullString
 
 	err := s.DB.QueryRowContext(ctx,
-		"SELECT target_url, status, progress, profile, created_at, started_at, finished_at, detected_technologies, auth_model FROM scans WHERE id = ?",
-		scanID,
-	).Scan(&targetURL, &status, &progress, &profile, &createdAt, &startedAtNull, &finishedAtNull, &detectedTechsNull, &authModelNull)
+	        "SELECT target_url, status, progress, profile, testing_mode, created_at, started_at, finished_at, detected_technologies, auth_model FROM scans WHERE id = ?",
+	        scanID,
+	).Scan(&targetURL, &status, &progress, &profile, &testingMode, &createdAt, &startedAtNull, &finishedAtNull, &detectedTechsNull, &authModelNull)
 
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, connect.NewError(connect.CodeNotFound, errors.New("scan not found"))
-		}
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("database error: %w", err))
+	        if errors.Is(err, sql.ErrNoRows) {
+	                return nil, connect.NewError(connect.CodeNotFound, errors.New("scan not found"))
+	        }
+	        return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("database error: %w", err))
 	}
 
 	var startedAt, finishedAt *timestamppb.Timestamp
 	if startedAtNull.Valid {
-		startedAt = timestamppb.New(startedAtNull.Time)
+	        startedAt = timestamppb.New(startedAtNull.Time)
 	}
 	if finishedAtNull.Valid {
-		finishedAt = timestamppb.New(finishedAtNull.Time)
+	        finishedAt = timestamppb.New(finishedAtNull.Time)
 	}
 
 	return connect.NewResponse(&scanv1.GetScanResponse{
-		ScanId: scanID,
-		Config: &scanv1.ScanConfig{
-			TargetUrl: targetURL,
-			Profile:   scanv1.ScanProfile(profile),
-		},
+	        ScanId: scanID,
+	        Config: &scanv1.ScanConfig{
+	                TargetUrl:   targetURL,
+	                Profile:     scanv1.ScanProfile(profile),
+	                TestingMode: scanv1.TestingMode(testingMode),
+	        },
 		Status:               scanv1.ScanStatus(status),
 		Progress:             float32(progress),
 		CreatedAt:            timestamppb.New(createdAt),
@@ -124,51 +134,52 @@ func (s *ScanServer) GetScan(ctx context.Context, req *connect.Request[scanv1.Ge
 
 // ListScans lists historical assessments from SQLite database
 func (s *ScanServer) ListScans(ctx context.Context, req *connect.Request[scanv1.ListScansRequest]) (*connect.Response[scanv1.ListScansResponse], error) {
-	rows, err := s.DB.QueryContext(ctx, "SELECT id, target_url, status, progress, profile, created_at, started_at, finished_at, detected_technologies, auth_model FROM scans ORDER BY created_at DESC")
-	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to query scans: %w", err))
-	}
-	defer rows.Close()
+        rows, err := s.DB.QueryContext(ctx, "SELECT id, target_url, status, progress, profile, testing_mode, created_at, started_at, finished_at, detected_technologies, auth_model FROM scans ORDER BY created_at DESC")
+        if err != nil {
+                return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to query scans: %w", err))
+        }
+        defer rows.Close()
 
-	var scans []*scanv1.GetScanResponse
-	for rows.Next() {
-		var scanID, targetURL string
-		var status int
-		var progress float64
-		var profile int
-		var createdAt time.Time
-		var startedAtNull, finishedAtNull sql.NullTime
-		var detectedTechsNull, authModelNull sql.NullString
+        var scans []*scanv1.GetScanResponse
+        for rows.Next() {
+                var scanID, targetURL string
+                var status int
+                var progress float64
+                var profile, testingMode int
+                var createdAt time.Time
+                var startedAtNull, finishedAtNull sql.NullTime
+                var detectedTechsNull, authModelNull sql.NullString
 
-		if err := rows.Scan(&scanID, &targetURL, &status, &progress, &profile, &createdAt, &startedAtNull, &finishedAtNull, &detectedTechsNull, &authModelNull); err != nil {
-			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to scan row: %w", err))
-		}
+                if err := rows.Scan(&scanID, &targetURL, &status, &progress, &profile, &testingMode, &createdAt, &startedAtNull, &finishedAtNull, &detectedTechsNull, &authModelNull); err != nil {
+                        return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to scan row: %w", err))
+                }
 
-		var startedAt, finishedAt *timestamppb.Timestamp
-		if startedAtNull.Valid {
-			startedAt = timestamppb.New(startedAtNull.Time)
-		}
-		if finishedAtNull.Valid {
-			finishedAt = timestamppb.New(finishedAtNull.Time)
-		}
+                var startedAt, finishedAt *timestamppb.Timestamp
+                if startedAtNull.Valid {
+                        startedAt = timestamppb.New(startedAtNull.Time)
+                }
+                if finishedAtNull.Valid {
+                        finishedAt = timestamppb.New(finishedAtNull.Time)
+                }
 
-		scans = append(scans, &scanv1.GetScanResponse{
-			ScanId:               scanID,
-			Config: &scanv1.ScanConfig{
-				TargetUrl: targetURL,
-				Profile:   scanv1.ScanProfile(profile),
-			},
-			Status:               scanv1.ScanStatus(status),
-			Progress:             float32(progress),
-			CreatedAt:            timestamppb.New(createdAt),
-			StartedAt:            startedAt,
-			FinishedAt:           finishedAt,
-			DetectedTechnologies: detectedTechsNull.String,
-			AuthModel:            authModelNull.String,
-		})
-	}
+                scans = append(scans, &scanv1.GetScanResponse{
+                        ScanId: scanID,
+                        Config: &scanv1.ScanConfig{
+                                TargetUrl:   targetURL,
+                                Profile:     scanv1.ScanProfile(profile),
+                                TestingMode: scanv1.TestingMode(testingMode),
+                        },
+                        Status:               scanv1.ScanStatus(status),
+                        Progress:             float32(progress),
+                        CreatedAt:            timestamppb.New(createdAt),
+                        StartedAt:            startedAt,
+                        FinishedAt:           finishedAt,
+                        DetectedTechnologies: detectedTechsNull.String,
+                        AuthModel:            authModelNull.String,
+                })
+        }
 
-	return connect.NewResponse(&scanv1.ListScansResponse{Scans: scans}), nil
+        return connect.NewResponse(&scanv1.ListScansResponse{Scans: scans}), nil
 }
 
 // StreamScanEvents streams real-time log messages using the EventBroker pub-sub channels
@@ -217,10 +228,7 @@ func (s *ScanServer) StreamScanEvents(ctx context.Context, req *connect.Request[
 	}
 }
 
-// ListFlows is deprecated and returns an empty list.
-func (s *ScanServer) ListFlows(ctx context.Context, req *connect.Request[scanv1.ListFlowsRequest]) (*connect.Response[scanv1.ListFlowsResponse], error) {
-	return connect.NewResponse(&scanv1.ListFlowsResponse{}), nil
-}
+
 
 // ListFindings retrieves passive and active security findings from SQLite database
 func (s *ScanServer) ListFindings(ctx context.Context, req *connect.Request[scanv1.ListFindingsRequest]) (*connect.Response[scanv1.ListFindingsResponse], error) {
@@ -323,10 +331,7 @@ func (s *ScanServer) ListEndpoints(ctx context.Context, req *connect.Request[sca
 	return connect.NewResponse(&scanv1.ListEndpointsResponse{Endpoints: records}), nil
 }
 
-// SendRepeaterRequest is deprecated.
-func (s *ScanServer) SendRepeaterRequest(ctx context.Context, req *connect.Request[scanv1.SendRepeaterRequestRequest]) (*connect.Response[scanv1.SendRepeaterRequestResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, fmt.Errorf("Repeater functionality is removed"))
-}
+
 
 // GenerateReport invokes report generator to build assessment exports
 func (s *ScanServer) GenerateReport(ctx context.Context, req *connect.Request[scanv1.GenerateReportRequest]) (*connect.Response[scanv1.GenerateReportResponse], error) {

@@ -38,7 +38,21 @@ func (m *mockAiClient) VerifyAttackResult(ctx context.Context, req *connect.Requ
 	}), nil
 }
 
-func TestAgentSQLiExecutorGracefulOffline(t *testing.T) {
+type mockBrowserExecutor struct {
+	err error
+}
+
+func (m *mockBrowserExecutor) ExecuteAction(ctx context.Context, req browser.ActionRequest) (*browser.ActionResult, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return &browser.ActionResult{
+		Success:    true,
+		PageSource: "mock response source",
+	}, nil
+}
+
+func TestSQLiModulePlanAndExecute(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "lastresort-agent-test-*")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
@@ -63,13 +77,8 @@ func TestAgentSQLiExecutorGracefulOffline(t *testing.T) {
 	targetServer := httptest.NewServer(targetMux)
 	defer targetServer.Close()
 
-	browserClient := browser.NewClient("http://127.0.0.1:9999") 
 	aiClient := &mockAiClient{}
-
-	onLog := func(msg string) {}
-	screenshotFn := func(b64 string) {}
-
-	exec := NewAgentSQLiExecutor(db, browserClient, aiClient, scanID, 0, onLog, screenshotFn)
+	module := NewSQLiModule(aiClient, scanID)
 
 	surf := scanner.AttackSurface{
 		URL:         targetServer.URL + "/search",
@@ -81,8 +90,20 @@ func TestAgentSQLiExecutorGracefulOffline(t *testing.T) {
 		},
 	}
 
-	err = exec.Execute(ctx, surf)
-	if err == nil {
-		t.Error("expected Execute to fail because browser service is offline, but it succeeded")
+	attempts, err := module.Plan(ctx, surf)
+	if err != nil {
+		t.Fatalf("failed to plan: %v", err)
+	}
+	if len(attempts) == 0 {
+		t.Error("expected attempts to be planned, got 0")
+	}
+
+	mockExec := &mockBrowserExecutor{}
+	res, err := module.Execute(ctx, mockExec, attempts[0])
+	if err != nil {
+		t.Fatalf("failed to execute: %v", err)
+	}
+	if res.RawResult == nil || res.RawResult.PageSource != "mock response source" {
+		t.Errorf("unexpected execute response: %+v", res)
 	}
 }

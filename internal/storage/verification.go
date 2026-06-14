@@ -22,6 +22,7 @@ const (
 	VerificationTimingAnomaly VerificationMethod = "TIMING_ANOMALY" // time-based detection
 	VerificationDataLeak     VerificationMethod = "DATA_LEAK"       // sensitive data in response
 	VerificationBurstSuccess VerificationMethod = "BURST_SUCCESS"   // all burst requests succeeded (rate limit)
+	VerificationToolReported VerificationMethod = "TOOL_REPORTED"   // tool reported finding, no browser verification
 )
 
 // EvidenceArtifact is a single concrete piece of proof attached to a verification.

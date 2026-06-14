@@ -29,7 +29,7 @@ func NewCrawlManager(scanID string, proxyPort int) *CrawlManager {
 
 // Crawl executes the complete crawl phase for a target URL.
 // It uses a callback function to send discovery logs back to the orchestrator.
-func (cm *CrawlManager) Crawl(ctx context.Context, scanID, seedURL, cookieStr string, onLog func(msg string), onEndpoint func(method, urlStr, source string), onForm func(form browser.DiscoveredForm)) error {
+func (cm *CrawlManager) Crawl(ctx context.Context, scanID, seedURL, cookieStr string, patterns []string, onLog func(msg string), onEndpoint func(method, urlStr, source string), onForm func(form browser.DiscoveredForm)) error {
 	u, err := url.Parse(seedURL)
 	if err != nil {
 		return fmt.Errorf("invalid seed URL: %w", err)
@@ -68,7 +68,7 @@ func (cm *CrawlManager) Crawl(ctx context.Context, scanID, seedURL, cookieStr st
 		// Log disallow routes as potential endpoints
 		for _, path := range disallows {
 			resolved := resolveURL(u, path)
-			if resolved != "" && IsInCrawlScope(resolved, seedURL) {
+			if resolved != "" && IsInCrawlScope(resolved, seedURL, patterns) {
 				endpointsChan <- DiscoveredEndpoint{
 					Method: "GET",
 					URL:    resolved,
@@ -83,7 +83,7 @@ func (cm *CrawlManager) Crawl(ctx context.Context, scanID, seedURL, cookieStr st
 			if err == nil {
 				sitemapURLs = append(sitemapURLs, urls...)
 				for _, smURL := range urls {
-					if IsInCrawlScope(smURL, seedURL) {
+					if IsInCrawlScope(smURL, seedURL, patterns) {
 						endpointsChan <- DiscoveredEndpoint{
 							Method: "GET",
 							URL:    smURL,
@@ -126,7 +126,7 @@ func (cm *CrawlManager) Crawl(ctx context.Context, scanID, seedURL, cookieStr st
 	if attack.ToolAvailable("katana") {
 		onLog("[CRAWLER] Katana crawler binary is available. Running Katana crawl...")
 		err := attack.RunKatanaCrawl(sessionCtx, seedURL, cm.proxyPort, cookieStr, func(method, urlStr, source string) {
-			if IsInCrawlScope(urlStr, seedURL) {
+			if IsInCrawlScope(urlStr, seedURL, patterns) {
 				endpointsChan <- DiscoveredEndpoint{
 					Method: method,
 					URL:    urlStr,
@@ -150,12 +150,12 @@ func (cm *CrawlManager) Crawl(ctx context.Context, scanID, seedURL, cookieStr st
 			onLog(fmt.Sprintf("[CRAWLER] [ERROR] Browser crawl failed, falling back to static crawl: %v", err))
 			if !hasKatana {
 				onLog("[CRAWLER] Falling back to static BFS crawler...")
-				runStaticBFS(sessionCtx, session, endpointsChan, errorsChan, seedURL, sitemapURLs, seedHost, onLog, cm)
+				runStaticBFS(sessionCtx, session, endpointsChan, errorsChan, seedURL, sitemapURLs, seedHost, onLog, cm, patterns)
 			}
 		} else {
 			onLog(fmt.Sprintf("[CRAWLER] Browser crawl succeeded. Processing %d discovered routes and %d forms.", len(endpoints), len(forms)))
 			for _, ep := range endpoints {
-				if IsInCrawlScope(ep.URL, seedURL) {
+				if IsInCrawlScope(ep.URL, seedURL, patterns) {
 					endpointsChan <- DiscoveredEndpoint{
 						Method: ep.Method,
 						URL:    ep.URL,
@@ -164,7 +164,7 @@ func (cm *CrawlManager) Crawl(ctx context.Context, scanID, seedURL, cookieStr st
 				}
 			}
 			for _, f := range forms {
-				if IsInCrawlScope(f.Action, seedURL) && onForm != nil {
+				if IsInCrawlScope(f.Action, seedURL, patterns) && onForm != nil {
 					onForm(f)
 				}
 			}
@@ -172,7 +172,7 @@ func (cm *CrawlManager) Crawl(ctx context.Context, scanID, seedURL, cookieStr st
 	} else {
 		if !hasKatana {
 			onLog("[CRAWLER] Browser crawling service is offline. Falling back to static BFS crawler...")
-			runStaticBFS(sessionCtx, session, endpointsChan, errorsChan, seedURL, sitemapURLs, seedHost, onLog, cm)
+			runStaticBFS(sessionCtx, session, endpointsChan, errorsChan, seedURL, sitemapURLs, seedHost, onLog, cm, patterns)
 		}
 	}
 
@@ -195,11 +195,12 @@ func runStaticBFS(
 	seedHost string,
 	onLog func(msg string),
 	cm *CrawlManager,
+	patterns []string,
 ) {
 	// Build our BFS Queue starting with the seed URL and sitemap URLs
 	currentDepthURLs := []string{seedURL}
 	for _, smURL := range sitemapURLs {
-		if IsInCrawlScope(smURL, seedURL) {
+		if IsInCrawlScope(smURL, seedURL, patterns) {
 			currentDepthURLs = append(currentDepthURLs, smURL)
 			// Trigger HTTP page load to log through proxy
 			endpointsChan <- DiscoveredEndpoint{
@@ -261,12 +262,12 @@ func runStaticBFS(
 				defer nextDepthMutex.Unlock()
 
 				for _, link := range foundLinks {
-					if IsInCrawlScope(link, seedURL) {
+					if IsInCrawlScope(link, seedURL, patterns) {
 						nextDepthURLs = append(nextDepthURLs, link)
 					}
 				}
 				for _, link := range jsDiscoveredLinks {
-					if IsInCrawlScope(link, seedURL) {
+					if IsInCrawlScope(link, seedURL, patterns) {
 						nextDepthURLs = append(nextDepthURLs, link)
 						// Notify log of JS endpoint discovery
 						endpointsChan <- DiscoveredEndpoint{

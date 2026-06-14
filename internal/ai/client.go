@@ -14,40 +14,69 @@ import (
 
 	connect "connectrpc.com/connect"
 	aiv1 "github.com/parth/lastresort/internal/gen/ai/v1"
+	"github.com/parth/lastresort/internal/storage"
 )
 
 type LocalServiceClient struct {
 	httpClient *http.Client
+	db         *storage.DB
 }
 
-func NewLocalServiceClient() *LocalServiceClient {
+func NewLocalServiceClient(db *storage.DB) *LocalServiceClient {
 	return &LocalServiceClient{
 		httpClient: &http.Client{
 			Timeout: 60 * time.Second,
 		},
+		db: db,
 	}
+}
+
+func (c *LocalServiceClient) getSettingOrEnv(ctx context.Context, key, envName string) string {
+	if c.db != nil {
+		val, err := c.db.GetSetting(ctx, key)
+		if err == nil && val != "" {
+			return val
+		}
+	}
+	return os.Getenv(envName)
 }
 
 // Health checks the status of LLM keys and configurations
 func (c *LocalServiceClient) Health(ctx context.Context, req *connect.Request[aiv1.HealthRequest]) (*connect.Response[aiv1.HealthResponse], error) {
-	geminiKey := os.Getenv("GEMINI_API_KEY")
-	openRouterKey := os.Getenv("OPENROUTER_API_KEY")
+	geminiKey := c.getSettingOrEnv(ctx, "gemini_api_key", "GEMINI_API_KEY")
+	openRouterKey := c.getSettingOrEnv(ctx, "openrouter_api_key", "OPENROUTER_API_KEY")
 
 	status := "offline"
 	provider := "none"
 	model := "none"
 	initialized := false
 
-	if geminiKey != "" {
+	if c.db != nil {
+		if p, err := c.db.GetSetting(ctx, "ai_provider"); err == nil && p != "" {
+			provider = p
+		}
+		if m, err := c.db.GetSetting(ctx, "ai_model"); err == nil && m != "" {
+			model = m
+		}
+	}
+
+	if geminiKey != "" || openRouterKey != "" {
 		status = "ok"
-		provider = "gemini"
-		model = "gemini-2.5-flash"
 		initialized = true
-	} else if openRouterKey != "" {
-		status = "ok"
-		provider = "openrouter"
-		model = "openrouter/free"
-		initialized = true
+		if provider == "none" {
+			if geminiKey != "" {
+				provider = "gemini"
+			} else {
+				provider = "openrouter"
+			}
+		}
+		if model == "none" {
+			if provider == "gemini" {
+				model = "gemini-2.5-flash"
+			} else {
+				model = "openrouter/free"
+			}
+		}
 	}
 
 	return connect.NewResponse(&aiv1.HealthResponse{
@@ -60,8 +89,8 @@ func (c *LocalServiceClient) Health(ctx context.Context, req *connect.Request[ai
 
 // CallLLM executes a text completion request with fallback logic (Gemini -> OpenRouter)
 func (c *LocalServiceClient) CallLLM(ctx context.Context, prompt string, requireJSON bool) (string, error) {
-	geminiKey := os.Getenv("GEMINI_API_KEY")
-	openRouterKey := os.Getenv("OPENROUTER_API_KEY")
+	geminiKey := c.getSettingOrEnv(ctx, "gemini_api_key", "GEMINI_API_KEY")
+	openRouterKey := c.getSettingOrEnv(ctx, "openrouter_api_key", "OPENROUTER_API_KEY")
 
 	var lastErr error
 
@@ -76,7 +105,7 @@ func (c *LocalServiceClient) CallLLM(ctx context.Context, prompt string, require
 	}
 
 	// 2. Try Gemini backup keys
-	backupKeysStr := os.Getenv("GEMINI_BACKUP_KEYS")
+	backupKeysStr := c.getSettingOrEnv(ctx, "gemini_backup_keys", "GEMINI_BACKUP_KEYS")
 	if backupKeysStr != "" {
 		backupKeys := strings.Split(backupKeysStr, ",")
 		for idx, bKey := range backupKeys {
@@ -105,7 +134,7 @@ func (c *LocalServiceClient) CallLLM(ctx context.Context, prompt string, require
 	}
 
 	// 4. Try OpenRouter backup keys
-	openRouterBackupStr := os.Getenv("OPENROUTER_BACKUP_KEYS")
+	openRouterBackupStr := c.getSettingOrEnv(ctx, "openrouter_backup_keys", "OPENROUTER_BACKUP_KEYS")
 	if openRouterBackupStr != "" {
 		backupKeys := strings.Split(openRouterBackupStr, ",")
 		for idx, bKey := range backupKeys {
@@ -125,7 +154,7 @@ func (c *LocalServiceClient) CallLLM(ctx context.Context, prompt string, require
 	if lastErr != nil {
 		return "", fmt.Errorf("all LLM keys exhausted. Last error: %w", lastErr)
 	}
-	return "", fmt.Errorf("no LLM keys configured (GEMINI_API_KEY or OPENROUTER_API_KEY)")
+	return "", fmt.Errorf("no LLM keys configured (gemini_api_key or openrouter_api_key)")
 }
 
 type geminiPart struct {
@@ -156,7 +185,13 @@ type geminiResponse struct {
 }
 
 func (c *LocalServiceClient) callGemini(ctx context.Context, apiKey, prompt string, requireJSON bool) (string, error) {
-	url := "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey
+	model := "gemini-2.5-flash"
+	if c.db != nil {
+		if m, err := c.db.GetSetting(ctx, "ai_model"); err == nil && m != "" {
+			model = m
+		}
+	}
+	url := "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + apiKey
 
 	reqData := geminiRequest{
 		Contents: []geminiContent{
@@ -237,9 +272,15 @@ type openRouterResponse struct {
 
 func (c *LocalServiceClient) callOpenRouter(ctx context.Context, apiKey, prompt string, requireJSON bool) (string, error) {
 	url := "https://openrouter.ai/api/v1/chat/completions"
+	model := "openrouter/free"
+	if c.db != nil {
+		if m, err := c.db.GetSetting(ctx, "ai_model"); err == nil && m != "" {
+			model = m
+		}
+	}
 
 	reqData := openRouterRequest{
-		Model: "openrouter/free",
+		Model: model,
 		Messages: []openRouterMessage{
 			{Role: "user", Content: prompt},
 		},

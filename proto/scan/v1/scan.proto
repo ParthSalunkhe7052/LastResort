@@ -15,9 +15,7 @@ service ScanService {
   rpc StreamScanEvents(StreamScanEventsRequest) returns (stream ScanEvent);
 
   // New Dashboard APIs
-  rpc ListFlows(ListFlowsRequest) returns (ListFlowsResponse);
   rpc ListFindings(ListFindingsRequest) returns (ListFindingsResponse);
-  rpc SendRepeaterRequest(SendRepeaterRequestRequest) returns (SendRepeaterRequestResponse);
   rpc ListEndpoints(ListEndpointsRequest) returns (ListEndpointsResponse);
   rpc GenerateReport(GenerateReportRequest) returns (GenerateReportResponse);
   rpc ListReports(ListReportsRequest) returns (ListReportsResponse);
@@ -39,10 +37,18 @@ enum ScanProfile {
   SCAN_PROFILE_DEEP = 3;
 }
 
+enum TestingMode {
+  TESTING_MODE_UNSPECIFIED = 0;
+  TESTING_MODE_AUTOMATED = 1;
+  TESTING_MODE_MANUAL = 2;
+}
+
 message ScanConfig {
   string target_url = 1;
   repeated string scope_patterns = 2;
   ScanProfile profile = 3;
+  string auth_cookies = 4;
+  TestingMode testing_mode = 5;
 }
 
 message CreateScanRequest {
@@ -94,27 +100,7 @@ message ScanEvent {
   google.protobuf.Struct data = 4;
 }
 
-// Flow and history messages
-message ListFlowsRequest {
-  string scan_id = 1; // if empty, list all
-}
 
-message FlowRecord {
-  int64 id = 1;
-  string scan_id = 2;
-  string method = 3;
-  string url = 4;
-  string request_headers = 5;
-  bytes request_body = 6;
-  string response_headers = 7;
-  bytes response_body = 8;
-  int32 response_status = 9;
-  string created_at = 10;
-}
-
-message ListFlowsResponse {
-  repeated FlowRecord flows = 1;
-}
 
 // Findings and vulnerability messages
 message ListFindingsRequest {
@@ -141,16 +127,7 @@ message ListFindingsResponse {
   repeated FindingRecord findings = 1;
 }
 
-// Repeater messages
-message SendRepeaterRequestRequest {
-  string raw_request = 1;
-  string target_host = 2; // e.g. "example.com:443"
-  bool use_tls = 3;
-}
 
-message SendRepeaterRequestResponse {
-  string raw_response = 1;
-}
 
 message ListEndpointsRequest {
   string scan_id = 1;

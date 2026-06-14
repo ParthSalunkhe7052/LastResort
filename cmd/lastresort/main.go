@@ -98,7 +98,7 @@ func runServe(dbPath string, apiPort int) {
 	go attack.InitNucleiTemplates()
 
 	// 2. Initialize the Go-native AI client
-	aiClient := ai.NewLocalServiceClient()
+	aiClient := ai.NewLocalServiceClient(db)
 	log.Printf("[LLM] Initialized Go-native Gemini/OpenRouter AI service client")
 
 	// 3. Initialize background Scan Orchestrator

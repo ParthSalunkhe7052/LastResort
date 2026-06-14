@@ -133,11 +133,62 @@ func (ScanProfile) EnumDescriptor() ([]byte, []int) {
 	return file_scan_v1_scan_proto_rawDescGZIP(), []int{1}
 }
 
+type TestingMode int32
+
+const (
+	TestingMode_TESTING_MODE_UNSPECIFIED TestingMode = 0
+	TestingMode_TESTING_MODE_AUTOMATED   TestingMode = 1
+	TestingMode_TESTING_MODE_MANUAL      TestingMode = 2
+)
+
+// Enum value maps for TestingMode.
+var (
+	TestingMode_name = map[int32]string{
+		0: "TESTING_MODE_UNSPECIFIED",
+		1: "TESTING_MODE_AUTOMATED",
+		2: "TESTING_MODE_MANUAL",
+	}
+	TestingMode_value = map[string]int32{
+		"TESTING_MODE_UNSPECIFIED": 0,
+		"TESTING_MODE_AUTOMATED":   1,
+		"TESTING_MODE_MANUAL":      2,
+	}
+)
+
+func (x TestingMode) Enum() *TestingMode {
+	p := new(TestingMode)
+	*p = x
+	return p
+}
+
+func (x TestingMode) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (TestingMode) Descriptor() protoreflect.EnumDescriptor {
+	return file_scan_v1_scan_proto_enumTypes[2].Descriptor()
+}
+
+func (TestingMode) Type() protoreflect.EnumType {
+	return &file_scan_v1_scan_proto_enumTypes[2]
+}
+
+func (x TestingMode) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use TestingMode.Descriptor instead.
+func (TestingMode) EnumDescriptor() ([]byte, []int) {
+	return file_scan_v1_scan_proto_rawDescGZIP(), []int{2}
+}
+
 type ScanConfig struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	TargetUrl     string                 `protobuf:"bytes,1,opt,name=target_url,json=targetUrl,proto3" json:"target_url,omitempty"`
 	ScopePatterns []string               `protobuf:"bytes,2,rep,name=scope_patterns,json=scopePatterns,proto3" json:"scope_patterns,omitempty"`
 	Profile       ScanProfile            `protobuf:"varint,3,opt,name=profile,proto3,enum=scan.v1.ScanProfile" json:"profile,omitempty"`
+	AuthCookies   string                 `protobuf:"bytes,4,opt,name=auth_cookies,json=authCookies,proto3" json:"auth_cookies,omitempty"`
+	TestingMode   TestingMode            `protobuf:"varint,5,opt,name=testing_mode,json=testingMode,proto3,enum=scan.v1.TestingMode" json:"testing_mode,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -191,6 +242,20 @@ func (x *ScanConfig) GetProfile() ScanProfile {
 		return x.Profile
 	}
 	return ScanProfile_SCAN_PROFILE_UNSPECIFIED
+}
+
+func (x *ScanConfig) GetAuthCookies() string {
+	if x != nil {
+		return x.AuthCookies
+	}
+	return ""
+}
+
+func (x *ScanConfig) GetTestingMode() TestingMode {
+	if x != nil {
+		return x.TestingMode
+	}
+	return TestingMode_TESTING_MODE_UNSPECIFIED
 }
 
 type CreateScanRequest struct {
@@ -713,211 +778,6 @@ func (x *ScanEvent) GetData() *structpb.Struct {
 	return nil
 }
 
-// Flow and history messages
-type ListFlowsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ScanId        string                 `protobuf:"bytes,1,opt,name=scan_id,json=scanId,proto3" json:"scan_id,omitempty"` // if empty, list all
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ListFlowsRequest) Reset() {
-	*x = ListFlowsRequest{}
-	mi := &file_scan_v1_scan_proto_msgTypes[11]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ListFlowsRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ListFlowsRequest) ProtoMessage() {}
-
-func (x *ListFlowsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_scan_v1_scan_proto_msgTypes[11]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ListFlowsRequest.ProtoReflect.Descriptor instead.
-func (*ListFlowsRequest) Descriptor() ([]byte, []int) {
-	return file_scan_v1_scan_proto_rawDescGZIP(), []int{11}
-}
-
-func (x *ListFlowsRequest) GetScanId() string {
-	if x != nil {
-		return x.ScanId
-	}
-	return ""
-}
-
-type FlowRecord struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	Id              int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
-	ScanId          string                 `protobuf:"bytes,2,opt,name=scan_id,json=scanId,proto3" json:"scan_id,omitempty"`
-	Method          string                 `protobuf:"bytes,3,opt,name=method,proto3" json:"method,omitempty"`
-	Url             string                 `protobuf:"bytes,4,opt,name=url,proto3" json:"url,omitempty"`
-	RequestHeaders  string                 `protobuf:"bytes,5,opt,name=request_headers,json=requestHeaders,proto3" json:"request_headers,omitempty"`
-	RequestBody     []byte                 `protobuf:"bytes,6,opt,name=request_body,json=requestBody,proto3" json:"request_body,omitempty"`
-	ResponseHeaders string                 `protobuf:"bytes,7,opt,name=response_headers,json=responseHeaders,proto3" json:"response_headers,omitempty"`
-	ResponseBody    []byte                 `protobuf:"bytes,8,opt,name=response_body,json=responseBody,proto3" json:"response_body,omitempty"`
-	ResponseStatus  int32                  `protobuf:"varint,9,opt,name=response_status,json=responseStatus,proto3" json:"response_status,omitempty"`
-	CreatedAt       string                 `protobuf:"bytes,10,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
-}
-
-func (x *FlowRecord) Reset() {
-	*x = FlowRecord{}
-	mi := &file_scan_v1_scan_proto_msgTypes[12]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *FlowRecord) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*FlowRecord) ProtoMessage() {}
-
-func (x *FlowRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_scan_v1_scan_proto_msgTypes[12]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use FlowRecord.ProtoReflect.Descriptor instead.
-func (*FlowRecord) Descriptor() ([]byte, []int) {
-	return file_scan_v1_scan_proto_rawDescGZIP(), []int{12}
-}
-
-func (x *FlowRecord) GetId() int64 {
-	if x != nil {
-		return x.Id
-	}
-	return 0
-}
-
-func (x *FlowRecord) GetScanId() string {
-	if x != nil {
-		return x.ScanId
-	}
-	return ""
-}
-
-func (x *FlowRecord) GetMethod() string {
-	if x != nil {
-		return x.Method
-	}
-	return ""
-}
-
-func (x *FlowRecord) GetUrl() string {
-	if x != nil {
-		return x.Url
-	}
-	return ""
-}
-
-func (x *FlowRecord) GetRequestHeaders() string {
-	if x != nil {
-		return x.RequestHeaders
-	}
-	return ""
-}
-
-func (x *FlowRecord) GetRequestBody() []byte {
-	if x != nil {
-		return x.RequestBody
-	}
-	return nil
-}
-
-func (x *FlowRecord) GetResponseHeaders() string {
-	if x != nil {
-		return x.ResponseHeaders
-	}
-	return ""
-}
-
-func (x *FlowRecord) GetResponseBody() []byte {
-	if x != nil {
-		return x.ResponseBody
-	}
-	return nil
-}
-
-func (x *FlowRecord) GetResponseStatus() int32 {
-	if x != nil {
-		return x.ResponseStatus
-	}
-	return 0
-}
-
-func (x *FlowRecord) GetCreatedAt() string {
-	if x != nil {
-		return x.CreatedAt
-	}
-	return ""
-}
-
-type ListFlowsResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Flows         []*FlowRecord          `protobuf:"bytes,1,rep,name=flows,proto3" json:"flows,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ListFlowsResponse) Reset() {
-	*x = ListFlowsResponse{}
-	mi := &file_scan_v1_scan_proto_msgTypes[13]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ListFlowsResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ListFlowsResponse) ProtoMessage() {}
-
-func (x *ListFlowsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_scan_v1_scan_proto_msgTypes[13]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ListFlowsResponse.ProtoReflect.Descriptor instead.
-func (*ListFlowsResponse) Descriptor() ([]byte, []int) {
-	return file_scan_v1_scan_proto_rawDescGZIP(), []int{13}
-}
-
-func (x *ListFlowsResponse) GetFlows() []*FlowRecord {
-	if x != nil {
-		return x.Flows
-	}
-	return nil
-}
-
 // Findings and vulnerability messages
 type ListFindingsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -928,7 +788,7 @@ type ListFindingsRequest struct {
 
 func (x *ListFindingsRequest) Reset() {
 	*x = ListFindingsRequest{}
-	mi := &file_scan_v1_scan_proto_msgTypes[14]
+	mi := &file_scan_v1_scan_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -940,7 +800,7 @@ func (x *ListFindingsRequest) String() string {
 func (*ListFindingsRequest) ProtoMessage() {}
 
 func (x *ListFindingsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_scan_v1_scan_proto_msgTypes[14]
+	mi := &file_scan_v1_scan_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -953,7 +813,7 @@ func (x *ListFindingsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListFindingsRequest.ProtoReflect.Descriptor instead.
 func (*ListFindingsRequest) Descriptor() ([]byte, []int) {
-	return file_scan_v1_scan_proto_rawDescGZIP(), []int{14}
+	return file_scan_v1_scan_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *ListFindingsRequest) GetScanId() string {
@@ -984,7 +844,7 @@ type FindingRecord struct {
 
 func (x *FindingRecord) Reset() {
 	*x = FindingRecord{}
-	mi := &file_scan_v1_scan_proto_msgTypes[15]
+	mi := &file_scan_v1_scan_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -996,7 +856,7 @@ func (x *FindingRecord) String() string {
 func (*FindingRecord) ProtoMessage() {}
 
 func (x *FindingRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_scan_v1_scan_proto_msgTypes[15]
+	mi := &file_scan_v1_scan_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1009,7 +869,7 @@ func (x *FindingRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FindingRecord.ProtoReflect.Descriptor instead.
 func (*FindingRecord) Descriptor() ([]byte, []int) {
-	return file_scan_v1_scan_proto_rawDescGZIP(), []int{15}
+	return file_scan_v1_scan_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *FindingRecord) GetId() string {
@@ -1112,7 +972,7 @@ type ListFindingsResponse struct {
 
 func (x *ListFindingsResponse) Reset() {
 	*x = ListFindingsResponse{}
-	mi := &file_scan_v1_scan_proto_msgTypes[16]
+	mi := &file_scan_v1_scan_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1124,7 +984,7 @@ func (x *ListFindingsResponse) String() string {
 func (*ListFindingsResponse) ProtoMessage() {}
 
 func (x *ListFindingsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_scan_v1_scan_proto_msgTypes[16]
+	mi := &file_scan_v1_scan_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1137,7 +997,7 @@ func (x *ListFindingsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListFindingsResponse.ProtoReflect.Descriptor instead.
 func (*ListFindingsResponse) Descriptor() ([]byte, []int) {
-	return file_scan_v1_scan_proto_rawDescGZIP(), []int{16}
+	return file_scan_v1_scan_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ListFindingsResponse) GetFindings() []*FindingRecord {
@@ -1145,111 +1005,6 @@ func (x *ListFindingsResponse) GetFindings() []*FindingRecord {
 		return x.Findings
 	}
 	return nil
-}
-
-// Repeater messages
-type SendRepeaterRequestRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	RawRequest    string                 `protobuf:"bytes,1,opt,name=raw_request,json=rawRequest,proto3" json:"raw_request,omitempty"`
-	TargetHost    string                 `protobuf:"bytes,2,opt,name=target_host,json=targetHost,proto3" json:"target_host,omitempty"` // e.g. "example.com:443"
-	UseTls        bool                   `protobuf:"varint,3,opt,name=use_tls,json=useTls,proto3" json:"use_tls,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *SendRepeaterRequestRequest) Reset() {
-	*x = SendRepeaterRequestRequest{}
-	mi := &file_scan_v1_scan_proto_msgTypes[17]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *SendRepeaterRequestRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*SendRepeaterRequestRequest) ProtoMessage() {}
-
-func (x *SendRepeaterRequestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_scan_v1_scan_proto_msgTypes[17]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SendRepeaterRequestRequest.ProtoReflect.Descriptor instead.
-func (*SendRepeaterRequestRequest) Descriptor() ([]byte, []int) {
-	return file_scan_v1_scan_proto_rawDescGZIP(), []int{17}
-}
-
-func (x *SendRepeaterRequestRequest) GetRawRequest() string {
-	if x != nil {
-		return x.RawRequest
-	}
-	return ""
-}
-
-func (x *SendRepeaterRequestRequest) GetTargetHost() string {
-	if x != nil {
-		return x.TargetHost
-	}
-	return ""
-}
-
-func (x *SendRepeaterRequestRequest) GetUseTls() bool {
-	if x != nil {
-		return x.UseTls
-	}
-	return false
-}
-
-type SendRepeaterRequestResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	RawResponse   string                 `protobuf:"bytes,1,opt,name=raw_response,json=rawResponse,proto3" json:"raw_response,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *SendRepeaterRequestResponse) Reset() {
-	*x = SendRepeaterRequestResponse{}
-	mi := &file_scan_v1_scan_proto_msgTypes[18]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *SendRepeaterRequestResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*SendRepeaterRequestResponse) ProtoMessage() {}
-
-func (x *SendRepeaterRequestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_scan_v1_scan_proto_msgTypes[18]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SendRepeaterRequestResponse.ProtoReflect.Descriptor instead.
-func (*SendRepeaterRequestResponse) Descriptor() ([]byte, []int) {
-	return file_scan_v1_scan_proto_rawDescGZIP(), []int{18}
-}
-
-func (x *SendRepeaterRequestResponse) GetRawResponse() string {
-	if x != nil {
-		return x.RawResponse
-	}
-	return ""
 }
 
 type ListEndpointsRequest struct {
@@ -1261,7 +1016,7 @@ type ListEndpointsRequest struct {
 
 func (x *ListEndpointsRequest) Reset() {
 	*x = ListEndpointsRequest{}
-	mi := &file_scan_v1_scan_proto_msgTypes[19]
+	mi := &file_scan_v1_scan_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1273,7 +1028,7 @@ func (x *ListEndpointsRequest) String() string {
 func (*ListEndpointsRequest) ProtoMessage() {}
 
 func (x *ListEndpointsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_scan_v1_scan_proto_msgTypes[19]
+	mi := &file_scan_v1_scan_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1286,7 +1041,7 @@ func (x *ListEndpointsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListEndpointsRequest.ProtoReflect.Descriptor instead.
 func (*ListEndpointsRequest) Descriptor() ([]byte, []int) {
-	return file_scan_v1_scan_proto_rawDescGZIP(), []int{19}
+	return file_scan_v1_scan_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *ListEndpointsRequest) GetScanId() string {
@@ -1313,7 +1068,7 @@ type EndpointRecord struct {
 
 func (x *EndpointRecord) Reset() {
 	*x = EndpointRecord{}
-	mi := &file_scan_v1_scan_proto_msgTypes[20]
+	mi := &file_scan_v1_scan_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1325,7 +1080,7 @@ func (x *EndpointRecord) String() string {
 func (*EndpointRecord) ProtoMessage() {}
 
 func (x *EndpointRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_scan_v1_scan_proto_msgTypes[20]
+	mi := &file_scan_v1_scan_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1338,7 +1093,7 @@ func (x *EndpointRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EndpointRecord.ProtoReflect.Descriptor instead.
 func (*EndpointRecord) Descriptor() ([]byte, []int) {
-	return file_scan_v1_scan_proto_rawDescGZIP(), []int{20}
+	return file_scan_v1_scan_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *EndpointRecord) GetId() string {
@@ -1413,7 +1168,7 @@ type ListEndpointsResponse struct {
 
 func (x *ListEndpointsResponse) Reset() {
 	*x = ListEndpointsResponse{}
-	mi := &file_scan_v1_scan_proto_msgTypes[21]
+	mi := &file_scan_v1_scan_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1425,7 +1180,7 @@ func (x *ListEndpointsResponse) String() string {
 func (*ListEndpointsResponse) ProtoMessage() {}
 
 func (x *ListEndpointsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_scan_v1_scan_proto_msgTypes[21]
+	mi := &file_scan_v1_scan_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1438,7 +1193,7 @@ func (x *ListEndpointsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListEndpointsResponse.ProtoReflect.Descriptor instead.
 func (*ListEndpointsResponse) Descriptor() ([]byte, []int) {
-	return file_scan_v1_scan_proto_rawDescGZIP(), []int{21}
+	return file_scan_v1_scan_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ListEndpointsResponse) GetEndpoints() []*EndpointRecord {
@@ -1457,7 +1212,7 @@ type GenerateReportRequest struct {
 
 func (x *GenerateReportRequest) Reset() {
 	*x = GenerateReportRequest{}
-	mi := &file_scan_v1_scan_proto_msgTypes[22]
+	mi := &file_scan_v1_scan_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1469,7 +1224,7 @@ func (x *GenerateReportRequest) String() string {
 func (*GenerateReportRequest) ProtoMessage() {}
 
 func (x *GenerateReportRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_scan_v1_scan_proto_msgTypes[22]
+	mi := &file_scan_v1_scan_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1482,7 +1237,7 @@ func (x *GenerateReportRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GenerateReportRequest.ProtoReflect.Descriptor instead.
 func (*GenerateReportRequest) Descriptor() ([]byte, []int) {
-	return file_scan_v1_scan_proto_rawDescGZIP(), []int{22}
+	return file_scan_v1_scan_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *GenerateReportRequest) GetScanId() string {
@@ -1502,7 +1257,7 @@ type GenerateReportResponse struct {
 
 func (x *GenerateReportResponse) Reset() {
 	*x = GenerateReportResponse{}
-	mi := &file_scan_v1_scan_proto_msgTypes[23]
+	mi := &file_scan_v1_scan_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1514,7 +1269,7 @@ func (x *GenerateReportResponse) String() string {
 func (*GenerateReportResponse) ProtoMessage() {}
 
 func (x *GenerateReportResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_scan_v1_scan_proto_msgTypes[23]
+	mi := &file_scan_v1_scan_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1527,7 +1282,7 @@ func (x *GenerateReportResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GenerateReportResponse.ProtoReflect.Descriptor instead.
 func (*GenerateReportResponse) Descriptor() ([]byte, []int) {
-	return file_scan_v1_scan_proto_rawDescGZIP(), []int{23}
+	return file_scan_v1_scan_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *GenerateReportResponse) GetReportId() string {
@@ -1553,7 +1308,7 @@ type ListReportsRequest struct {
 
 func (x *ListReportsRequest) Reset() {
 	*x = ListReportsRequest{}
-	mi := &file_scan_v1_scan_proto_msgTypes[24]
+	mi := &file_scan_v1_scan_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1565,7 +1320,7 @@ func (x *ListReportsRequest) String() string {
 func (*ListReportsRequest) ProtoMessage() {}
 
 func (x *ListReportsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_scan_v1_scan_proto_msgTypes[24]
+	mi := &file_scan_v1_scan_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1578,7 +1333,7 @@ func (x *ListReportsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListReportsRequest.ProtoReflect.Descriptor instead.
 func (*ListReportsRequest) Descriptor() ([]byte, []int) {
-	return file_scan_v1_scan_proto_rawDescGZIP(), []int{24}
+	return file_scan_v1_scan_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *ListReportsRequest) GetScanId() string {
@@ -1602,7 +1357,7 @@ type ReportRecord struct {
 
 func (x *ReportRecord) Reset() {
 	*x = ReportRecord{}
-	mi := &file_scan_v1_scan_proto_msgTypes[25]
+	mi := &file_scan_v1_scan_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1614,7 +1369,7 @@ func (x *ReportRecord) String() string {
 func (*ReportRecord) ProtoMessage() {}
 
 func (x *ReportRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_scan_v1_scan_proto_msgTypes[25]
+	mi := &file_scan_v1_scan_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1627,7 +1382,7 @@ func (x *ReportRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReportRecord.ProtoReflect.Descriptor instead.
 func (*ReportRecord) Descriptor() ([]byte, []int) {
-	return file_scan_v1_scan_proto_rawDescGZIP(), []int{25}
+	return file_scan_v1_scan_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ReportRecord) GetId() string {
@@ -1681,7 +1436,7 @@ type ListReportsResponse struct {
 
 func (x *ListReportsResponse) Reset() {
 	*x = ListReportsResponse{}
-	mi := &file_scan_v1_scan_proto_msgTypes[26]
+	mi := &file_scan_v1_scan_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1693,7 +1448,7 @@ func (x *ListReportsResponse) String() string {
 func (*ListReportsResponse) ProtoMessage() {}
 
 func (x *ListReportsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_scan_v1_scan_proto_msgTypes[26]
+	mi := &file_scan_v1_scan_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1706,7 +1461,7 @@ func (x *ListReportsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListReportsResponse.ProtoReflect.Descriptor instead.
 func (*ListReportsResponse) Descriptor() ([]byte, []int) {
-	return file_scan_v1_scan_proto_rawDescGZIP(), []int{26}
+	return file_scan_v1_scan_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *ListReportsResponse) GetReports() []*ReportRecord {
@@ -1720,13 +1475,15 @@ var File_scan_v1_scan_proto protoreflect.FileDescriptor
 
 const file_scan_v1_scan_proto_rawDesc = "" +
 	"\n" +
-	"\x12scan/v1/scan.proto\x12\ascan.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1cgoogle/protobuf/struct.proto\"\x82\x01\n" +
+	"\x12scan/v1/scan.proto\x12\ascan.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1cgoogle/protobuf/struct.proto\"\xde\x01\n" +
 	"\n" +
 	"ScanConfig\x12\x1d\n" +
 	"\n" +
 	"target_url\x18\x01 \x01(\tR\ttargetUrl\x12%\n" +
 	"\x0escope_patterns\x18\x02 \x03(\tR\rscopePatterns\x12.\n" +
-	"\aprofile\x18\x03 \x01(\x0e2\x14.scan.v1.ScanProfileR\aprofile\"@\n" +
+	"\aprofile\x18\x03 \x01(\x0e2\x14.scan.v1.ScanProfileR\aprofile\x12!\n" +
+	"\fauth_cookies\x18\x04 \x01(\tR\vauthCookies\x127\n" +
+	"\ftesting_mode\x18\x05 \x01(\x0e2\x14.scan.v1.TestingModeR\vtestingMode\"@\n" +
 	"\x11CreateScanRequest\x12+\n" +
 	"\x06config\x18\x01 \x01(\v2\x13.scan.v1.ScanConfigR\x06config\"-\n" +
 	"\x12CreateScanResponse\x12\x17\n" +
@@ -1761,25 +1518,7 @@ const file_scan_v1_scan_proto_rawDesc = "" +
 	"\n" +
 	"event_type\x18\x02 \x01(\tR\teventType\x128\n" +
 	"\ttimestamp\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12+\n" +
-	"\x04data\x18\x04 \x01(\v2\x17.google.protobuf.StructR\x04data\"+\n" +
-	"\x10ListFlowsRequest\x12\x17\n" +
-	"\ascan_id\x18\x01 \x01(\tR\x06scanId\"\xc3\x02\n" +
-	"\n" +
-	"FlowRecord\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x17\n" +
-	"\ascan_id\x18\x02 \x01(\tR\x06scanId\x12\x16\n" +
-	"\x06method\x18\x03 \x01(\tR\x06method\x12\x10\n" +
-	"\x03url\x18\x04 \x01(\tR\x03url\x12'\n" +
-	"\x0frequest_headers\x18\x05 \x01(\tR\x0erequestHeaders\x12!\n" +
-	"\frequest_body\x18\x06 \x01(\fR\vrequestBody\x12)\n" +
-	"\x10response_headers\x18\a \x01(\tR\x0fresponseHeaders\x12#\n" +
-	"\rresponse_body\x18\b \x01(\fR\fresponseBody\x12'\n" +
-	"\x0fresponse_status\x18\t \x01(\x05R\x0eresponseStatus\x12\x1d\n" +
-	"\n" +
-	"created_at\x18\n" +
-	" \x01(\tR\tcreatedAt\">\n" +
-	"\x11ListFlowsResponse\x12)\n" +
-	"\x05flows\x18\x01 \x03(\v2\x13.scan.v1.FlowRecordR\x05flows\".\n" +
+	"\x04data\x18\x04 \x01(\v2\x17.google.protobuf.StructR\x04data\".\n" +
 	"\x13ListFindingsRequest\x12\x17\n" +
 	"\ascan_id\x18\x01 \x01(\tR\x06scanId\"\xa1\x03\n" +
 	"\rFindingRecord\x12\x0e\n" +
@@ -1801,15 +1540,7 @@ const file_scan_v1_scan_proto_rawDesc = "" +
 	"created_at\x18\f \x01(\tR\tcreatedAt\x12\x1a\n" +
 	"\bcategory\x18\r \x01(\tR\bcategory\"J\n" +
 	"\x14ListFindingsResponse\x122\n" +
-	"\bfindings\x18\x01 \x03(\v2\x16.scan.v1.FindingRecordR\bfindings\"w\n" +
-	"\x1aSendRepeaterRequestRequest\x12\x1f\n" +
-	"\vraw_request\x18\x01 \x01(\tR\n" +
-	"rawRequest\x12\x1f\n" +
-	"\vtarget_host\x18\x02 \x01(\tR\n" +
-	"targetHost\x12\x17\n" +
-	"\ause_tls\x18\x03 \x01(\bR\x06useTls\"@\n" +
-	"\x1bSendRepeaterRequestResponse\x12!\n" +
-	"\fraw_response\x18\x01 \x01(\tR\vrawResponse\"/\n" +
+	"\bfindings\x18\x01 \x03(\v2\x16.scan.v1.FindingRecordR\bfindings\"/\n" +
 	"\x14ListEndpointsRequest\x12\x17\n" +
 	"\ascan_id\x18\x01 \x01(\tR\x06scanId\"\x85\x02\n" +
 	"\x0eEndpointRecord\x12\x0e\n" +
@@ -1855,17 +1586,19 @@ const file_scan_v1_scan_proto_rawDesc = "" +
 	"\x18SCAN_PROFILE_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12SCAN_PROFILE_QUICK\x10\x01\x12\x19\n" +
 	"\x15SCAN_PROFILE_STANDARD\x10\x02\x12\x15\n" +
-	"\x11SCAN_PROFILE_DEEP\x10\x032\xc6\x06\n" +
+	"\x11SCAN_PROFILE_DEEP\x10\x03*`\n" +
+	"\vTestingMode\x12\x1c\n" +
+	"\x18TESTING_MODE_UNSPECIFIED\x10\x00\x12\x1a\n" +
+	"\x16TESTING_MODE_AUTOMATED\x10\x01\x12\x17\n" +
+	"\x13TESTING_MODE_MANUAL\x10\x022\xa0\x05\n" +
 	"\vScanService\x12E\n" +
 	"\n" +
 	"CreateScan\x12\x1a.scan.v1.CreateScanRequest\x1a\x1b.scan.v1.CreateScanResponse\x12B\n" +
 	"\tStartScan\x12\x19.scan.v1.StartScanRequest\x1a\x1a.scan.v1.StartScanResponse\x12<\n" +
 	"\aGetScan\x12\x17.scan.v1.GetScanRequest\x1a\x18.scan.v1.GetScanResponse\x12B\n" +
 	"\tListScans\x12\x19.scan.v1.ListScansRequest\x1a\x1a.scan.v1.ListScansResponse\x12J\n" +
-	"\x10StreamScanEvents\x12 .scan.v1.StreamScanEventsRequest\x1a\x12.scan.v1.ScanEvent0\x01\x12B\n" +
-	"\tListFlows\x12\x19.scan.v1.ListFlowsRequest\x1a\x1a.scan.v1.ListFlowsResponse\x12K\n" +
-	"\fListFindings\x12\x1c.scan.v1.ListFindingsRequest\x1a\x1d.scan.v1.ListFindingsResponse\x12`\n" +
-	"\x13SendRepeaterRequest\x12#.scan.v1.SendRepeaterRequestRequest\x1a$.scan.v1.SendRepeaterRequestResponse\x12N\n" +
+	"\x10StreamScanEvents\x12 .scan.v1.StreamScanEventsRequest\x1a\x12.scan.v1.ScanEvent0\x01\x12K\n" +
+	"\fListFindings\x12\x1c.scan.v1.ListFindingsRequest\x1a\x1d.scan.v1.ListFindingsResponse\x12N\n" +
 	"\rListEndpoints\x12\x1d.scan.v1.ListEndpointsRequest\x1a\x1e.scan.v1.ListEndpointsResponse\x12Q\n" +
 	"\x0eGenerateReport\x12\x1e.scan.v1.GenerateReportRequest\x1a\x1f.scan.v1.GenerateReportResponse\x12H\n" +
 	"\vListReports\x12\x1b.scan.v1.ListReportsRequest\x1a\x1c.scan.v1.ListReportsResponseB9Z7github.com/parth/lastresort/internal/gen/scan/v1;scanv1b\x06proto3"
@@ -1882,80 +1615,72 @@ func file_scan_v1_scan_proto_rawDescGZIP() []byte {
 	return file_scan_v1_scan_proto_rawDescData
 }
 
-var file_scan_v1_scan_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_scan_v1_scan_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
+var file_scan_v1_scan_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_scan_v1_scan_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
 var file_scan_v1_scan_proto_goTypes = []any{
-	(ScanStatus)(0),                     // 0: scan.v1.ScanStatus
-	(ScanProfile)(0),                    // 1: scan.v1.ScanProfile
-	(*ScanConfig)(nil),                  // 2: scan.v1.ScanConfig
-	(*CreateScanRequest)(nil),           // 3: scan.v1.CreateScanRequest
-	(*CreateScanResponse)(nil),          // 4: scan.v1.CreateScanResponse
-	(*StartScanRequest)(nil),            // 5: scan.v1.StartScanRequest
-	(*StartScanResponse)(nil),           // 6: scan.v1.StartScanResponse
-	(*GetScanRequest)(nil),              // 7: scan.v1.GetScanRequest
-	(*GetScanResponse)(nil),             // 8: scan.v1.GetScanResponse
-	(*ListScansRequest)(nil),            // 9: scan.v1.ListScansRequest
-	(*ListScansResponse)(nil),           // 10: scan.v1.ListScansResponse
-	(*StreamScanEventsRequest)(nil),     // 11: scan.v1.StreamScanEventsRequest
-	(*ScanEvent)(nil),                   // 12: scan.v1.ScanEvent
-	(*ListFlowsRequest)(nil),            // 13: scan.v1.ListFlowsRequest
-	(*FlowRecord)(nil),                  // 14: scan.v1.FlowRecord
-	(*ListFlowsResponse)(nil),           // 15: scan.v1.ListFlowsResponse
-	(*ListFindingsRequest)(nil),         // 16: scan.v1.ListFindingsRequest
-	(*FindingRecord)(nil),               // 17: scan.v1.FindingRecord
-	(*ListFindingsResponse)(nil),        // 18: scan.v1.ListFindingsResponse
-	(*SendRepeaterRequestRequest)(nil),  // 19: scan.v1.SendRepeaterRequestRequest
-	(*SendRepeaterRequestResponse)(nil), // 20: scan.v1.SendRepeaterRequestResponse
-	(*ListEndpointsRequest)(nil),        // 21: scan.v1.ListEndpointsRequest
-	(*EndpointRecord)(nil),              // 22: scan.v1.EndpointRecord
-	(*ListEndpointsResponse)(nil),       // 23: scan.v1.ListEndpointsResponse
-	(*GenerateReportRequest)(nil),       // 24: scan.v1.GenerateReportRequest
-	(*GenerateReportResponse)(nil),      // 25: scan.v1.GenerateReportResponse
-	(*ListReportsRequest)(nil),          // 26: scan.v1.ListReportsRequest
-	(*ReportRecord)(nil),                // 27: scan.v1.ReportRecord
-	(*ListReportsResponse)(nil),         // 28: scan.v1.ListReportsResponse
-	(*timestamppb.Timestamp)(nil),       // 29: google.protobuf.Timestamp
-	(*structpb.Struct)(nil),             // 30: google.protobuf.Struct
+	(ScanStatus)(0),                 // 0: scan.v1.ScanStatus
+	(ScanProfile)(0),                // 1: scan.v1.ScanProfile
+	(TestingMode)(0),                // 2: scan.v1.TestingMode
+	(*ScanConfig)(nil),              // 3: scan.v1.ScanConfig
+	(*CreateScanRequest)(nil),       // 4: scan.v1.CreateScanRequest
+	(*CreateScanResponse)(nil),      // 5: scan.v1.CreateScanResponse
+	(*StartScanRequest)(nil),        // 6: scan.v1.StartScanRequest
+	(*StartScanResponse)(nil),       // 7: scan.v1.StartScanResponse
+	(*GetScanRequest)(nil),          // 8: scan.v1.GetScanRequest
+	(*GetScanResponse)(nil),         // 9: scan.v1.GetScanResponse
+	(*ListScansRequest)(nil),        // 10: scan.v1.ListScansRequest
+	(*ListScansResponse)(nil),       // 11: scan.v1.ListScansResponse
+	(*StreamScanEventsRequest)(nil), // 12: scan.v1.StreamScanEventsRequest
+	(*ScanEvent)(nil),               // 13: scan.v1.ScanEvent
+	(*ListFindingsRequest)(nil),     // 14: scan.v1.ListFindingsRequest
+	(*FindingRecord)(nil),           // 15: scan.v1.FindingRecord
+	(*ListFindingsResponse)(nil),    // 16: scan.v1.ListFindingsResponse
+	(*ListEndpointsRequest)(nil),    // 17: scan.v1.ListEndpointsRequest
+	(*EndpointRecord)(nil),          // 18: scan.v1.EndpointRecord
+	(*ListEndpointsResponse)(nil),   // 19: scan.v1.ListEndpointsResponse
+	(*GenerateReportRequest)(nil),   // 20: scan.v1.GenerateReportRequest
+	(*GenerateReportResponse)(nil),  // 21: scan.v1.GenerateReportResponse
+	(*ListReportsRequest)(nil),      // 22: scan.v1.ListReportsRequest
+	(*ReportRecord)(nil),            // 23: scan.v1.ReportRecord
+	(*ListReportsResponse)(nil),     // 24: scan.v1.ListReportsResponse
+	(*timestamppb.Timestamp)(nil),   // 25: google.protobuf.Timestamp
+	(*structpb.Struct)(nil),         // 26: google.protobuf.Struct
 }
 var file_scan_v1_scan_proto_depIdxs = []int32{
 	1,  // 0: scan.v1.ScanConfig.profile:type_name -> scan.v1.ScanProfile
-	2,  // 1: scan.v1.CreateScanRequest.config:type_name -> scan.v1.ScanConfig
-	2,  // 2: scan.v1.GetScanResponse.config:type_name -> scan.v1.ScanConfig
-	0,  // 3: scan.v1.GetScanResponse.status:type_name -> scan.v1.ScanStatus
-	29, // 4: scan.v1.GetScanResponse.created_at:type_name -> google.protobuf.Timestamp
-	29, // 5: scan.v1.GetScanResponse.started_at:type_name -> google.protobuf.Timestamp
-	29, // 6: scan.v1.GetScanResponse.finished_at:type_name -> google.protobuf.Timestamp
-	8,  // 7: scan.v1.ListScansResponse.scans:type_name -> scan.v1.GetScanResponse
-	29, // 8: scan.v1.ScanEvent.timestamp:type_name -> google.protobuf.Timestamp
-	30, // 9: scan.v1.ScanEvent.data:type_name -> google.protobuf.Struct
-	14, // 10: scan.v1.ListFlowsResponse.flows:type_name -> scan.v1.FlowRecord
-	17, // 11: scan.v1.ListFindingsResponse.findings:type_name -> scan.v1.FindingRecord
-	22, // 12: scan.v1.ListEndpointsResponse.endpoints:type_name -> scan.v1.EndpointRecord
-	27, // 13: scan.v1.ListReportsResponse.reports:type_name -> scan.v1.ReportRecord
-	3,  // 14: scan.v1.ScanService.CreateScan:input_type -> scan.v1.CreateScanRequest
-	5,  // 15: scan.v1.ScanService.StartScan:input_type -> scan.v1.StartScanRequest
-	7,  // 16: scan.v1.ScanService.GetScan:input_type -> scan.v1.GetScanRequest
-	9,  // 17: scan.v1.ScanService.ListScans:input_type -> scan.v1.ListScansRequest
-	11, // 18: scan.v1.ScanService.StreamScanEvents:input_type -> scan.v1.StreamScanEventsRequest
-	13, // 19: scan.v1.ScanService.ListFlows:input_type -> scan.v1.ListFlowsRequest
-	16, // 20: scan.v1.ScanService.ListFindings:input_type -> scan.v1.ListFindingsRequest
-	19, // 21: scan.v1.ScanService.SendRepeaterRequest:input_type -> scan.v1.SendRepeaterRequestRequest
-	21, // 22: scan.v1.ScanService.ListEndpoints:input_type -> scan.v1.ListEndpointsRequest
-	24, // 23: scan.v1.ScanService.GenerateReport:input_type -> scan.v1.GenerateReportRequest
-	26, // 24: scan.v1.ScanService.ListReports:input_type -> scan.v1.ListReportsRequest
-	4,  // 25: scan.v1.ScanService.CreateScan:output_type -> scan.v1.CreateScanResponse
-	6,  // 26: scan.v1.ScanService.StartScan:output_type -> scan.v1.StartScanResponse
-	8,  // 27: scan.v1.ScanService.GetScan:output_type -> scan.v1.GetScanResponse
-	10, // 28: scan.v1.ScanService.ListScans:output_type -> scan.v1.ListScansResponse
-	12, // 29: scan.v1.ScanService.StreamScanEvents:output_type -> scan.v1.ScanEvent
-	15, // 30: scan.v1.ScanService.ListFlows:output_type -> scan.v1.ListFlowsResponse
-	18, // 31: scan.v1.ScanService.ListFindings:output_type -> scan.v1.ListFindingsResponse
-	20, // 32: scan.v1.ScanService.SendRepeaterRequest:output_type -> scan.v1.SendRepeaterRequestResponse
-	23, // 33: scan.v1.ScanService.ListEndpoints:output_type -> scan.v1.ListEndpointsResponse
-	25, // 34: scan.v1.ScanService.GenerateReport:output_type -> scan.v1.GenerateReportResponse
-	28, // 35: scan.v1.ScanService.ListReports:output_type -> scan.v1.ListReportsResponse
-	25, // [25:36] is the sub-list for method output_type
-	14, // [14:25] is the sub-list for method input_type
+	2,  // 1: scan.v1.ScanConfig.testing_mode:type_name -> scan.v1.TestingMode
+	3,  // 2: scan.v1.CreateScanRequest.config:type_name -> scan.v1.ScanConfig
+	3,  // 3: scan.v1.GetScanResponse.config:type_name -> scan.v1.ScanConfig
+	0,  // 4: scan.v1.GetScanResponse.status:type_name -> scan.v1.ScanStatus
+	25, // 5: scan.v1.GetScanResponse.created_at:type_name -> google.protobuf.Timestamp
+	25, // 6: scan.v1.GetScanResponse.started_at:type_name -> google.protobuf.Timestamp
+	25, // 7: scan.v1.GetScanResponse.finished_at:type_name -> google.protobuf.Timestamp
+	9,  // 8: scan.v1.ListScansResponse.scans:type_name -> scan.v1.GetScanResponse
+	25, // 9: scan.v1.ScanEvent.timestamp:type_name -> google.protobuf.Timestamp
+	26, // 10: scan.v1.ScanEvent.data:type_name -> google.protobuf.Struct
+	15, // 11: scan.v1.ListFindingsResponse.findings:type_name -> scan.v1.FindingRecord
+	18, // 12: scan.v1.ListEndpointsResponse.endpoints:type_name -> scan.v1.EndpointRecord
+	23, // 13: scan.v1.ListReportsResponse.reports:type_name -> scan.v1.ReportRecord
+	4,  // 14: scan.v1.ScanService.CreateScan:input_type -> scan.v1.CreateScanRequest
+	6,  // 15: scan.v1.ScanService.StartScan:input_type -> scan.v1.StartScanRequest
+	8,  // 16: scan.v1.ScanService.GetScan:input_type -> scan.v1.GetScanRequest
+	10, // 17: scan.v1.ScanService.ListScans:input_type -> scan.v1.ListScansRequest
+	12, // 18: scan.v1.ScanService.StreamScanEvents:input_type -> scan.v1.StreamScanEventsRequest
+	14, // 19: scan.v1.ScanService.ListFindings:input_type -> scan.v1.ListFindingsRequest
+	17, // 20: scan.v1.ScanService.ListEndpoints:input_type -> scan.v1.ListEndpointsRequest
+	20, // 21: scan.v1.ScanService.GenerateReport:input_type -> scan.v1.GenerateReportRequest
+	22, // 22: scan.v1.ScanService.ListReports:input_type -> scan.v1.ListReportsRequest
+	5,  // 23: scan.v1.ScanService.CreateScan:output_type -> scan.v1.CreateScanResponse
+	7,  // 24: scan.v1.ScanService.StartScan:output_type -> scan.v1.StartScanResponse
+	9,  // 25: scan.v1.ScanService.GetScan:output_type -> scan.v1.GetScanResponse
+	11, // 26: scan.v1.ScanService.ListScans:output_type -> scan.v1.ListScansResponse
+	13, // 27: scan.v1.ScanService.StreamScanEvents:output_type -> scan.v1.ScanEvent
+	16, // 28: scan.v1.ScanService.ListFindings:output_type -> scan.v1.ListFindingsResponse
+	19, // 29: scan.v1.ScanService.ListEndpoints:output_type -> scan.v1.ListEndpointsResponse
+	21, // 30: scan.v1.ScanService.GenerateReport:output_type -> scan.v1.GenerateReportResponse
+	24, // 31: scan.v1.ScanService.ListReports:output_type -> scan.v1.ListReportsResponse
+	23, // [23:32] is the sub-list for method output_type
+	14, // [14:23] is the sub-list for method input_type
 	14, // [14:14] is the sub-list for extension type_name
 	14, // [14:14] is the sub-list for extension extendee
 	0,  // [0:14] is the sub-list for field type_name
@@ -1971,8 +1696,8 @@ func file_scan_v1_scan_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_scan_v1_scan_proto_rawDesc), len(file_scan_v1_scan_proto_rawDesc)),
-			NumEnums:      2,
-			NumMessages:   27,
+			NumEnums:      3,
+			NumMessages:   22,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

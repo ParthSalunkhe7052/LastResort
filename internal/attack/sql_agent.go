@@ -3,397 +3,183 @@ package attack
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"strings"
-	"time"
 
 	"github.com/parth/lastresort/internal/browser"
 	aiv1 "github.com/parth/lastresort/internal/gen/ai/v1"
 	"github.com/parth/lastresort/internal/gen/ai/v1/aiv1connect"
-	"github.com/parth/lastresort/internal/storage"
 	"github.com/parth/lastresort/internal/scanner"
+	"github.com/parth/lastresort/internal/storage"
 	"connectrpc.com/connect"
 )
 
-// AgentSQLiExecutor coordinates SQLi attack planning, execution, and verification.
-type AgentSQLiExecutor struct {
-	db           *storage.DB
-	browser      *browser.Client
-	aiClient     aiv1connect.AiServiceClient
-	scanID       string
-	proxyPort    int
-	onLog        func(string)
-	screenshotFn func(string)
+// SQLiModule implements AttackModule for SQL Injection attacks.
+type SQLiModule struct {
+	aiClient aiv1connect.AiServiceClient
+	scanID   string
 }
 
-func NewAgentSQLiExecutor(db *storage.DB, browserClient *browser.Client, aiClient aiv1connect.AiServiceClient, scanID string, proxyPort int, onLog func(string), screenshotFn func(string)) *AgentSQLiExecutor {
-	return &AgentSQLiExecutor{
-		db:           db,
-		browser:      browserClient,
-		aiClient:     aiClient,
-		scanID:       scanID,
-		proxyPort:    proxyPort,
-		onLog:        onLog,
-		screenshotFn: screenshotFn,
+func NewSQLiModule(aiClient aiv1connect.AiServiceClient, scanID string) *SQLiModule {
+	return &SQLiModule{
+		aiClient: aiClient,
+		scanID:   scanID,
 	}
 }
 
-// executePayloadViaBrowser navigates to or submits a form with a given SQLi payload.
-func (e *AgentSQLiExecutor) executePayloadViaBrowser(ctx context.Context, method, urlStr string, body []byte, formPageURL string) (*browser.ActionResult, error) {
-	methodUpper := strings.ToUpper(method)
-	if methodUpper == "GET" || len(body) == 0 {
-		actionReq := browser.ActionRequest{
-			ScanID:    e.scanID,
-			WorkerID:  "sqli_agent",
-			URL:       urlStr,
-			Action:    "navigate",
-			ProxyPort: e.proxyPort,
-		}
-		res, err := e.browser.ExecuteAction(ctx, actionReq)
-		if err == nil && res != nil && res.ScreenshotBase64 != "" && e.screenshotFn != nil {
-			e.screenshotFn(res.ScreenshotBase64)
-		}
-		return res, err
-	}
-
-	navigateURL := urlStr
-	if formPageURL != "" {
-		navigateURL = formPageURL
-	}
-
-	navRes, _ := e.browser.ExecuteAction(ctx, browser.ActionRequest{
-		ScanID:    e.scanID,
-		WorkerID:  "sqli_agent",
-		URL:       navigateURL,
-		Action:    "navigate",
-		ProxyPort: e.proxyPort,
-	})
-	if navRes != nil && navRes.ScreenshotBase64 != "" && e.screenshotFn != nil {
-		e.screenshotFn(navRes.ScreenshotBase64)
-	}
-
-	script := makeFormSubmitScript(urlStr, methodUpper, body)
-	actionReq := browser.ActionRequest{
-		ScanID:    e.scanID,
-		WorkerID:  "sqli_agent",
-		Action:    "evaluate",
-		Value:     script,
-		ProxyPort: e.proxyPort,
-	}
-	res, err := e.browser.ExecuteAction(ctx, actionReq)
-	if err == nil && res != nil && res.ScreenshotBase64 != "" && e.screenshotFn != nil {
-		e.screenshotFn(res.ScreenshotBase64)
-	}
-	return res, err
+func (m *SQLiModule) Name() string {
+	return "Active Scan: SQLi"
 }
 
-func makeFormSubmitScript(actionURL, method string, body []byte) string {
-	vals, err := url.ParseQuery(string(body))
-	if err != nil {
-		return fmt.Sprintf(`
-			fetch("%s", {
-				method: "%s",
-				body: %q
-			}).then(r => r.text()).then(html => {
-				document.open();
-				document.write(html);
-				document.close();
-			});
-		`, actionURL, method, string(body))
-	}
+func (m *SQLiModule) Plan(ctx context.Context, surf scanner.AttackSurface) ([]AttackAttempt, error) {
+	var attempts []AttackAttempt
 
-	js := fmt.Sprintf(`
-		(function() {
-			const form = document.createElement('form');
-			form.method = %q;
-			form.action = %q;
-	`, method, actionURL)
-
-	for k, vs := range vals {
-		for _, v := range vs {
-			js += fmt.Sprintf(`
-				{
-					const inp = document.createElement('input');
-					inp.type = 'hidden';
-					inp.name = %q;
-					inp.value = %q;
-					form.appendChild(inp);
-				}
-			`, k, v)
-		}
-	}
-
-	js += `
-			document.body.appendChild(form);
-			form.submit();
-		})();
-	`
-	return js
-}
-
-// ConvertToProtoContext serializes Go browser structures to Protobuf messages
-func ConvertToProtoContext(target *browser.ActionResult) *aiv1.BrowserContext {
-	if target == nil {
-		return &aiv1.BrowserContext{}
-	}
-
-	forms := make([]*aiv1.BrowserForm, len(target.Forms))
-	for i, f := range target.Forms {
-		inputs := make([]*aiv1.BrowserElement, len(f.Inputs))
-		for j, in := range f.Inputs {
-			inputs[j] = &aiv1.BrowserElement{
-				Text:     in.Text,
-				Selector: in.Selector,
-				Type:     in.Type,
-				Href:     in.Href,
-				Id:       in.ID,
-				Name:     in.Name,
-				Value:    in.Value,
-			}
-		}
-		forms[i] = &aiv1.BrowserForm{
-			Selector: f.Selector,
-			Action:   f.Action,
-			Method:   f.Method,
-			Inputs:   inputs,
-		}
-	}
-
-	inputs := make([]*aiv1.BrowserElement, len(target.Links)) 
-	buttons := make([]*aiv1.BrowserElement, len(target.Buttons))
-	for i, b := range target.Buttons {
-		buttons[i] = &aiv1.BrowserElement{
-			Text:     b.Text,
-			Selector: b.Selector,
-			Type:     b.Type,
-			Id:       b.ID,
-			Name:     b.Name,
-			Value:    b.Value,
-		}
-	}
-
-	links := make([]*aiv1.BrowserElement, len(target.Links))
-	for i, l := range target.Links {
-		links[i] = &aiv1.BrowserElement{
-			Text:     l.Text,
-			Selector: l.Selector,
-			Type:     l.Type,
-			Href:     l.Href,
-			Id:       l.ID,
-			Name:     l.Name,
-			Value:    l.Value,
-		}
-	}
-
-	cookies := make(map[string]string)
-	for _, c := range target.Cookies {
-		cookies[c.Name] = c.Value
-	}
-
-	return &aiv1.BrowserContext{
-		CurrentUrl:   target.CurrentURL,
-		PageTitle:    target.PageTitle,
-		PageSource:   target.PageSource,
-		Screenshot:   target.ScreenshotBase64,
-		Cookies:      cookies,
-		LocalStorage: target.LocalStorage,
-		Forms:        forms,
-		Inputs:       inputs,
-		Buttons:      buttons,
-		Links:        links,
-	}
-}
-
-func ConvertToProtoActionResult(res *browser.ActionResult) *aiv1.ActionResult {
-	if res == nil {
-		return &aiv1.ActionResult{}
-	}
-
-	events := make([]*aiv1.NetworkEvent, len(res.NetworkEvents))
-	for i, ev := range res.NetworkEvents {
-		events[i] = &aiv1.NetworkEvent{
-			Method:       ev.Method,
-			Url:          ev.URL,
-			StatusCode:   int32(ev.StatusCode),
-			ResourceType: ev.ResourceType,
-		}
-	}
-
-	return &aiv1.ActionResult{
-		Success:         res.Success,
-		FailureReason:   res.FailureReason,
-		CurrentUrl:      res.CurrentURL,
-		PageTitle:       res.PageTitle,
-		Screenshot:      res.ScreenshotBase64,
-		VisibleElements: ConvertToProtoContext(res),
-		NetworkEvents:   events,
-	}
-}
-
-func (e *AgentSQLiExecutor) Execute(ctx context.Context, surf scanner.AttackSurface) error {
-	e.onLog(fmt.Sprintf("[AGENT] SQLi attack started for: %s %s (parameter: %s)", surf.Method, surf.URL, surf.Point.Name))
-
-	// Phase 1: Static Payloads
+	// 1. Gather static payloads
 	for _, payload := range scanner.SQLiPayloads {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-
-		if err := e.executeAndVerifyPayload(ctx, surf, payload.Value, fmt.Sprintf("Static (%s)", payload.Strategy), "Deterministic rule-set"); err != nil {
-			if strings.Contains(err.Error(), "EXPLOIT_SUCCESS") {
-				return nil
-			}
-		}
+		injectedURL, injectedBody := scanner.BuildInjectedRequest(surf.Method, surf.URL, surf.BaseBody, surf.ContentType, surf.Point, payload.Value)
+		attempts = append(attempts, AttackAttempt{
+			AttackType: "SQL Injection",
+			URL:        injectedURL,
+			Method:     surf.Method,
+			Payload:    payload.Value,
+			Body:       injectedBody,
+			Headers:    map[string]string{"Content-Type": surf.ContentType},
+		})
 	}
 
-	// Phase 2: AI-Planned Payloads
-	actionRes, err := e.executePayloadViaBrowser(ctx, surf.Method, surf.URL, surf.BaseBody, surf.FormPageURL)
-	if err != nil {
-		return fmt.Errorf("baseline request failed: %w", err)
+	return attempts, nil
+}
+
+func (m *SQLiModule) PlanAI(ctx context.Context, surf scanner.AttackSurface, baselineRes *browser.ActionResult) ([]AttackAttempt, string, error) {
+	if m.aiClient == nil {
+		return nil, "", fmt.Errorf("AI client is not configured")
 	}
 
-	resp, err := e.aiClient.PlanSQLiAttack(ctx, connect.NewRequest(&aiv1.PlanSQLiAttackRequest{
-		CurrentContext: ConvertToProtoContext(actionRes),
+	resp, err := m.aiClient.PlanSQLiAttack(ctx, connect.NewRequest(&aiv1.PlanSQLiAttackRequest{
+		CurrentContext: ConvertToProtoContext(baselineRes),
 		Endpoint:       surf.URL,
 		Parameters:     []string{surf.Point.Name},
 	}))
 	if err != nil {
-		return fmt.Errorf("AI planning failed: %w", err)
+		return nil, "", err
 	}
 
-	e.onLog(fmt.Sprintf("[AGENT] AI planned %d payloads. Reasoning: %s", len(resp.Msg.Payloads), resp.Msg.Reasoning))
-
+	var attempts []AttackAttempt
 	for _, payload := range resp.Msg.Payloads {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
+		injectedURL, injectedBody := scanner.BuildInjectedRequest(surf.Method, surf.URL, surf.BaseBody, surf.ContentType, surf.Point, payload.Value)
+		attempts = append(attempts, AttackAttempt{
+			AttackType: "SQL Injection",
+			URL:        injectedURL,
+			Method:     surf.Method,
+			Payload:    payload.Value,
+			Body:       injectedBody,
+			Headers:    map[string]string{"Content-Type": surf.ContentType},
+		})
+	}
 
-		if err := e.executeAndVerifyPayload(ctx, surf, payload.Value, fmt.Sprintf("AI (%s)", payload.Strategy), resp.Msg.Reasoning); err != nil {
-			if strings.Contains(err.Error(), "EXPLOIT_SUCCESS") {
-				return nil
-			}
+	return attempts, resp.Msg.Reasoning, nil
+}
+
+func (m *SQLiModule) Execute(ctx context.Context, executor BrowserExecutor, attempt AttackAttempt) (AttackResult, error) {
+	methodUpper := strings.ToUpper(attempt.Method)
+	var actionRes *browser.ActionResult
+	var err error
+
+	if methodUpper == "GET" || len(attempt.Body) == 0 {
+		actionRes, err = executor.ExecuteAction(ctx, browser.ActionRequest{
+			ScanID:   m.scanID,
+			WorkerID: "sqli_agent",
+			URL:      attempt.URL,
+			Action:   "navigate",
+		})
+	} else {
+		// Form-based/POST execution logic
+		script := makeFormSubmitScript(attempt.URL, methodUpper, attempt.Body)
+		actionRes, err = executor.ExecuteAction(ctx, browser.ActionRequest{
+			ScanID:   m.scanID,
+			WorkerID: "sqli_agent",
+			Action:   "evaluate",
+			Value:    script,
+		})
+	}
+
+	return AttackResult{
+		Attempt:   attempt,
+		RawResult: actionRes,
+		Error:     err,
+	}, nil
+}
+
+func (m *SQLiModule) Verify(ctx context.Context, res AttackResult, verifier Verifier) (*storage.VerificationResult, error) {
+	if res.Error != nil || res.RawResult == nil {
+		return &storage.VerificationResult{Verified: false}, nil
+	}
+
+	vr := verifier.VerifySQLi(ctx, res.Attempt.URL, res.Attempt.Payload, res.RawResult.PageSource, res.RawResult.ScreenshotBase64)
+	return vr, nil
+}
+
+func (m *SQLiModule) Record(ctx context.Context, recorder EvidenceRecorder, attempt AttackAttempt, result AttackResult, vr *storage.VerificationResult) (string, error) {
+	_ = recorder.IncrementAttackExecuted(ctx, m.scanID)
+
+	responseCaptured := ""
+	if result.RawResult != nil && result.RawResult.PageSource != "" {
+		responseCaptured = result.RawResult.PageSource
+		if len(responseCaptured) > 1000 {
+			responseCaptured = responseCaptured[:1000]
 		}
 	}
 
-	return nil
-	}
-
-	func (e *AgentSQLiExecutor) executeAndVerifyPayload(ctx context.Context, surf scanner.AttackSurface, payloadValue, strategy, reasoning string) error {
-	e.onLog(fmt.Sprintf("[AGENT] Executing SQLi: %s (%s)", payloadValue, strategy))
-	_ = e.db.IncrementAttackExecuted(ctx, e.scanID)
-
-	injectedURL, injectedBody := scanner.BuildInjectedRequest(surf.Method, surf.URL, surf.BaseBody, surf.ContentType, surf.Point, payloadValue)
-
-	attemptID, _ := e.db.SaveAttackAttempt(ctx, storage.AttackAttemptInput{
-		ScanID:           e.scanID,
+	attemptID, _ := recorder.SaveAttackAttempt(ctx, storage.AttackAttemptInput{
+		ScanID:           m.scanID,
 		AttackType:       "SQL Injection",
-		Endpoint:         injectedURL,
-		Payload:          payloadValue,
-		RequestCaptured:  fmt.Sprintf("%s %s\nContent-Type: %s\n\n%s", surf.Method, injectedURL, surf.ContentType, string(injectedBody)),
-		ResponseCaptured: "",
-		EvidenceFound:    "",
+		Endpoint:         attempt.URL,
+		Payload:          attempt.Payload,
+		RequestCaptured:  fmt.Sprintf("%s %s\nContent-Type: %s\n\n%s", attempt.Method, attempt.URL, attempt.Headers["Content-Type"], string(attempt.Body)),
+		ResponseCaptured: responseCaptured,
+		EvidenceFound:    vr.EvidenceSummary,
 		Result:           "failed",
 	})
 
-	result, err := e.executePayloadViaBrowser(ctx, surf.Method, injectedURL, injectedBody, surf.FormPageURL)
-	if err != nil || result == nil {
-		_ = e.db.IncrementAttackFailed(ctx, e.scanID)
-		return nil
-	}
-
-	if attemptID != "" && result.PageSource != "" {
-		resExcerpt := result.PageSource
-		if len(resExcerpt) > 1000 {
-			resExcerpt = resExcerpt[:1000]
-		}
-		_, _ = e.db.ExecContext(ctx, "UPDATE attack_attempts SET response_captured = ? WHERE id = ?", resExcerpt, attemptID)
-	}
-
-	step, _ := e.db.GetLastJournalStep(ctx, e.scanID)
-	_ = e.db.SaveJournalEntry(ctx, &storage.JournalEntry{
-		ScanID:    e.scanID,
-		Step:      step + 1,
-		Action:    "sqli_test",
-		Selector:  surf.Point.Name,
-		Value:     payloadValue,
-		Success:   result.Success,
-		Error:     result.FailureReason,
-		Reasoning: reasoning,
-		Result:    result,
-	})
-
-	if e.aiClient != nil {
-		verifyResp, err := e.aiClient.VerifyAttackResult(ctx, connect.NewRequest(&aiv1.VerifyAttackResultRequest{
-			Payload:  payloadValue,
-			Response: ConvertToProtoActionResult(result),
-		}))
-		if err == nil && verifyResp != nil && verifyResp.Msg.Confirmed {
-			e.onLog(fmt.Sprintf("[AGENT] EXPLOIT SUCCESSFUL! AI verified SQLi: %s", verifyResp.Msg.Reasoning))
-			_, _ = e.db.ExecContext(ctx, "UPDATE attack_attempts SET result = ?, evidence_found = ? WHERE id = ?", "verified", verifyResp.Msg.Reasoning, attemptID)
-			_ = e.saveAgentFinding(ctx, surf, payloadValue, result, verifyResp.Msg.Reasoning, float64(verifyResp.Msg.Confidence))
-			return fmt.Errorf("EXPLOIT_SUCCESS")
-		}
-	}
-
-	dvr := scanner.VerifySQLiDeterministic(surf.URL, payloadValue, result.PageSource, result.ScreenshotBase64)
-	if dvr.Verified {
-		e.onLog(fmt.Sprintf("[AGENT] EXPLOIT SUCCESSFUL! Deterministic verification confirmed SQLi: %s", dvr.EvidenceSummary))
-		_, _ = e.db.ExecContext(ctx, "UPDATE attack_attempts SET result = ?, evidence_found = ? WHERE id = ?", "verified", dvr.EvidenceSummary, attemptID)
-		_ = e.saveAgentFinding(ctx, surf, payloadValue, result, dvr.EvidenceSummary, dvr.Confidence)
-		return fmt.Errorf("EXPLOIT_SUCCESS")
-	}
-
-	_ = e.db.IncrementAttackFailed(ctx, e.scanID)
-	return nil
-	}
-
-
-func (e *AgentSQLiExecutor) saveAgentFinding(ctx context.Context, surf scanner.AttackSurface, payload string, result *browser.ActionResult, evidence string, confidence float64) error {
-	_ = e.db.IncrementAttackVerified(ctx, e.scanID)
-
-	findingID, err := e.db.SaveFindingWithEvidence(ctx, storage.FindingInput{
-		ScanID:            e.scanID,
-		Title:             fmt.Sprintf("SQL Injection (Agent-Verified) - %s", surf.Point.Name),
-		Description:       fmt.Sprintf("SQL Injection vulnerability verified by agent analysis.\n\nEvidence: %s", evidence),
-		Severity:          "CRITICAL",
-		VulnerabilityType: "SQL Injection",
-		Endpoint:          surf.URL,
-		Payload:           payload,
-		ResponseStatus:    200,
-		Confidence:        confidence,
-		Category:          storage.StatePotentialFinding,
-	}, storage.EvidenceInput{
-		FlowID:          0,
-		EvidenceType:    storage.EvidenceScreenshot,
-		RequestExcerpt:  fmt.Sprintf("%s %s\nParameter: %s\nPayload: %s", surf.Method, surf.URL, surf.Point.Name, payload),
-		ResponseExcerpt: result.PageSource,
-		ScreenshotB64:   result.ScreenshotBase64,
-	})
-
-	if err == nil {
-		vr := &storage.VerificationResult{
-			EndpointURL:     surf.URL,
-			Payload:         payload,
-			VerifiedAt:      time.Now(),
-			Verified:        true,
-			Confidence:      confidence,
-			Method:          storage.VerificationAIScored,
-			EvidenceSummary: evidence,
-		}
-		verifID, verifErr := e.db.SaveVerification(ctx, findingID, e.scanID, vr)
-		if verifErr == nil {
-			if _, updateErr := e.db.ExecContext(ctx, "UPDATE findings SET category = ?, verification_id = ? WHERE id = ?", storage.StateVerifiedFinding, verifID, findingID); updateErr != nil {
-				e.onLog(fmt.Sprintf("[ERROR] Failed to update finding category: %v", updateErr))
+	if vr.Verified {
+		_ = recorder.IncrementAttackVerified(ctx, m.scanID)
+		if attemptID != "" {
+			// Update attack attempt with success status
+			if db, ok := recorder.(*storage.DB); ok {
+				_, _ = db.ExecContext(ctx, "UPDATE attack_attempts SET result = ?, evidence_found = ? WHERE id = ?", "verified", vr.EvidenceSummary, attemptID)
 			}
-		} else {
-			e.onLog(fmt.Sprintf("[ERROR] Failed to save verification: %v", verifErr))
 		}
-	} else {
-		e.onLog(fmt.Sprintf("[ERROR] Failed to save finding: %v", err))
+
+		findingID, err := recorder.SaveFindingWithEvidence(ctx, storage.FindingInput{
+			ScanID:            m.scanID,
+			Title:             fmt.Sprintf("SQL Injection (Agent-Verified) - %s", attempt.Payload),
+			Description:       fmt.Sprintf("SQL Injection vulnerability verified by agent analysis.\n\nEvidence: %s", vr.EvidenceSummary),
+			Severity:          "CRITICAL",
+			VulnerabilityType: "SQL Injection",
+			Endpoint:          attempt.URL,
+			Payload:           attempt.Payload,
+			ResponseStatus:    200,
+			Confidence:        vr.Confidence,
+			Category:          storage.StatePotentialFinding,
+		}, storage.EvidenceInput{
+			FlowID:          0,
+			EvidenceType:    storage.EvidenceScreenshot,
+			RequestExcerpt:  fmt.Sprintf("%s %s\nPayload: %s", attempt.Method, attempt.URL, attempt.Payload),
+			ResponseExcerpt: responseCaptured,
+			ScreenshotB64:   result.RawResult.ScreenshotBase64,
+		})
+		if err != nil {
+			return "", err
+		}
+
+		verifID, err := recorder.SaveVerification(ctx, findingID, m.scanID, vr)
+		if err == nil && verifID != "" {
+			if db, ok := recorder.(*storage.DB); ok {
+				_, _ = db.ExecContext(ctx, "UPDATE findings SET category = ?, verification_id = ? WHERE id = ?", storage.StateVerifiedFinding, verifID, findingID)
+			}
+		}
+		return findingID, nil
 	}
-	return nil
+
+	_ = recorder.IncrementAttackFailed(ctx, m.scanID)
+	return "", nil
 }

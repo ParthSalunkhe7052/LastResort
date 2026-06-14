@@ -1,7 +1,6 @@
 package attack
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -395,15 +394,6 @@ func RunNucleiScan(ctx context.Context, targetURL string, proxyPort int, cookieS
 }
 
 func streamToolOutput(r io.Reader, prefix string, onLog func(string)) {
-	scanner := strings.NewReader("") // dummy
-	_ = scanner
-	bufR := io.TeeReader(r, &bytes.Buffer{}) // just to be safe
-	_ = bufR
-	
-	lineScanner := strings.NewReader("")
-	_ = lineScanner
-	
-	// Real implementation
 	rd := io.Reader(r)
 	b := make([]byte, 1024)
 	var currentLine strings.Builder

@@ -48,9 +48,11 @@ func InitDB(dbPath string) (*DB, error) {
 		db.Close()
 		return nil, err
 	}
-	// Migration for category column
+	// Migration for category, auth_cookies, scope_patterns, and testing_mode columns
 	_, _ = storageDB.Exec("ALTER TABLE findings ADD COLUMN category TEXT")
 	_, _ = storageDB.Exec("ALTER TABLE scans ADD COLUMN auth_cookies TEXT")
+	_, _ = storageDB.Exec("ALTER TABLE scans ADD COLUMN scope_patterns TEXT")
+	_, _ = storageDB.Exec("ALTER TABLE scans ADD COLUMN testing_mode INTEGER DEFAULT 1")
 
 	// Phase 6: attack journal table (idempotent).
 	if err := storageDB.CreateJournalTables(); err != nil {
@@ -95,16 +97,19 @@ func (db *DB) createTables() error {
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		);`,
 		`CREATE TABLE IF NOT EXISTS scans (
-			id TEXT PRIMARY KEY,
-			target_url TEXT NOT NULL,
-			status INTEGER DEFAULT 0,
-			progress REAL DEFAULT 0.0,
-			profile INTEGER DEFAULT 0,
-			detected_technologies TEXT,
-			auth_model TEXT,
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			started_at DATETIME,
-			finished_at DATETIME
+		        id TEXT PRIMARY KEY,
+		        target_url TEXT NOT NULL,
+		        status INTEGER DEFAULT 0,
+		        progress REAL DEFAULT 0.0,
+		        profile INTEGER DEFAULT 0,
+		        testing_mode INTEGER DEFAULT 1,
+		        detected_technologies TEXT,
+		        auth_model TEXT,
+		        auth_cookies TEXT,
+		        scope_patterns TEXT,
+		        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		        started_at DATETIME,
+		        finished_at DATETIME
 		);`,
 		`CREATE TABLE IF NOT EXISTS workflow_memory (
 			id TEXT PRIMARY KEY,

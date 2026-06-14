@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react'
-import { client } from './api/client'
-import { ScanProfile, ScanStatus } from './gen/scan/v1/scan_pb'
+import { client, BASE_URL } from './api/client'
 import MainLayout from './components/layout/MainLayout'
 import Dashboard from './components/dashboard/Dashboard'
 import Settings from './components/settings/Settings'
-import type { FindingRecord } from './components/findings/FindingsBrowser'
 
 interface ScanEventRecord {
   time: string
@@ -12,35 +10,30 @@ interface ScanEventRecord {
   message: string
 }
 
-interface ScanRecord {
-  id: string
-  targetUrl: string
-  status: string
-  progress: number
-  profile: string
-  detectedTechnologies?: string
-  authModel?: string
-}
-
 export default function App() {
-  
+
   // Dashboard & Configuration States
   const [targetUrl, setTargetUrl] = useState('https://demo.testfire.net/')
+  const [authCookie, setAuthCookie] = useState('')
+  const [scopePatternsText, setScopePatternsText] = useState('')
+  const [scanProfile, setScanProfile] = useState<number>(2) // Standard by default
   const [activeTab, setActiveTab] = useState<'dashboard' | 'settings'>('dashboard')
 
   // Connection states
   const [goDaemonStatus, setGoDaemonStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting')
   const [aiEngineStatus, setAiEngineStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting')
-  
+
   // Scans and events state
   const [activeScanId, setActiveScanId] = useState<string | null>(null)
-  const [scans, setScans] = useState<ScanRecord[]>([])
   const [events, setEvents] = useState<ScanEventRecord[]>([])
   const [isStartingScan, setIsStartingScan] = useState(false)
+  const [scanStatus, setScanStatus] = useState<string>('IDLE')
 
-  // Findings Browser States
-  const [findings, setFindings] = useState<FindingRecord[]>([])
+  // Manual Guide State
+  const [manualGuide, setManualGuide] = useState<string | null>(null)
 
+  // Testing Mode State (1=automated, 2=manual)
+  const [testingMode, setTestingMode] = useState<number>(1)
 
 
   // Scan Modules State
@@ -61,7 +54,7 @@ export default function App() {
   // Check health on mount and periodically
   const checkHealth = async () => {
     try {
-      const res = await fetch('http://127.0.0.1:8443/health')
+      const res = await fetch(`${BASE_URL}/health`)
       if (res.ok) {
         const data = await res.json()
         setGoDaemonStatus('connected')
@@ -86,57 +79,14 @@ export default function App() {
     return () => clearInterval(interval)
   }, [])
 
-  // Fetch history and dashboard scan records
-  const fetchScans = async () => {
-    if (goDaemonStatus !== 'connected') return
-    try {
-      const res = await client.listScans({})
-      const records = res.scans.map(s => ({
-        id: s.scanId,
-        targetUrl: s.config?.targetUrl || '',
-        status: ScanStatus[s.status],
-        progress: s.progress,
-        profile: ScanProfile[s.config?.profile || 0],
-        detectedTechnologies: s.detectedTechnologies,
-        authModel: s.authModel
-      }))
-      setScans(records)
-    } catch (err) {
-      console.error('Failed to load scans:', err)
-    }
-  }
-
   // Fetch security findings
-  const fetchFindings = async () => {
-    if (goDaemonStatus !== 'connected') return
-    try {
-      const res = await client.listFindings({})
-      const records = res.findings.map(f => ({
-        id: f.id,
-        scanId: f.scanId,
-        title: f.title,
-        description: f.description,
-        severity: f.severity,
-        vulnerabilityType: f.vulnerabilityType,
-        endpoint: f.endpoint,
-        payload: f.payload,
-        responseStatus: f.responseStatus,
-        confidence: f.confidence,
-        category: f.category,
-        isFalsePositive: f.isFalsePositive,
-        createdAt: new Date(f.createdAt).toLocaleDateString() + ' ' + new Date(f.createdAt).toLocaleTimeString()
-      }))
-      setFindings(records)
-    } catch (err) {
-      console.error('Failed to load findings:', err)
-    }
-  }
+  // fetchFindings was here
 
   // Fetch verifications
   const fetchVerifications = async () => {
     if (!activeScanId || goDaemonStatus !== 'connected') return
     try {
-      const res = await fetch(`http://127.0.0.1:8443/api/v1/verifications?scan_id=${activeScanId}`)
+      const res = await fetch(`${BASE_URL}/api/v1/verifications?scan_id=${activeScanId}`)
       if (res.ok) {
         const data = await res.json()
         setVerifications(data.verifications || [])
@@ -150,7 +100,7 @@ export default function App() {
   const fetchScanModules = async () => {
     if (!activeScanId || goDaemonStatus !== 'connected') return
     try {
-      const res = await fetch(`http://127.0.0.1:8443/api/v1/scan-modules?scan_id=${activeScanId}`)
+      const res = await fetch(`${BASE_URL}/api/v1/scan-modules?scan_id=${activeScanId}`)
       if (res.ok) {
         const data = await res.json()
         setScanModules(data.modules || [])
@@ -163,7 +113,7 @@ export default function App() {
   const fetchPerformanceMetrics = async () => {
     if (!activeScanId || goDaemonStatus !== 'connected') return
     try {
-      const res = await fetch(`http://127.0.0.1:8443/api/v1/scan/performance?scan_id=${activeScanId}`)
+      const res = await fetch(`${BASE_URL}/api/v1/scan/performance?scan_id=${activeScanId}`)
       if (res.ok) {
         const data = await res.json()
         setPerformanceMetrics(data)
@@ -175,16 +125,12 @@ export default function App() {
 
   const syncSystem = () => {
     checkHealth()
-    fetchScans()
-    fetchFindings()
     fetchVerifications()
     fetchScanModules()
     fetchPerformanceMetrics()
   }
 
   useEffect(() => {
-    fetchScans()
-    fetchFindings()
     if (activeScanId) {
       fetchVerifications()
       fetchScanModules()
@@ -193,7 +139,7 @@ export default function App() {
   }, [goDaemonStatus, activeScanId])
 
   // Start a new scan and subscribe to events stream
-  const handleStartScan = async (e: React.FormEvent) => {
+  const handleStartScan = async (e: React.FormEvent, testingModeParam: number = 1) => {
     e.preventDefault()
     if (goDaemonStatus !== 'connected') return
     setIsStartingScan(true)
@@ -201,18 +147,28 @@ export default function App() {
     setLiveScreenshot(null)
     setVerifications([])
     setReportUrl(null)
+    setManualGuide(null)
+    setTestingMode(testingModeParam)
+
+    const scopePatterns = scopePatternsText
+      .split('\n')
+      .map(p => p.trim())
+      .filter(p => p !== '')
 
     try {
       const createRes = await client.createScan({
         config: {
           targetUrl,
-          profile: ScanProfile.STANDARD,
-          scopePatterns: []
+          profile: scanProfile,
+          scopePatterns: scopePatterns,
+          authCookies: authCookie,
+          testingMode: testingModeParam
         }
       })
-      
+
       const scanId = createRes.scanId
       setActiveScanId(scanId)
+      setScanStatus('RUNNING')
       addEventLog('system', `Created scan record with ID: ${scanId}`)
 
       await client.startScan({ scanId })
@@ -285,7 +241,6 @@ export default function App() {
           msg = `Progress: ${(Number(fields?.progress?.kind?.value || 0) * 100).toFixed(0)}%`
         } else if (event.eventType === 'finding.new') {
           msg = `[FINDING DISCOVERED] Title: "${fields?.title?.kind?.value}" | Severity: ${fields?.severity?.kind?.value}`
-          fetchFindings()
           fetchVerifications()
         } else if (event.eventType === 'hypothesis.generated') {
           msg = `[HYPOTHESIS] "${fields?.title?.kind?.value}" (confidence: ${Number(fields?.confidence?.kind?.value || 0).toFixed(2)})`
@@ -301,39 +256,44 @@ export default function App() {
           const img = fields?.image?.kind?.value || ''
           setLiveScreenshot(img)
           continue
+        } else if (event.eventType === 'manual.guide.ready') {
+          const guide = fields?.guide?.kind?.value || ''
+          setManualGuide(guide)
+          msg = `Manual Testing Guide is now available.`
         } else if (event.eventType === 'report.generated') {
           const path = fields?.path?.kind?.value || ''
-          const url = `http://127.0.0.1:8443/${path}`
+          const url = `${BASE_URL}/${path}`
           setReportUrl(url)
           msg = `Final assessment report generated: ${url}`
         }
         addEventLog(event.eventType, msg)
+        if (event.eventType === 'scan.completed') {
+          setScanStatus('COMPLETED')
+        } else if (event.eventType === 'scan.failed') {
+          setScanStatus('FAILED')
+        }
       }
       addEventLog('system', `Orchestrator completed scan workflow successfully.`)
       playChime()
-      fetchScans()
+      setScanStatus('COMPLETED')
       fetchScanModules()
-      fetchFindings()
       fetchVerifications()
       fetchPerformanceMetrics()
     } catch (err: any) {
       addEventLog('error', `Stream closed: ${err.message}`)
+      setScanStatus('FAILED')
     }
   }
-
-  // Objective and scan status calculation helpers
-  const activeScan = scans.find(s => s.id === activeScanId)
-  const scanStatus = activeScan ? activeScan.status.replace('SCAN_STATUS_', '') : 'IDLE'
 
   const getActiveObjective = () => {
     if (!activeScanId) return "Awaiting target specification"
     const runningModule = scanModules.find(m => m.status === 'RUNNING')
     if (runningModule) return runningModule.module_name
-    
+
     if (scanStatus === 'COMPLETED') return "Simulation Completed. Report generated."
     if (scanStatus === 'FAILED') return "Simulation Failed."
     if (isStartingScan) return "Spawning Penetration Rig..."
-    
+
     return "Analyzing Target Application"
   }
 
@@ -352,20 +312,24 @@ export default function App() {
         <Dashboard
           targetUrl={targetUrl}
           setTargetUrl={setTargetUrl}
+          authCookie={authCookie}
+          setAuthCookie={setAuthCookie}
+          scopePatternsText={scopePatternsText}
+          setScopePatternsText={setScopePatternsText}
+          scanProfile={scanProfile}
+          setScanProfile={setScanProfile}
           goDaemonStatus={goDaemonStatus}
           isStartingScan={isStartingScan}
           handleStartScan={handleStartScan}
           events={events}
-          scans={scans}
-          setActiveScanId={setActiveScanId}
-          subscribeToEvents={subscribeToEvents}
           scanModules={scanModules}
           activeScanId={activeScanId}
-          findings={findings}
           liveScreenshot={liveScreenshot}
           performanceMetrics={performanceMetrics}
           verifications={verifications}
           reportUrl={reportUrl}
+          manualGuide={manualGuide}
+          testingMode={testingMode}
         />
       ) : (
         <Settings />

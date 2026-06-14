@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -203,8 +204,9 @@ func resolveURL(base *url.URL, ref string) string {
 	return resolved.String()
 }
 
-// IsInCrawlScope checks if targetURL belongs to the same host and path prefix as seedURL.
-func IsInCrawlScope(targetURL, seedURL string) bool {
+// IsInCrawlScope checks if targetURL belongs to the same host and path prefix as seedURL,
+// or matches any of the provided regex patterns.
+func IsInCrawlScope(targetURL, seedURL string, patterns []string) bool {
 	u, err := url.Parse(targetURL)
 	if err != nil {
 		return false
@@ -214,6 +216,19 @@ func IsInCrawlScope(targetURL, seedURL string) bool {
 		return false
 	}
 
+	// 1. If patterns are provided, check them first
+	if len(patterns) > 0 {
+		for _, p := range patterns {
+			matched, err := regexp.MatchString(p, targetURL)
+			if err == nil && matched {
+				return true
+			}
+		}
+		// If patterns are provided but none matched, it's out of scope
+		return false
+	}
+
+	// 2. Default fallback: Host and path prefix check
 	if u.Host != s.Host {
 		return false
 	}

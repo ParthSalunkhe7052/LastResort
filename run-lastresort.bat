@@ -66,19 +66,19 @@ if not exist "%ROOT%\browser\node_modules\playwright" (
 )
 
 echo [1/3] Starting Playwright Browser Crawler service on port 3010...
-start "LastResort - Browser Crawler Service" cmd /k "cd /d "%ROOT%\browser" && npm start"
+start "LastResort - Browser Crawler Service" cmd /k "cd /d %ROOT%\browser && npm start"
 
 echo [2/3] Building Go Core Backend binary...
 go build -o "%ROOT%\lastresort.exe" cmd\lastresort\main.go
 if errorlevel 1 (
   echo [WARN] Failed to compile Go backend. Falling back to slow 'go run'...
-  start "LastResort - Go Core Backend" cmd /k "cd /d "%ROOT%" && go run cmd\lastresort\main.go serve"
+  start "LastResort - Go Core Backend" cmd /k "cd /d %ROOT% && go run cmd\lastresort\main.go serve"
 ) else (
-  start "LastResort - Go Core Backend" cmd /k "cd /d "%ROOT%" && "%ROOT%\lastresort.exe" serve"
+  start "LastResort - Go Core Backend" cmd /k "cd /d %ROOT% && %ROOT%\lastresort.exe serve"
 )
 
 echo [3/3] Starting React UI on port 5173...
-start "LastResort - React UI" cmd /k "cd /d "%ROOT%\ui" && npm run dev"
+start "LastResort - React UI" cmd /k "cd /d %ROOT%\ui && npm run dev"
 
 echo.
 echo Waiting for services to activate (max 15 seconds)...
