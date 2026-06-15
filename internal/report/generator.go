@@ -8,6 +8,7 @@ import (
 	"html/template"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -98,10 +99,11 @@ func (g *Generator) GenerateScanReport(ctx context.Context, scanID string) (stri
 // HTMLFinding extends storage.Finding with narrative fields for template rendering.
 type HTMLFinding struct {
 	storage.Finding
-	Description string
-	Remediation string
-	RawRequest  string
-	RawResponse string
+	Description   string
+	Remediation   string
+	RawRequest    string
+	RawResponse   string
+	ScreenshotB64 template.URL
 }
 
 
@@ -134,8 +136,8 @@ type HTMLFinding struct {
 			Confidence:        float32(f.Confidence),
 		})
 
-		// Fetch evidence from multiple sources (best available)
-		var rawReq, rawRes string
+		// Fetch evidence from best available source
+		var rawReq, rawRes, screenshotB64 string
 
 		// Source 1: Attack Verification Artifacts
 		if f.VerificationID != "" {
@@ -143,38 +145,59 @@ type HTMLFinding struct {
 				var artifacts []storage.EvidenceArtifact
 				if err := json.Unmarshal([]byte(sv.ArtifactsJSON), &artifacts); err == nil {
 					for _, art := range artifacts {
-						if art.ArtifactType == "REQUEST" && rawReq == "" {
+						if art.ArtifactType == storage.EvidenceRequest && rawReq == "" {
 							rawReq = art.Content
 						}
-						if art.ArtifactType == "RESPONSE" && rawRes == "" {
+						if art.ArtifactType == storage.EvidenceResponse && rawRes == "" {
 							rawRes = art.Content
+						}
+						if art.ArtifactType == storage.EvidenceScreenshot && screenshotB64 == "" {
+							screenshotB64 = art.Content
 						}
 					}
 				}
 			}
 		}
 
-		// Source 2: Finding Evidence (fallback)
-		if rawReq == "" || rawRes == "" {
-			var feReq, feRes string
+		// Source 2: Attack Replays (browser-driven reproduction)
+		if rawReq == "" || rawRes == "" || screenshotB64 == "" {
+			if r, err := g.db.GetReplayForFinding(ctx, f.ID); err == nil {
+				if rawRes == "" && r.PageSourceSnippet != "" {
+					rawRes = r.PageSourceSnippet
+				}
+				if screenshotB64 == "" && r.ScreenshotB64 != "" {
+					screenshotB64 = r.ScreenshotB64
+				}
+				if rawReq == "" {
+					rawReq = fmt.Sprintf("%s %s\nPayload: %s", r.Method, r.TargetURL, r.Payload)
+				}
+			}
+		}
+
+		// Source 3: Finding Evidence
+		if rawReq == "" || rawRes == "" || screenshotB64 == "" {
+			var feReq, feRes, feScreenshot string
 			row := g.db.QueryRowContext(ctx, `
-				SELECT request_excerpt, response_excerpt
+				SELECT request_excerpt, response_excerpt, screenshot_path
 				FROM finding_evidence
 				WHERE finding_id = ?
 				ORDER BY created_at ASC
 				LIMIT 1
 			`, f.ID)
-			if err := row.Scan(&feReq, &feRes); err == nil {
+			if err := row.Scan(&feReq, &feRes, &feScreenshot); err == nil {
 				if rawReq == "" {
 					rawReq = feReq
 				}
 				if rawRes == "" {
 					rawRes = feRes
 				}
+				if screenshotB64 == "" {
+					screenshotB64 = feScreenshot
+				}
 			}
 		}
 
-		// Source 3: Attack Attempts (last resort)
+		// Source 4: Attack Attempts
 		if rawReq == "" || rawRes == "" {
 			var aaReq, aaRes string
 			row := g.db.QueryRowContext(ctx, `
@@ -198,12 +221,17 @@ type HTMLFinding struct {
 			rawRes = rawRes[:2000] + "\n...[TRUNCATED]..."
 		}
 
+		if screenshotB64 != "" && !strings.HasPrefix(screenshotB64, "data:image") {
+			screenshotB64 = "data:image/png;base64," + screenshotB64
+		}
+
 		htmlFindings = append(htmlFindings, HTMLFinding{
-			Finding:     f,
-			Description: descText,
-			Remediation: remedText,
-			RawRequest:  rawReq,
-			RawResponse: rawRes,
+			Finding:       f,
+			Description:   descText,
+			Remediation:   remedText,
+			RawRequest:    rawReq,
+			RawResponse:   rawRes,
+			ScreenshotB64: template.URL(screenshotB64),
 		})
 	}
 
@@ -308,6 +336,10 @@ type HTMLFinding struct {
 			if f.RawRequest != "" {
 				md += "**Raw HTTP Request:**\n```http\n" + f.RawRequest + "\n```\n\n"
 				md += "**Raw HTTP Response:**\n```http\n" + f.RawResponse + "\n```\n\n"
+			}
+			if f.ScreenshotB64 != "" {
+				md += "**Visual Evidence (Screenshot):**\n"
+				md += fmt.Sprintf("![Screenshot](%s)\n\n", f.ScreenshotB64)
 			}
 			md += "---\n\n"
 		}
@@ -560,6 +592,10 @@ const DefaultHTMLTemplate = `<!DOCTYPE html>
             {{if .RawResponse}}
             <p><strong>Raw HTTP Response:</strong></p>
             <pre class="code-block">{{.RawResponse}}</pre>
+            {{end}}
+            {{if .ScreenshotB64}}
+            <p><strong>Visual Evidence:</strong></p>
+            <img src="{{.ScreenshotB64}}" style="max-width: 100%; border-radius: 4px; border: 1px solid #334155;" />
             {{end}}
         </div>
         {{else}}

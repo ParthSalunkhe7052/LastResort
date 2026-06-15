@@ -39,8 +39,8 @@ func TestGenerateReport_MultiSourceEvidence(t *testing.T) {
 	finding1ID := "finding-verification"
 	verID := "ver-123"
 	artifacts := []storage.EvidenceArtifact{
-		{ArtifactType: "REQUEST", Content: "VERIFICATION REQUEST CONTENT"},
-		{ArtifactType: "RESPONSE", Content: "VERIFICATION RESPONSE CONTENT"},
+		{ArtifactType: storage.EvidenceRequest, Content: "VERIFICATION REQUEST CONTENT"},
+		{ArtifactType: storage.EvidenceResponse, Content: "VERIFICATION RESPONSE CONTENT"},
 	}
 	artifactsJSON, _ := json.Marshal(artifacts)
 
@@ -84,12 +84,38 @@ func TestGenerateReport_MultiSourceEvidence(t *testing.T) {
 		t.Fatalf("failed to insert attack attempt: %v", err)
 	}
 
-	// 4. Generate Report
+	// 4. Finding with Attack Replay (Fallback)
+	finding3ID := "finding-replay"
+	_, err = db.ExecContext(ctx,
+		`INSERT INTO findings (id, scan_id, title, description, severity, vulnerability_type, endpoint, payload, response_status, confidence, category, fingerprint)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		finding3ID, scanID, "Replay Finding", "Desc", "LOW", "CORS", "http://example.com", "*", 200, 0.9, "VERIFIED_ATTACK", "fp3",
+	)
+	if err != nil {
+		t.Fatalf("failed to insert finding 3: %v", err)
+	}
+
+	_, err = db.ExecContext(ctx,
+		`INSERT INTO attack_replays (id, finding_id, scan_id, vuln_type, target_url, method, payload, steps_json, page_source_snippet, screenshot_b64, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"rep-789", finding3ID, scanID, "CORS", "http://example.com", "GET", "*", "[]", "REPLAY RESPONSE SNIPPET", "REPLAY_SCREENSHOT_B64", time.Now(),
+	)
+	if err != nil {
+		t.Fatalf("failed to insert attack replay: %v", err)
+	}
+
+	// 5. Generate Report
 	gen := NewGenerator(db, nil)
-	_, htmlPath, err := gen.GenerateScanReport(ctx, scanID)
+	mdPath, htmlPath, err := gen.GenerateScanReport(ctx, scanID)
 	if err != nil {
 		t.Fatalf("GenerateScanReport failed: %v", err)
 	}
+
+	mdBytes, err := os.ReadFile(mdPath)
+	if err != nil {
+		t.Fatalf("failed to read MD report: %v", err)
+	}
+	mdContent := string(mdBytes)
 
 	htmlBytes, err := os.ReadFile(htmlPath)
 	if err != nil {
@@ -97,7 +123,14 @@ func TestGenerateReport_MultiSourceEvidence(t *testing.T) {
 	}
 	htmlContent := string(htmlBytes)
 
-	// 5. Assertions
+	// 6. Assertions
+	if !strings.Contains(mdContent, "VERIFICATION REQUEST CONTENT") {
+		t.Errorf("Markdown missing verification request content")
+	}
+	if !strings.Contains(mdContent, "![Screenshot](data:image/png;base64,REPLAY_SCREENSHOT_B64)") {
+		t.Errorf("Markdown missing or malformed replay screenshot")
+	}
+
 	if !strings.Contains(htmlContent, "VERIFICATION REQUEST CONTENT") {
 		t.Errorf("Report missing verification request content")
 	}
@@ -109,5 +142,11 @@ func TestGenerateReport_MultiSourceEvidence(t *testing.T) {
 	}
 	if !strings.Contains(htmlContent, "ATTEMPT RESPONSE CONTENT") {
 		t.Errorf("Report missing attempt response content")
+	}
+	if !strings.Contains(htmlContent, "REPLAY RESPONSE SNIPPET") {
+		t.Errorf("Report missing replay response snippet")
+	}
+	if !strings.Contains(htmlContent, "data:image/png;base64,REPLAY_SCREENSHOT_B64") {
+		t.Errorf("Report missing or malformed replay screenshot. Content: %s", htmlContent)
 	}
 }
