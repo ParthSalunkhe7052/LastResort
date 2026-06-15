@@ -111,7 +111,7 @@ func TestGetScanPerformance(t *testing.T) {
 		t.Fatalf("unmarshal json failed: %v", err)
 	}
 
-	expectedKeys := []string{"visited_pages", "fuzz_requests", "elapsed_seconds"}
+	expectedKeys := []string{"pages_crawled", "attack_attempts", "scan_duration"}
 	for _, key := range expectedKeys {
 		if _, ok := jsonMap[key]; !ok {
 			t.Errorf("expected JSON key %q not found in %s", key, string(data))

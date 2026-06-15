@@ -7,14 +7,14 @@ import (
 )
 
 type ScanPerformanceMetrics struct {
-	PagesCrawled          int     `json:"visited_pages"`
+	PagesCrawled          int     `json:"pages_crawled"`
 	EndpointsFound        int     `json:"endpoints_found"`
 	FormsFound            int     `json:"forms_found"`
-	AttackAttempts        int     `json:"fuzz_requests"`
+	AttackAttempts        int     `json:"attack_attempts"`
 	SuccessfulAttacks     int     `json:"successful_attacks"`
 	FailedAttempts        int     `json:"failed_attempts"`
 	Observations          int     `json:"observations"`
-	ScanDuration          float64 `json:"elapsed_seconds"`
+	ScanDuration          float64 `json:"scan_duration"`
 	GeminiCalls           int     `json:"gemini_calls"`
 	AverageResponseTime   float64 `json:"average_response_time"`
 	ReconDuration         float64 `json:"recon_duration"`
@@ -35,10 +35,10 @@ func (db *DB) GetScanPerformance(ctx context.Context, scanID string) (*ScanPerfo
 	// Findings and Fuzzing Metrics
 	am, _ := db.GetAttackMetrics(ctx, scanID)
 	if am != nil {
-		metrics.SuccessfulAttacks = am.AttacksVerified
 		metrics.FailedAttempts = am.AttacksFailed
 		metrics.AttackAttempts = am.AttacksExecuted
 	}
+	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM findings WHERE scan_id = ? AND category = ?", scanID, StateVerifiedFinding).Scan(&metrics.SuccessfulAttacks)
 	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM findings WHERE scan_id = ? AND category = ?", scanID, StateObservation).Scan(&metrics.Observations)
 
 	// Execution Metadata
@@ -51,10 +51,9 @@ func (db *DB) GetScanPerformance(ctx context.Context, scanID string) (*ScanPerfo
 			metrics.AverageResponseTime = float64(geminiTimeMs) / float64(geminiCalls)
 		}
 		if startedAtNull.Valid {
+			metrics.ScanDuration = time.Since(startedAtNull.Time).Seconds()
 			if finishedAtNull.Valid {
 				metrics.ScanDuration = finishedAtNull.Time.Sub(startedAtNull.Time).Seconds()
-			} else {
-				metrics.ScanDuration = time.Since(startedAtNull.Time).Seconds()
 			}
 		}
 	}

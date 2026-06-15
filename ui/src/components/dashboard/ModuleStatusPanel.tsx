@@ -19,15 +19,15 @@ export default function ModuleStatusPanel({
         <div className="grid grid-cols-2 gap-3 text-zinc-300">
           <div className="bg-zinc-950 p-2.5 rounded border border-zinc-900">
             <span className="text-zinc-500 block text-[8px] mb-0.5">Visits / Crawl</span>
-            <span className="font-bold text-amber-500 text-xs">{performanceMetrics?.visited_pages || 0} pages</span>
+            <span className="font-bold text-amber-500 text-xs">{performanceMetrics?.pages_crawled || 0} pages</span>
           </div>
           <div className="bg-zinc-950 p-2.5 rounded border border-zinc-900">
             <span className="text-zinc-500 block text-[8px] mb-0.5">HTTP Fuzz Req</span>
-            <span className="font-bold text-amber-500 text-xs">{performanceMetrics?.fuzz_requests || 0} reqs</span>
+            <span className="font-bold text-amber-500 text-xs">{performanceMetrics?.attack_attempts || 0} reqs</span>
           </div>
           <div className="bg-zinc-950 p-2.5 rounded border border-zinc-900">
             <span className="text-zinc-500 block text-[8px] mb-0.5">Scan Duration</span>
-            <span className="font-bold text-amber-500 text-xs">{performanceMetrics?.elapsed_seconds || 0}s</span>
+            <span className="font-bold text-amber-500 text-xs">{performanceMetrics?.scan_duration || 0}s</span>
           </div>
           <div className="bg-zinc-950 p-2.5 rounded border border-zinc-900">
             <span className="text-zinc-500 block text-[8px] mb-0.5">Verification Loop</span>
