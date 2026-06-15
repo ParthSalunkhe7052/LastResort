@@ -41,7 +41,9 @@ func (fa *FindingAggregator) Deduplicate() []attack.NormalizedFinding {
 			Parameter: strings.ToLower(f.Parameter),
 		}
 		existing, exists := seen[k]
-		if !exists || severityWeight(f.Severity) > severityWeight(existing.Severity) {
+		// Keep the one with higher severity, or if equal, prefer the verified one
+		if !exists || severityWeight(f.Severity) > severityWeight(existing.Severity) || 
+		   (severityWeight(f.Severity) == severityWeight(existing.Severity) && f.State == "VERIFIED_ATTACK" && existing.State != "VERIFIED_ATTACK") {
 			seen[k] = f
 		}
 	}
@@ -104,7 +106,7 @@ func (fa *FindingAggregator) ToAIContext() string {
 	var sb strings.Builder
 	for i, f := range fa.findings {
 		sb.WriteString(fmt.Sprintf("%d. [%s] %s\n", i+1, f.Severity, f.Title))
-		sb.WriteString(fmt.Sprintf("   Tool: %s | Category: %s\n", f.Tool, f.Category))
+		sb.WriteString(fmt.Sprintf("   Tool: %s | Category: %s | State: %s\n", f.Tool, f.Category, f.State))
 		sb.WriteString(fmt.Sprintf("   URL: %s\n", f.URL))
 		if f.Parameter != "" {
 			sb.WriteString(fmt.Sprintf("   Parameter: %s\n", f.Parameter))
@@ -150,6 +152,9 @@ func severityWeight(severity string) int {
 
 func exploitabilityBonus(f attack.NormalizedFinding) int {
 	bonus := 0
+	if f.State == "VERIFIED_ATTACK" {
+		bonus += 5
+	}
 	if f.Payload != "" {
 		bonus += 3
 	}

@@ -62,8 +62,15 @@ func (db *DB) SaveJournalEntry(ctx context.Context, entry *JournalEntry) error {
 
 	var resultJSON []byte
 	if entry.Result != nil {
+		// Optimization: Strip large blobs from journal to prevent DB bloat.
+		// These are already saved to disk by the browser service.
+		res := *entry.Result
+		res.ScreenshotBase64 = ""
+		res.PageSource = ""
+		// We keep other metadata (URL, Title, Links, etc.) for history.
+
 		var err error
-		resultJSON, err = json.Marshal(entry.Result)
+		resultJSON, err = json.Marshal(res)
 		if err != nil {
 			return fmt.Errorf("failed to marshal action result: %w", err)
 		}

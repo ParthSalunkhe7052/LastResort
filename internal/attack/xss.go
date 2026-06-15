@@ -5,18 +5,25 @@ import (
 	"fmt"
 	"strings"
 
+	"connectrpc.com/connect"
 	"github.com/parth/lastresort/internal/browser"
+	aiv1 "github.com/parth/lastresort/internal/gen/ai/v1"
+	"github.com/parth/lastresort/internal/gen/ai/v1/aiv1connect"
 	"github.com/parth/lastresort/internal/scanner"
 	"github.com/parth/lastresort/internal/storage"
 )
 
 // XSSModule implements AttackModule for Cross-Site Scripting attacks.
 type XSSModule struct {
-	scanID string
+	aiClient aiv1connect.AiServiceClient
+	scanID   string
 }
 
-func NewXSSModule(scanID string) *XSSModule {
-	return &XSSModule{scanID: scanID}
+func NewXSSModule(aiClient aiv1connect.AiServiceClient, scanID string) *XSSModule {
+	return &XSSModule{
+		aiClient: aiClient,
+		scanID:   scanID,
+	}
 }
 
 func (m *XSSModule) Name() string {
@@ -39,6 +46,37 @@ func (m *XSSModule) Plan(ctx context.Context, surf scanner.AttackSurface) ([]Att
 	}
 
 	return attempts, nil
+}
+
+func (m *XSSModule) PlanAI(ctx context.Context, surf scanner.AttackSurface, baselineRes *browser.ActionResult) ([]AttackAttempt, string, error) {
+	if m.aiClient == nil {
+		return nil, "", nil
+	}
+
+	resp, err := m.aiClient.PlanAttack(ctx, connect.NewRequest(&aiv1.PlanAttackRequest{
+		VulnerabilityType: "XSS",
+		CurrentContext:    ConvertToProtoContext(baselineRes),
+		Endpoint:          surf.URL,
+		Parameters:        []string{surf.Point.Name},
+	}))
+	if err != nil {
+		return nil, "", err
+	}
+
+	var attempts []AttackAttempt
+	for _, payload := range resp.Msg.Payloads {
+		injectedURL, injectedBody := scanner.BuildInjectedRequest(surf.Method, surf.URL, surf.BaseBody, surf.ContentType, surf.Point, payload.Value)
+		attempts = append(attempts, AttackAttempt{
+			AttackType: "XSS",
+			URL:        injectedURL,
+			Method:     surf.Method,
+			Payload:    payload.Value,
+			Body:       injectedBody,
+			Headers:    map[string]string{"Content-Type": surf.ContentType},
+		})
+	}
+
+	return attempts, resp.Msg.Reasoning, nil
 }
 
 func (m *XSSModule) Execute(ctx context.Context, executor BrowserExecutor, attempt AttackAttempt) (AttackResult, error) {

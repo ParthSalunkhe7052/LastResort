@@ -262,9 +262,11 @@ func TestAttackJournal(t *testing.T) {
 		Success:   true,
 		Reasoning: "Attempting to reach the login page.",
 		Result: &browser.ActionResult{
-			Success:    true,
-			CurrentURL: "http://localhost/login",
-			PageTitle:  "Login Page",
+			Success:          true,
+			CurrentURL:       "http://localhost/login",
+			PageTitle:        "Login Page",
+			ScreenshotBase64: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
+			PageSource:       "<html><body>Test</body></html>",
 		},
 	}
 
@@ -288,6 +290,14 @@ func TestAttackJournal(t *testing.T) {
 
 	if retrieved.Result == nil || retrieved.Result.CurrentURL != "http://localhost/login" {
 		t.Errorf("retrieved result mismatch: %+v", retrieved.Result)
+	}
+
+	// Verify optimization: Screenshot and PageSource should be stripped
+	if retrieved.Result.ScreenshotBase64 != "" {
+		t.Error("expected ScreenshotBase64 to be stripped from journal")
+	}
+	if retrieved.Result.PageSource != "" {
+		t.Error("expected PageSource to be stripped from journal")
 	}
 
 	lastStep, err := db.GetLastJournalStep(ctx, scanID)

@@ -845,30 +845,31 @@ func (x *ActionResult) GetResponseBody() string {
 	return ""
 }
 
-type PlanSQLiAttackRequest struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	CurrentContext *BrowserContext        `protobuf:"bytes,1,opt,name=current_context,json=currentContext,proto3" json:"current_context,omitempty"`
-	Endpoint       string                 `protobuf:"bytes,2,opt,name=endpoint,proto3" json:"endpoint,omitempty"`
-	Forms          []*BrowserForm         `protobuf:"bytes,3,rep,name=forms,proto3" json:"forms,omitempty"`
-	Parameters     []string               `protobuf:"bytes,4,rep,name=parameters,proto3" json:"parameters,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+type PlanAttackRequest struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	VulnerabilityType string                 `protobuf:"bytes,1,opt,name=vulnerability_type,json=vulnerabilityType,proto3" json:"vulnerability_type,omitempty"`
+	CurrentContext    *BrowserContext        `protobuf:"bytes,2,opt,name=current_context,json=currentContext,proto3" json:"current_context,omitempty"`
+	Endpoint          string                 `protobuf:"bytes,3,opt,name=endpoint,proto3" json:"endpoint,omitempty"`
+	Forms             []*BrowserForm         `protobuf:"bytes,4,rep,name=forms,proto3" json:"forms,omitempty"`
+	Parameters        []string               `protobuf:"bytes,5,rep,name=parameters,proto3" json:"parameters,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
-func (x *PlanSQLiAttackRequest) Reset() {
-	*x = PlanSQLiAttackRequest{}
+func (x *PlanAttackRequest) Reset() {
+	*x = PlanAttackRequest{}
 	mi := &file_ai_v1_ai_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *PlanSQLiAttackRequest) String() string {
+func (x *PlanAttackRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*PlanSQLiAttackRequest) ProtoMessage() {}
+func (*PlanAttackRequest) ProtoMessage() {}
 
-func (x *PlanSQLiAttackRequest) ProtoReflect() protoreflect.Message {
+func (x *PlanAttackRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_ai_v1_ai_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -880,40 +881,47 @@ func (x *PlanSQLiAttackRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PlanSQLiAttackRequest.ProtoReflect.Descriptor instead.
-func (*PlanSQLiAttackRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use PlanAttackRequest.ProtoReflect.Descriptor instead.
+func (*PlanAttackRequest) Descriptor() ([]byte, []int) {
 	return file_ai_v1_ai_proto_rawDescGZIP(), []int{10}
 }
 
-func (x *PlanSQLiAttackRequest) GetCurrentContext() *BrowserContext {
+func (x *PlanAttackRequest) GetVulnerabilityType() string {
+	if x != nil {
+		return x.VulnerabilityType
+	}
+	return ""
+}
+
+func (x *PlanAttackRequest) GetCurrentContext() *BrowserContext {
 	if x != nil {
 		return x.CurrentContext
 	}
 	return nil
 }
 
-func (x *PlanSQLiAttackRequest) GetEndpoint() string {
+func (x *PlanAttackRequest) GetEndpoint() string {
 	if x != nil {
 		return x.Endpoint
 	}
 	return ""
 }
 
-func (x *PlanSQLiAttackRequest) GetForms() []*BrowserForm {
+func (x *PlanAttackRequest) GetForms() []*BrowserForm {
 	if x != nil {
 		return x.Forms
 	}
 	return nil
 }
 
-func (x *PlanSQLiAttackRequest) GetParameters() []string {
+func (x *PlanAttackRequest) GetParameters() []string {
 	if x != nil {
 		return x.Parameters
 	}
 	return nil
 }
 
-type SQLiPayload struct {
+type AttackPayload struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Strategy      string                 `protobuf:"bytes,1,opt,name=strategy,proto3" json:"strategy,omitempty"`
 	Value         string                 `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
@@ -922,20 +930,20 @@ type SQLiPayload struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *SQLiPayload) Reset() {
-	*x = SQLiPayload{}
+func (x *AttackPayload) Reset() {
+	*x = AttackPayload{}
 	mi := &file_ai_v1_ai_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *SQLiPayload) String() string {
+func (x *AttackPayload) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*SQLiPayload) ProtoMessage() {}
+func (*AttackPayload) ProtoMessage() {}
 
-func (x *SQLiPayload) ProtoReflect() protoreflect.Message {
+func (x *AttackPayload) ProtoReflect() protoreflect.Message {
 	mi := &file_ai_v1_ai_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -947,54 +955,54 @@ func (x *SQLiPayload) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SQLiPayload.ProtoReflect.Descriptor instead.
-func (*SQLiPayload) Descriptor() ([]byte, []int) {
+// Deprecated: Use AttackPayload.ProtoReflect.Descriptor instead.
+func (*AttackPayload) Descriptor() ([]byte, []int) {
 	return file_ai_v1_ai_proto_rawDescGZIP(), []int{11}
 }
 
-func (x *SQLiPayload) GetStrategy() string {
+func (x *AttackPayload) GetStrategy() string {
 	if x != nil {
 		return x.Strategy
 	}
 	return ""
 }
 
-func (x *SQLiPayload) GetValue() string {
+func (x *AttackPayload) GetValue() string {
 	if x != nil {
 		return x.Value
 	}
 	return ""
 }
 
-func (x *SQLiPayload) GetDescription() string {
+func (x *AttackPayload) GetDescription() string {
 	if x != nil {
 		return x.Description
 	}
 	return ""
 }
 
-type PlanSQLiAttackResponse struct {
+type PlanAttackResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Payloads      []*SQLiPayload         `protobuf:"bytes,1,rep,name=payloads,proto3" json:"payloads,omitempty"`
+	Payloads      []*AttackPayload       `protobuf:"bytes,1,rep,name=payloads,proto3" json:"payloads,omitempty"`
 	Reasoning     string                 `protobuf:"bytes,2,opt,name=reasoning,proto3" json:"reasoning,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *PlanSQLiAttackResponse) Reset() {
-	*x = PlanSQLiAttackResponse{}
+func (x *PlanAttackResponse) Reset() {
+	*x = PlanAttackResponse{}
 	mi := &file_ai_v1_ai_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *PlanSQLiAttackResponse) String() string {
+func (x *PlanAttackResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*PlanSQLiAttackResponse) ProtoMessage() {}
+func (*PlanAttackResponse) ProtoMessage() {}
 
-func (x *PlanSQLiAttackResponse) ProtoReflect() protoreflect.Message {
+func (x *PlanAttackResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_ai_v1_ai_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1006,19 +1014,19 @@ func (x *PlanSQLiAttackResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PlanSQLiAttackResponse.ProtoReflect.Descriptor instead.
-func (*PlanSQLiAttackResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use PlanAttackResponse.ProtoReflect.Descriptor instead.
+func (*PlanAttackResponse) Descriptor() ([]byte, []int) {
 	return file_ai_v1_ai_proto_rawDescGZIP(), []int{12}
 }
 
-func (x *PlanSQLiAttackResponse) GetPayloads() []*SQLiPayload {
+func (x *PlanAttackResponse) GetPayloads() []*AttackPayload {
 	if x != nil {
 		return x.Payloads
 	}
 	return nil
 }
 
-func (x *PlanSQLiAttackResponse) GetReasoning() string {
+func (x *PlanAttackResponse) GetReasoning() string {
 	if x != nil {
 		return x.Reasoning
 	}
@@ -1245,20 +1253,21 @@ const file_ai_v1_ai_proto_rawDesc = "" +
 	"\vstatus_code\x18\t \x01(\x05R\n" +
 	"statusCode\x12#\n" +
 	"\rresponse_body\x18\n" +
-	" \x01(\tR\fresponseBody\"\xbd\x01\n" +
-	"\x15PlanSQLiAttackRequest\x12>\n" +
-	"\x0fcurrent_context\x18\x01 \x01(\v2\x15.ai.v1.BrowserContextR\x0ecurrentContext\x12\x1a\n" +
-	"\bendpoint\x18\x02 \x01(\tR\bendpoint\x12(\n" +
-	"\x05forms\x18\x03 \x03(\v2\x12.ai.v1.BrowserFormR\x05forms\x12\x1e\n" +
+	" \x01(\tR\fresponseBody\"\xe8\x01\n" +
+	"\x11PlanAttackRequest\x12-\n" +
+	"\x12vulnerability_type\x18\x01 \x01(\tR\x11vulnerabilityType\x12>\n" +
+	"\x0fcurrent_context\x18\x02 \x01(\v2\x15.ai.v1.BrowserContextR\x0ecurrentContext\x12\x1a\n" +
+	"\bendpoint\x18\x03 \x01(\tR\bendpoint\x12(\n" +
+	"\x05forms\x18\x04 \x03(\v2\x12.ai.v1.BrowserFormR\x05forms\x12\x1e\n" +
 	"\n" +
-	"parameters\x18\x04 \x03(\tR\n" +
-	"parameters\"a\n" +
-	"\vSQLiPayload\x12\x1a\n" +
+	"parameters\x18\x05 \x03(\tR\n" +
+	"parameters\"c\n" +
+	"\rAttackPayload\x12\x1a\n" +
 	"\bstrategy\x18\x01 \x01(\tR\bstrategy\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value\x12 \n" +
-	"\vdescription\x18\x03 \x01(\tR\vdescription\"f\n" +
-	"\x16PlanSQLiAttackResponse\x12.\n" +
-	"\bpayloads\x18\x01 \x03(\v2\x12.ai.v1.SQLiPayloadR\bpayloads\x12\x1c\n" +
+	"\vdescription\x18\x03 \x01(\tR\vdescription\"d\n" +
+	"\x12PlanAttackResponse\x120\n" +
+	"\bpayloads\x18\x01 \x03(\v2\x14.ai.v1.AttackPayloadR\bpayloads\x12\x1c\n" +
 	"\treasoning\x18\x02 \x01(\tR\treasoning\"f\n" +
 	"\x19VerifyAttackResultRequest\x12\x18\n" +
 	"\apayload\x18\x01 \x01(\tR\apayload\x12/\n" +
@@ -1269,11 +1278,12 @@ const file_ai_v1_ai_proto_rawDesc = "" +
 	"\n" +
 	"confidence\x18\x03 \x01(\x02R\n" +
 	"confidence\x12-\n" +
-	"\x12vulnerability_type\x18\x04 \x01(\tR\x11vulnerabilityType2\xd9\x02\n" +
+	"\x12vulnerability_type\x18\x04 \x01(\tR\x11vulnerabilityType2\xcd\x02\n" +
 	"\tAiService\x125\n" +
 	"\x06Health\x12\x14.ai.v1.HealthRequest\x1a\x15.ai.v1.HealthResponse\x12k\n" +
-	"\x18GenerateExecutiveSummary\x12&.ai.v1.GenerateExecutiveSummaryRequest\x1a'.ai.v1.GenerateExecutiveSummaryResponse\x12M\n" +
-	"\x0ePlanSQLiAttack\x12\x1c.ai.v1.PlanSQLiAttackRequest\x1a\x1d.ai.v1.PlanSQLiAttackResponse\x12Y\n" +
+	"\x18GenerateExecutiveSummary\x12&.ai.v1.GenerateExecutiveSummaryRequest\x1a'.ai.v1.GenerateExecutiveSummaryResponse\x12A\n" +
+	"\n" +
+	"PlanAttack\x12\x18.ai.v1.PlanAttackRequest\x1a\x19.ai.v1.PlanAttackResponse\x12Y\n" +
 	"\x12VerifyAttackResult\x12 .ai.v1.VerifyAttackResultRequest\x1a!.ai.v1.VerifyAttackResultResponseB5Z3github.com/parth/lastresort/internal/gen/ai/v1;aiv1b\x06proto3"
 
 var (
@@ -1300,9 +1310,9 @@ var file_ai_v1_ai_proto_goTypes = []any{
 	(*BrowserContext)(nil),                   // 7: ai.v1.BrowserContext
 	(*NetworkEvent)(nil),                     // 8: ai.v1.NetworkEvent
 	(*ActionResult)(nil),                     // 9: ai.v1.ActionResult
-	(*PlanSQLiAttackRequest)(nil),            // 10: ai.v1.PlanSQLiAttackRequest
-	(*SQLiPayload)(nil),                      // 11: ai.v1.SQLiPayload
-	(*PlanSQLiAttackResponse)(nil),           // 12: ai.v1.PlanSQLiAttackResponse
+	(*PlanAttackRequest)(nil),                // 10: ai.v1.PlanAttackRequest
+	(*AttackPayload)(nil),                    // 11: ai.v1.AttackPayload
+	(*PlanAttackResponse)(nil),               // 12: ai.v1.PlanAttackResponse
 	(*VerifyAttackResultRequest)(nil),        // 13: ai.v1.VerifyAttackResultRequest
 	(*VerifyAttackResultResponse)(nil),       // 14: ai.v1.VerifyAttackResultResponse
 	nil,                                      // 15: ai.v1.BrowserContext.CookiesEntry
@@ -1319,17 +1329,17 @@ var file_ai_v1_ai_proto_depIdxs = []int32{
 	5,  // 7: ai.v1.BrowserContext.links:type_name -> ai.v1.BrowserElement
 	7,  // 8: ai.v1.ActionResult.visible_elements:type_name -> ai.v1.BrowserContext
 	8,  // 9: ai.v1.ActionResult.network_events:type_name -> ai.v1.NetworkEvent
-	7,  // 10: ai.v1.PlanSQLiAttackRequest.current_context:type_name -> ai.v1.BrowserContext
-	6,  // 11: ai.v1.PlanSQLiAttackRequest.forms:type_name -> ai.v1.BrowserForm
-	11, // 12: ai.v1.PlanSQLiAttackResponse.payloads:type_name -> ai.v1.SQLiPayload
+	7,  // 10: ai.v1.PlanAttackRequest.current_context:type_name -> ai.v1.BrowserContext
+	6,  // 11: ai.v1.PlanAttackRequest.forms:type_name -> ai.v1.BrowserForm
+	11, // 12: ai.v1.PlanAttackResponse.payloads:type_name -> ai.v1.AttackPayload
 	9,  // 13: ai.v1.VerifyAttackResultRequest.response:type_name -> ai.v1.ActionResult
 	0,  // 14: ai.v1.AiService.Health:input_type -> ai.v1.HealthRequest
 	3,  // 15: ai.v1.AiService.GenerateExecutiveSummary:input_type -> ai.v1.GenerateExecutiveSummaryRequest
-	10, // 16: ai.v1.AiService.PlanSQLiAttack:input_type -> ai.v1.PlanSQLiAttackRequest
+	10, // 16: ai.v1.AiService.PlanAttack:input_type -> ai.v1.PlanAttackRequest
 	13, // 17: ai.v1.AiService.VerifyAttackResult:input_type -> ai.v1.VerifyAttackResultRequest
 	1,  // 18: ai.v1.AiService.Health:output_type -> ai.v1.HealthResponse
 	4,  // 19: ai.v1.AiService.GenerateExecutiveSummary:output_type -> ai.v1.GenerateExecutiveSummaryResponse
-	12, // 20: ai.v1.AiService.PlanSQLiAttack:output_type -> ai.v1.PlanSQLiAttackResponse
+	12, // 20: ai.v1.AiService.PlanAttack:output_type -> ai.v1.PlanAttackResponse
 	14, // 21: ai.v1.AiService.VerifyAttackResult:output_type -> ai.v1.VerifyAttackResultResponse
 	18, // [18:22] is the sub-list for method output_type
 	14, // [14:18] is the sub-list for method input_type

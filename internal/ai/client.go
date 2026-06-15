@@ -378,29 +378,37 @@ Your response must be in JSON format:
 	}), nil
 }
 
-// PlanSQLiAttack plans SQLi attacks based on browser inputs
-func (c *LocalServiceClient) PlanSQLiAttack(ctx context.Context, req *connect.Request[aiv1.PlanSQLiAttackRequest]) (*connect.Response[aiv1.PlanSQLiAttackResponse], error) {
+// PlanAttack plans targeted attacks based on browser context and vulnerability type.
+func (c *LocalServiceClient) PlanAttack(ctx context.Context, req *connect.Request[aiv1.PlanAttackRequest]) (*connect.Response[aiv1.PlanAttackResponse], error) {
+	pageSource := req.Msg.CurrentContext.PageSource
+	if len(pageSource) > 5000 {
+		pageSource = pageSource[:5000] + "...[truncated]"
+	}
+
 	prompt := fmt.Sprintf(`
 You are LastResort, an autonomous browser pentesting agent.
-We are targeting SQL Injection. We have extracted the following context:
+We are targeting %s vulnerabilities. We have extracted the following context:
 URL: %s
 Parameters: %v
 DOM Content snippet:
 %s
 
-Generate up to 5 smart, targeted SQL injection payloads specifically tailored for these parameters. Include your reasoning.
+Analyze the structural context (Forms, Inputs, Action URLs, and DOM structure) to generate up to 5 smart, highly targeted payloads.
+Tailor the payloads to the specific vulnerability type and the identified context.
+Include your reasoning about the attack strategy.
+
 Your response must be in JSON format matching this schema:
 {
-  "reasoning": "Reasoning about parameter types and SQL backend",
+  "reasoning": "Technical reasoning based on context and vulnerability type",
   "payloads": [
     {
-      "strategy": "Authentication Bypass | Error-based | Union-based | Time-based",
+      "strategy": "Specific attack vector name",
       "value": "payload value here",
-      "description": "Short explanation"
+      "description": "Short explanation of why this payload fits this context"
     }
   ]
 }
-`, req.Msg.Endpoint, req.Msg.Parameters, req.Msg.CurrentContext.PageSource)
+`, req.Msg.VulnerabilityType, req.Msg.Endpoint, req.Msg.Parameters, pageSource)
 
 	resStr, err := c.CallLLM(ctx, prompt, true)
 	if err != nil {
@@ -420,45 +428,50 @@ Your response must be in JSON format matching this schema:
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to parse AI payloads JSON: %w", err))
 	}
 
-	var payloads []*aiv1.SQLiPayload
+	var payloads []*aiv1.AttackPayload
 	for _, p := range result.Payloads {
-		payloads = append(payloads, &aiv1.SQLiPayload{
+		payloads = append(payloads, &aiv1.AttackPayload{
 			Strategy:    p.Strategy,
 			Value:       p.Value,
 			Description: p.Description,
 		})
 	}
 
-	return connect.NewResponse(&aiv1.PlanSQLiAttackResponse{
+	return connect.NewResponse(&aiv1.PlanAttackResponse{
 		Payloads:  payloads,
 		Reasoning: result.Reasoning,
 	}), nil
 }
 
-// VerifyAttackResult verifies if the payload successfully triggered an exploit
+// VerifyAttackResult verifies if the payload successfully triggered an exploit.
 func (c *LocalServiceClient) VerifyAttackResult(ctx context.Context, req *connect.Request[aiv1.VerifyAttackResultRequest]) (*connect.Response[aiv1.VerifyAttackResultResponse], error) {
 	pageSourceExcerpt := req.Msg.Response.VisibleElements.PageSource
-	if len(pageSourceExcerpt) > 3000 {
-		pageSourceExcerpt = pageSourceExcerpt[:3000]
+	if len(pageSourceExcerpt) > 4000 {
+		pageSourceExcerpt = pageSourceExcerpt[:4000]
 	}
 
 	prompt := fmt.Sprintf(`
-You are LastResort, a verification engine.
-We injected SQL injection payload: "%s".
-The response is:
+You are LastResort, a security verification engine.
+We injected an attack payload: "%s".
+The browser response is:
 URL: %s
 Title: %s
 Status Code: %d
 Page Source Excerpt:
 %s
 
-Did the exploit succeed? (e.g. database error leakage, login bypass state, sql syntax indicators).
+Did the exploit succeed? Be extremely skeptical.
+- For SQL Injection: Look for database errors, login bypass indicators, or unexpected data leakage.
+- For XSS: Look for evidence of script execution in the DOM (though usually handled by alert markers).
+- For CSRF: Look for positive confirmation of the requested action succeeding despite missing tokens.
+- For Path Traversal: Look for sensitive file contents (e.g. root:x:0:0).
+
 Return JSON matching this schema:
 {
   "confirmed": true/false,
-  "reasoning": "Explain why it indicates a vulnerability or why it looks sanitized",
+  "reasoning": "Technical evidence-based reasoning. If not confirmed, explain why it looks sanitized or blocked.",
   "confidence": 0.0 to 1.0,
-  "vulnerability_type": "SQL Injection"
+  "vulnerability_type": "The detected vulnerability type"
 }
 `, req.Msg.Payload, req.Msg.Response.CurrentUrl, req.Msg.Response.PageTitle, req.Msg.Response.StatusCode, pageSourceExcerpt)
 

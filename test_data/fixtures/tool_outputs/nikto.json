@@ -1,0 +1,1 @@
+{"host":"example.com","vulnerabilities":[{"OSVDB":"123","method":"GET","url":"/test","msg":"X-Frame-Options header missing"}]}

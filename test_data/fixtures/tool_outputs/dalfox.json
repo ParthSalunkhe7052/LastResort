@@ -1,0 +1,1 @@
+[{"type":"VULN","param":"q","method":"GET","evidence":"<script>alert(1)</script>","message":"Reflected XSS found"}]

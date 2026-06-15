@@ -1,0 +1,20 @@
+{
+  "server_scan_results": [
+    {
+      "scan_result": {
+        "heartbleed": {
+          "status": "COMPLETED",
+          "result": {
+            "is_vulnerable_to_heartbleed": true
+          }
+        },
+        "tls_1_0_cipher_suites": {
+          "status": "COMPLETED",
+          "result": {
+            "is_tls_version_supported": true
+          }
+        }
+      }
+    }
+  ]
+}

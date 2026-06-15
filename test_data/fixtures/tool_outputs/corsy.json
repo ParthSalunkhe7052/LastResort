@@ -1,0 +1,1 @@
+[{"url":"https://example.com","vulnerability_type":"CORS Misconfiguration","severity":"medium","description":"CORS policy is too loose","payload":"Origin: https://evil.com"}]

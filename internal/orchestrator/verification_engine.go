@@ -241,11 +241,8 @@ func (ve *VerificationEngine) VerifyCSRF(ctx context.Context, endpoint, payload,
 		}
 	}
 
-	// Fallback to basic assertion
-	vr.Verified = true
-	vr.Confidence = 0.72
-	vr.Method = storage.VerificationStatusCode
-	vr.EvidenceSummary = fmt.Sprintf("CSRF verification success (heuristic): Request executed and did not encounter CSRF validation errors. Endpoint: %s", endpoint)
+	vr.Verified = false
+	vr.EvidenceSummary = "CSRF verification: No clear success indicators found in response. Finding remains a hypothesis."
 	return vr
 }
 
@@ -402,10 +399,10 @@ func (ve *VerificationEngine) VerifyGeneric(ctx context.Context, vulnType, endpo
 
 	// Fallback to simple matching if payload is reflected in response
 	if payload != "" && strings.Contains(strings.ToLower(pageSource), strings.ToLower(payload)) {
-		vr.Verified = true
-		vr.Confidence = 0.72
+		vr.Verified = false
+		vr.Confidence = 0.45
 		vr.Method = storage.VerificationDOMMarker
-		vr.EvidenceSummary = fmt.Sprintf("Generic verification: Payload reflection verified inside DOM. Vulnerability: %s", vulnType)
+		vr.EvidenceSummary = fmt.Sprintf("Generic verification: Payload reflection verified inside DOM, but no proof of exploit execution was found. Vulnerability: %s", vulnType)
 		return vr
 	}
 

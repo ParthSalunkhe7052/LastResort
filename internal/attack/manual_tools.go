@@ -29,6 +29,7 @@ type NormalizedFinding struct {
 	References      []string `json:"references"`
 	ManualTestSteps []string `json:"manual_test_steps"`
 	CurlCommand     string   `json:"curl_command"`
+	State           string   `json:"state"`
 }
 
 // ToolStatus represents the availability status of an external tool.
@@ -83,7 +84,7 @@ func (p *httpxProbe) Check(ctx context.Context) (bool, string) {
 			if strings.Contains(line, "Version:") {
 				parts := strings.Fields(line)
 				if len(parts) >= 3 {
-					return true, parts[2]
+					return true, parts[len(parts)-1]
 				}
 			}
 		}
@@ -145,6 +146,21 @@ type whatwebProbe struct {
 }
 
 func (p *whatwebProbe) Check(ctx context.Context) (bool, string) {
+	if !ToolAvailable("ruby") {
+		// Try to locate Ruby in standard Windows directories and add to PATH
+		for _, rPath := range []string{
+			`C:\Ruby33-x64\bin`,
+			`C:\Ruby32-x64\bin`,
+			`C:\Ruby31-x64\bin`,
+			`C:\Ruby30-x64\bin`,
+		} {
+			if _, err := os.Stat(rPath + `\ruby.exe`); err == nil {
+				os.Setenv("PATH", rPath+string(os.PathListSeparator)+os.Getenv("PATH"))
+				break
+			}
+		}
+	}
+
 	if !ToolAvailable("ruby") {
 		return false, "Ruby Missing"
 	}
@@ -272,7 +288,7 @@ func runToolExecOnce(ctx context.Context, name string, args []string, timeout ti
 	defer cancel()
 
 	cmd := exec.CommandContext(toolCtx, name, args...)
-	cmd.Env = os.Environ()
+	cmd.Env = append(os.Environ(), "PYTHONIOENCODING=utf-8")
 
 	stdout, _ := cmd.StdoutPipe()
 	stderr, _ := cmd.StderrPipe()
@@ -412,11 +428,11 @@ if err != nil {
 // WapitiJSONOutput represents Wapiti JSON output format.
 type WapitiJSONOutput struct {
 	Vulnerabilities map[string][]struct {
-		Method    string `json:"method"`
-		Info      string `json:"info"`
-		Path      string `json:"path"`
-		Parameter string `json:"parameter"`
-		HTTPError int    `json:"http_request"`
+		Method      string `json:"method"`
+		Info        string `json:"info"`
+		Path        string `json:"path"`
+		Parameter   string `json:"parameter"`
+		HTTPRequest string `json:"http_request"`
 		CurlCommand string `json:"curl_command"`
 	} `json:"vulnerabilities"`
 }
@@ -443,7 +459,6 @@ func RunWapitiScan(ctx context.Context, targetURL string, onLog func(string)) ([
 		"--format", "json",
 		"--timeout", "10",
 		"--max-links-per-page", "50",
-		"-q",
 	}, 8*time.Minute, onLog)
 	if err != nil {
 		onLog(fmt.Sprintf("[Wapiti] Scan completed with error: %v", err))
@@ -517,7 +532,7 @@ func RunCorsyScan(ctx context.Context, targetURL string, onLog func(string)) ([]
 	defer os.Remove(tmpPath)
 
 	_, err = runToolExec(ctx, pythonCmd, []string{
-		corsyPath, "-u", targetURL, "-o", tmpPath, "--json",
+		corsyPath, "-u", targetURL, "-o", tmpPath,
 	}, 5*time.Minute, onLog)
 	if err != nil {
 		return nil, err
@@ -576,7 +591,12 @@ func RunNiktoScan(ctx context.Context, targetURL string, onLog func(string)) ([]
 	if readErr != nil {
 		return nil, readErr
 	}
-	return parseNiktoOutput(data), nil
+	return parseNiktoOutput(data, targetURL), nil
+}
+
+type SSLyzeJSONResult struct {
+	Status string          `json:"status"`
+	Result json.RawMessage `json:"result"`
 }
 
 // SSLyzeJSONOutput represents SSLyze JSON output.
@@ -586,30 +606,7 @@ type SSLyzeJSONOutput struct {
 			Hostname string `json:"hostname"`
 			Port     int    `json:"port"`
 		} `json:"server_info"`
-		ScanResult struct {
-			SSLScanResult struct {
-				AcceptedCipherSuites []struct {
-					CipherSuite struct {
-						Name string `json:"name"`
-					} `json:"cipher_suite"`
-				} `json:"accepted_cipher_suites"`
-				IsVulnerableToHeartbleed bool `json:"is_vulnerable_to_heartbleed"`
-				IsVulnerableToCRIME      bool `json:"is_vulnerable_to_crime"`
-				IsVulnerableToROBOT     bool `json:"is_vulnerable_to_robot"`
-				IsVulnerableToPaddingOracle bool `json:"is_vulnerable_to_padding_oracle"`
-				TLSVersions []struct {
-					Version string `json:"version"`
-					Name    string `json:"name"`
-				} `json:"tls_versions"`
-				CertificateInfos []struct {
-					Hostname  string `json:"hostname"`
-					Certificate struct {
-						NotAfter string `json:"not_after"`
-						Issuer   string `json:"issuer"`
-					} `json:"certificate"`
-				} `json:"certificate_infos"`
-			} `json:"ssl_scan_result"`
-		} `json:"scan_result"`
+		ScanResult map[string]SSLyzeJSONResult `json:"scan_result"`
 	} `json:"server_scan_results"`
 }
 
@@ -646,7 +643,11 @@ func RunSSLyzeScan(ctx context.Context, targetURL string, onLog func(string)) ([
 	args := []string{"--json_out", tmpPath, "--port", port, hostname}
 	_, err = runToolExec(ctx, "sslyze", args, 5*time.Minute, onLog)
 	if err != nil {
-		return nil, err
+		// SSLyze returns exit status 1 if target is not compliant with Mozilla profile.
+		// If the output JSON file exists and is not empty, ignore the exit error.
+		if info, statErr := os.Stat(tmpPath); statErr != nil || info.Size() == 0 {
+			return nil, err
+		}
 	}
 
 	data, readErr := os.ReadFile(tmpPath)
@@ -691,7 +692,7 @@ func RunNucleiScanAllTemplates(ctx context.Context, targetURL string, proxyPort 
 	}
 
 	cmd := exec.CommandContext(toolCtx, "nuclei", args...)
-	cmd.Env = os.Environ()
+	cmd.Env = safeEnviron()
 
 	stdout, _ := cmd.StdoutPipe()
 	stderr, _ := cmd.StderrPipe()
@@ -932,7 +933,7 @@ func parseCorsyOutput(data []byte, targetURL string) []NormalizedFinding {
 }
 
 // parseNiktoOutput parses Nikto JSON output.
-func parseNiktoOutput(data []byte) []NormalizedFinding {
+func parseNiktoOutput(data []byte, targetURL string) []NormalizedFinding {
 	var findings []NormalizedFinding
 	if len(data) == 0 {
 		return findings
@@ -959,13 +960,22 @@ func parseNiktoOutput(data []byte) []NormalizedFinding {
 			severity = "LOW"
 		}
 
+		findingURL := targetURL
+		if r.URL != "" {
+			if strings.HasPrefix(r.URL, "http") {
+				findingURL = r.URL
+			} else {
+				findingURL = strings.TrimSuffix(targetURL, "/") + "/" + strings.TrimPrefix(r.URL, "/")
+			}
+		}
+
 		findings = append(findings, NormalizedFinding{
 			Tool:        "nikto",
 			Severity:    severity,
 			Category:    "Server Misconfiguration",
 			Title:       r.Message,
 			Description: r.Message,
-			URL:         r.URL,
+			URL:         findingURL,
 			Evidence:    fmt.Sprintf("OSVDB: %s, Method: %s", r.OSVDB, r.Method),
 			References:  []string{fmt.Sprintf("https://www.osvdb.org/show/%s", r.OSVDB)},
 		})
@@ -982,61 +992,87 @@ func parseSSLyzeOutput(data []byte, targetURL string) []NormalizedFinding {
 	var sslyzeResult SSLyzeJSONOutput
 	if json.Unmarshal(data, &sslyzeResult) == nil {
 		for _, scan := range sslyzeResult.ServerScanResults {
-			result := scan.ScanResult.SSLScanResult
-
-			if result.IsVulnerableToHeartbleed {
-				findings = append(findings, NormalizedFinding{
-					Tool:        "sslyze",
-					Severity:    "CRITICAL",
-					Category:    "SSL/TLS Vulnerability",
-					Title:       "Heartbleed Vulnerability (CVE-2014-0160)",
-					Description: "Server is vulnerable to Heartbleed, allowing memory disclosure.",
-					URL:         targetURL,
-					Evidence:    "SSLyze confirmed Heartbleed vulnerability.",
-					References:  []string{"https://heartbleed.com/"},
-				})
-			}
-			if result.IsVulnerableToCRIME {
-				findings = append(findings, NormalizedFinding{
-					Tool:        "sslyze",
-					Severity:    "HIGH",
-					Category:    "SSL/TLS Vulnerability",
-					Title:       "CRIME Vulnerability",
-					Description: "Server is vulnerable to CRIME attack, enabling session cookie theft.",
-					URL:         targetURL,
-				})
-			}
-			if result.IsVulnerableToROBOT {
-				findings = append(findings, NormalizedFinding{
-					Tool:        "sslyze",
-					Severity:    "HIGH",
-					Category:    "SSL/TLS Vulnerability",
-					Title:       "ROBOT Vulnerability",
-					Description: "Server is vulnerable to Return Of Bleichenbacher's Oracle Threat.",
-					URL:         targetURL,
-				})
-			}
-			if result.IsVulnerableToPaddingOracle {
-				findings = append(findings, NormalizedFinding{
-					Tool:        "sslyze",
-					Severity:    "HIGH",
-					Category:    "SSL/TLS Vulnerability",
-					Title:       "Padding Oracle Vulnerability",
-					Description: "Server is vulnerable to padding oracle attack.",
-					URL:         targetURL,
-				})
+			if res, ok := scan.ScanResult["heartbleed"]; ok && res.Status == "COMPLETED" {
+				var hbRes struct {
+					IsVulnerableToHeartbleed bool `json:"is_vulnerable_to_heartbleed"`
+				}
+				if json.Unmarshal(res.Result, &hbRes) == nil && hbRes.IsVulnerableToHeartbleed {
+					findings = append(findings, NormalizedFinding{
+						Tool:        "sslyze",
+						Severity:    "CRITICAL",
+						Category:    "SSL/TLS Vulnerability",
+						Title:       "Heartbleed Vulnerability (CVE-2014-0160)",
+						Description: "Server is vulnerable to Heartbleed, allowing memory disclosure.",
+						URL:         targetURL,
+						Evidence:    "SSLyze confirmed Heartbleed vulnerability.",
+						References:  []string{"https://heartbleed.com/"},
+					})
+				}
 			}
 
-			for _, ver := range result.TLSVersions {
-				if strings.Contains(strings.ToLower(ver.Name), "ssl") || strings.Contains(ver.Version, "1.0") || strings.Contains(ver.Version, "1.1") {
+			if res, ok := scan.ScanResult["tls_compression"]; ok && res.Status == "COMPLETED" {
+				var compRes struct {
+					SupportsCompression bool `json:"supports_compression"`
+				}
+				if json.Unmarshal(res.Result, &compRes) == nil && compRes.SupportsCompression {
+					findings = append(findings, NormalizedFinding{
+						Tool:        "sslyze",
+						Severity:    "HIGH",
+						Category:    "SSL/TLS Vulnerability",
+						Title:       "CRIME Vulnerability",
+						Description: "Server is vulnerable to CRIME attack, enabling session cookie theft.",
+						URL:         targetURL,
+					})
+				}
+			}
+
+			if res, ok := scan.ScanResult["robot"]; ok && res.Status == "COMPLETED" {
+				var robotRes struct {
+					RobotResult string `json:"robot_result"`
+				}
+				if json.Unmarshal(res.Result, &robotRes) == nil && strings.HasPrefix(robotRes.RobotResult, "VULNERABLE_") {
+					findings = append(findings, NormalizedFinding{
+						Tool:        "sslyze",
+						Severity:    "HIGH",
+						Category:    "SSL/TLS Vulnerability",
+						Title:       "ROBOT Vulnerability",
+						Description: "Server is vulnerable to Return Of Bleichenbacher's Oracle Threat.",
+						URL:         targetURL,
+					})
+				}
+			}
+
+			if res, ok := scan.ScanResult["tls_1_0_cipher_suites"]; ok && res.Status == "COMPLETED" {
+				var tlsRes struct {
+					IsTLSVersionSupported bool `json:"is_tls_version_supported"`
+				}
+				if json.Unmarshal(res.Result, &tlsRes) == nil && tlsRes.IsTLSVersionSupported {
 					findings = append(findings, NormalizedFinding{
 						Tool:        "sslyze",
 						Severity:    "MEDIUM",
 						Category:    "SSL/TLS Misconfiguration",
-						Title:       fmt.Sprintf("Deprecated TLS Version: %s", ver.Name),
-						Description: fmt.Sprintf("Server supports %s which is deprecated and insecure.", ver.Name),
+						Title:       "Deprecated TLS Version: TLS 1.0",
+						Description: "Server supports TLS 1.0 which is deprecated and insecure.",
 						URL:         targetURL,
-						Evidence:    fmt.Sprintf("Supported: %s (%s)", ver.Name, ver.Version),
+						Evidence:    "Supported: TLS 1.0",
+						Remediation: "Disable TLS 1.0 and 1.1. Only allow TLS 1.2 and 1.3.",
+					})
+				}
+			}
+
+			if res, ok := scan.ScanResult["tls_1_1_cipher_suites"]; ok && res.Status == "COMPLETED" {
+				var tlsRes struct {
+					IsTLSVersionSupported bool `json:"is_tls_version_supported"`
+				}
+				if json.Unmarshal(res.Result, &tlsRes) == nil && tlsRes.IsTLSVersionSupported {
+					findings = append(findings, NormalizedFinding{
+						Tool:        "sslyze",
+						Severity:    "MEDIUM",
+						Category:    "SSL/TLS Misconfiguration",
+						Title:       "Deprecated TLS Version: TLS 1.1",
+						Description: "Server supports TLS 1.1 which is deprecated and insecure.",
+						URL:         targetURL,
+						Evidence:    "Supported: TLS 1.1",
 						Remediation: "Disable TLS 1.0 and 1.1. Only allow TLS 1.2 and 1.3.",
 					})
 				}

@@ -238,16 +238,16 @@ func (s *ScanServer) ListFindings(ctx context.Context, req *connect.Request[scan
 	var err error
 
 	// Filter and prioritize high severity / verified findings and cap at 10.
-	queryStr := `
+	queryStr := fmt.Sprintf(`
 		SELECT id, scan_id, title, description, severity, vulnerability_type, endpoint, payload, response_status, confidence, category, is_false_positive, created_at 
 		FROM findings 
-		WHERE is_false_positive = 0 %s
+		WHERE is_false_positive = 0 %%s
 		ORDER BY 
 			CASE category
-				WHEN 'VERIFIED_FINDING' THEN 1
-				WHEN 'POTENTIAL_FINDING' THEN 2
-				WHEN 'NEEDS_REVIEW' THEN 3
-				WHEN 'OBSERVATION' THEN 4
+				WHEN '%s' THEN 1
+				WHEN '%s' THEN 2
+				WHEN '%s' THEN 3
+				WHEN '%s' THEN 4
 				ELSE 5
 			END ASC,
 			CASE severity 
@@ -259,7 +259,7 @@ func (s *ScanServer) ListFindings(ctx context.Context, req *connect.Request[scan
 			END ASC, 
 			confidence DESC, 
 			created_at DESC 
-		LIMIT 10`
+		LIMIT 10`, storage.StateVerifiedFinding, storage.StatePotentialFinding, storage.StateNeedsReview, storage.StateObservation)
 
 	if scanID != "" {
 		rows, err = s.DB.QueryContext(ctx, fmt.Sprintf(queryStr, "AND scan_id = ?"), scanID)
@@ -282,20 +282,7 @@ func (s *ScanServer) ListFindings(ctx context.Context, req *connect.Request[scan
 		if err != nil {
 			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to scan finding: %w", err))
 		}
-		catStr := category.String
-		switch catStr {
-		case "VERIFIED_FINDING":
-			catStr = "VERIFIED_ATTACK"
-		case "POTENTIAL_FINDING":
-			catStr = "HYPOTHESIS"
-		case "FALSE_POSITIVE":
-			catStr = "ATTEMPT"
-		case "OBSERVATION":
-			catStr = "OBSERVATION"
-		case "":
-			catStr = "OBSERVATION"
-		}
-		f.Category = catStr
+		f.Category = storage.MapCategoryForCompatibility(category.String)
 		f.IsFalsePositive = (isFP == 1)
 		f.CreatedAt = createdAt.Format(time.RFC3339)
 		findings = append(findings, &f)

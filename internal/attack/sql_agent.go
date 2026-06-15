@@ -54,10 +54,11 @@ func (m *SQLiModule) PlanAI(ctx context.Context, surf scanner.AttackSurface, bas
 		return nil, "", fmt.Errorf("AI client is not configured")
 	}
 
-	resp, err := m.aiClient.PlanSQLiAttack(ctx, connect.NewRequest(&aiv1.PlanSQLiAttackRequest{
-		CurrentContext: ConvertToProtoContext(baselineRes),
-		Endpoint:       surf.URL,
-		Parameters:     []string{surf.Point.Name},
+	resp, err := m.aiClient.PlanAttack(ctx, connect.NewRequest(&aiv1.PlanAttackRequest{
+		VulnerabilityType: "SQL Injection",
+		CurrentContext:    ConvertToProtoContext(baselineRes),
+		Endpoint:          surf.URL,
+		Parameters:        []string{surf.Point.Name},
 	}))
 	if err != nil {
 		return nil, "", err

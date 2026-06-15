@@ -1,0 +1,2 @@
+{"template-id":"generic-detection","info":{"name":"Generic Detection","severity":"info","description":"A generic detection"},"type":"http","host":"example.com","matched-at":"https://example.com/","meta":{}}
+{"template-id":"cve-2021-1234","info":{"name":"Critical Vulnerability","severity":"critical","description":"A critical bug"},"type":"http","host":"example.com","matched-at":"https://example.com/vuln","meta":{}}

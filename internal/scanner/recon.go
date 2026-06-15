@@ -232,7 +232,7 @@ func RunRecon(ctx context.Context, targetURL string) (*ReconData, error) {
 			default:
 			}
 
-			addr := fmt.Sprintf("%s:%d", host, port)
+			addr := net.JoinHostPort(host, fmt.Sprintf("%d", port))
 			conn, err := net.DialTimeout("tcp", addr, 400*time.Millisecond)
 			if err == nil {
 				conn.Close()

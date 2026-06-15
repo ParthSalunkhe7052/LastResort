@@ -20,9 +20,9 @@ type mockAiClient struct {
 	aiv1connect.AiServiceClient
 }
 
-func (m *mockAiClient) PlanSQLiAttack(ctx context.Context, req *connect.Request[aiv1.PlanSQLiAttackRequest]) (*connect.Response[aiv1.PlanSQLiAttackResponse], error) {
-	return connect.NewResponse(&aiv1.PlanSQLiAttackResponse{
-		Payloads: []*aiv1.SQLiPayload{
+func (m *mockAiClient) PlanAttack(ctx context.Context, req *connect.Request[aiv1.PlanAttackRequest]) (*connect.Response[aiv1.PlanAttackResponse], error) {
+	return connect.NewResponse(&aiv1.PlanAttackResponse{
+		Payloads: []*aiv1.AttackPayload{
 			{Strategy: "error-based", Value: "' OR 1=1 --", Description: "Mock payload"},
 		},
 		Reasoning: "Mock planning",

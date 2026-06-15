@@ -7,7 +7,7 @@ option go_package = "github.com/parth/lastresort/internal/gen/ai/v1;aiv1";
 service AiService {
   rpc Health(HealthRequest) returns (HealthResponse);
   rpc GenerateExecutiveSummary(GenerateExecutiveSummaryRequest) returns (GenerateExecutiveSummaryResponse);
-  rpc PlanSQLiAttack(PlanSQLiAttackRequest) returns (PlanSQLiAttackResponse);
+  rpc PlanAttack(PlanAttackRequest) returns (PlanAttackResponse);
   rpc VerifyAttackResult(VerifyAttackResultRequest) returns (VerifyAttackResultResponse);
 }
 
@@ -98,21 +98,22 @@ message ActionResult {
   string response_body = 10;
 }
 
-message PlanSQLiAttackRequest {
-  BrowserContext current_context = 1;
-  string endpoint = 2;
-  repeated BrowserForm forms = 3;
-  repeated string parameters = 4;
+message PlanAttackRequest {
+  string vulnerability_type = 1;
+  BrowserContext current_context = 2;
+  string endpoint = 3;
+  repeated BrowserForm forms = 4;
+  repeated string parameters = 5;
 }
 
-message SQLiPayload {
+message AttackPayload {
   string strategy = 1;
   string value = 2;
   string description = 3;
 }
 
-message PlanSQLiAttackResponse {
-  repeated SQLiPayload payloads = 1;
+message PlanAttackResponse {
+  repeated AttackPayload payloads = 1;
   string reasoning = 2;
 }
 

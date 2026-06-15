@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"database/sql"
 	"os"
 	"path/filepath"
@@ -64,14 +65,14 @@ func TestMigrationCompatibility(t *testing.T) {
 
 	// 3. Verify columns exist by querying them
 	var authCookies, scopePatterns sql.NullString
-	err = db.QueryRowContext(t.Context(), "SELECT auth_cookies, scope_patterns FROM scans LIMIT 1").Scan(&authCookies, &scopePatterns)
+	err = db.QueryRowContext(context.Background(), "SELECT auth_cookies, scope_patterns FROM scans LIMIT 1").Scan(&authCookies, &scopePatterns)
 	// QueryRow returns sql.ErrNoRows if empty, which is fine, as long as it doesn't return "no such column" error
 	if err != nil && err != sql.ErrNoRows {
 		t.Errorf("failed to query migrated columns on scans table: %v", err)
 	}
 
 	var category sql.NullString
-	err = db.QueryRowContext(t.Context(), "SELECT category FROM findings LIMIT 1").Scan(&category)
+	err = db.QueryRowContext(context.Background(), "SELECT category FROM findings LIMIT 1").Scan(&category)
 	if err != nil && err != sql.ErrNoRows {
 		t.Errorf("failed to query migrated category column on findings table: %v", err)
 	}

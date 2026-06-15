@@ -85,6 +85,63 @@ type DalfoxJSONOutput struct {
 	Message  string `json:"message"`
 }
 
+// parseDalfoxOutput parses Dalfox JSON or JSONL output.
+func parseDalfoxOutput(data []byte, targetURL string) []ToolFinding {
+	var findings []ToolFinding
+	trimmedData := strings.TrimSpace(string(data))
+	if trimmedData == "" {
+		return findings
+	}
+
+	// Dalfox format json can be a single JSON array containing objects:
+	// [{"type":"VULN",...}]
+	if strings.HasPrefix(trimmedData, "[") && strings.HasSuffix(trimmedData, "]") {
+		var items []DalfoxJSONOutput
+		if err := json.Unmarshal(data, &items); err == nil {
+			for _, item := range items {
+				if item.Type == "VULN" {
+					findings = append(findings, ToolFinding{
+						Title:             fmt.Sprintf("Reflected XSS in Parameter: %s", item.Param),
+						Severity:          "HIGH",
+						VulnerabilityType: "Reflected XSS",
+						Endpoint:          targetURL,
+						Payload:           item.Evidence,
+						Evidence:          item.Message,
+						Source:            "dalfox",
+					})
+				}
+			}
+			return findings
+		}
+	}
+
+	// Fallback to line-by-line JSON parsing
+	lines := strings.Split(trimmedData, "\n")
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		var item DalfoxJSONOutput
+		if err := json.Unmarshal([]byte(trimmed), &item); err == nil {
+			// We only save actual vulnerability reports
+			if item.Type == "VULN" {
+				findings = append(findings, ToolFinding{
+					Title:             fmt.Sprintf("Reflected XSS in Parameter: %s", item.Param),
+					Severity:          "HIGH",
+					VulnerabilityType: "Reflected XSS",
+					Endpoint:          targetURL,
+					Payload:           item.Evidence,
+					Evidence:          item.Message,
+					Source:            "dalfox",
+				})
+			}
+		}
+	}
+
+	return findings
+}
+
 // RunDalfoxScan executes Dalfox against targetURL.
 func RunDalfoxScan(ctx context.Context, targetURL string, proxyPort int, cookieStr string, onLog func(string)) ([]ToolFinding, error) {
 	if !ToolAvailable("dalfox") {
@@ -147,56 +204,7 @@ func RunDalfoxScan(ctx context.Context, targetURL string, proxyPort int, cookieS
 		return nil, fmt.Errorf("failed to read dalfox output: %w", err)
 	}
 
-	var findings []ToolFinding
-	trimmedData := strings.TrimSpace(string(data))
-	
-	// Dalfox format json can be a single JSON array containing objects:
-	// [{"type":"VULN",...}]
-	if strings.HasPrefix(trimmedData, "[") && strings.HasSuffix(trimmedData, "]") {
-		var items []DalfoxJSONOutput
-		if err := json.Unmarshal(data, &items); err == nil {
-			for _, item := range items {
-				if item.Type == "VULN" {
-					findings = append(findings, ToolFinding{
-						Title:             fmt.Sprintf("Reflected XSS in Parameter: %s", item.Param),
-						Severity:          "HIGH",
-						VulnerabilityType: "Reflected XSS",
-						Endpoint:          targetURL,
-						Payload:           item.Evidence,
-						Evidence:          item.Message,
-						Source:            "dalfox",
-					})
-				}
-			}
-			return findings, nil
-		}
-	}
-
-	// Fallback to line-by-line JSON parsing
-	lines := strings.Split(string(data), "\n")
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" {
-			continue
-		}
-		var item DalfoxJSONOutput
-		if err := json.Unmarshal([]byte(trimmed), &item); err == nil {
-			// We only save actual vulnerability reports
-			if item.Type == "VULN" {
-				findings = append(findings, ToolFinding{
-					Title:             fmt.Sprintf("Reflected XSS in Parameter: %s", item.Param),
-					Severity:          "HIGH",
-					VulnerabilityType: "Reflected XSS",
-					Endpoint:          targetURL,
-					Payload:           item.Evidence,
-					Evidence:          item.Message,
-					Source:            "dalfox",
-				})
-			}
-		}
-	}
-
-	return findings, nil
+	return parseDalfoxOutput(data, targetURL), nil
 }
 
 // RunSQLMapScan runs SQLMap on targetURL.
@@ -248,8 +256,6 @@ func RunSQLMapScan(ctx context.Context, targetURL string, proxyPort int, cookieS
 		}
 	}
 
-	// ... (rest of the log parsing logic)
-
 	// SQLMap writes output to subdirectories under the output-dir based on hostnames.
 	// We scan the directory to find any "log" files.
 	var findings []ToolFinding
@@ -297,70 +303,8 @@ type NucleiJSONOutput struct {
 	Metadata      map[string]interface{} `json:"meta"`
 }
 
-// RunNucleiScan executes Nuclei scanner on targetURL.
-func RunNucleiScan(ctx context.Context, targetURL string, proxyPort int, cookieStr string, onLog func(string)) ([]ToolFinding, error) {
-	if !ToolAvailable("nuclei") {
-		return nil, fmt.Errorf("nuclei binary not found in PATH")
-	}
-
-	// 5-minute timeout for Nuclei
-	toolCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
-	defer cancel()
-
-	// Ensure templates are initialized if they appear to be missing
-	if !checkNucleiTemplatesExist() {
-		onLog("[Nuclei] Templates not found in default location. Attempting synchronous initialization...")
-		InitNucleiTemplates()
-	}
-
-	tmpFile, err := os.CreateTemp("", "nuclei-*.json")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create temp file for nuclei: %w", err)
-	}
-	tmpPath := tmpFile.Name()
-	tmpFile.Close()
-	defer os.Remove(tmpPath)
-
-	// Command: nuclei -u <target> -tags safe -as -json-export <tmpPath> -silent
-	args := []string{"-u", targetURL, "-tags", "safe", "-as", "-json-export", tmpPath, "-silent"}
-	if proxyPort > 0 {
-		args = append(args, "-proxy", fmt.Sprintf("http://127.0.0.1:%d", proxyPort))
-	}
-	if cookieStr != "" {
-		args = append(args, "-H", fmt.Sprintf("Cookie: %s", cookieStr))
-	}
-	cmd := exec.CommandContext(toolCtx, "nuclei", args...)
-	cmd.Env = os.Environ()
-
-	// Stream output to UI
-	stdout, _ := cmd.StdoutPipe()
-	stderr, _ := cmd.StderrPipe()
-	go streamToolOutput(stdout, "[Nuclei]", onLog)
-	go streamToolOutput(stderr, "[Nuclei-ERR]", onLog)
-
-	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("failed to start nuclei: %w", err)
-	}
-
-	done := make(chan error, 1)
-	go func() { done <- cmd.Wait() }()
-
-	select {
-	case <-toolCtx.Done():
-		if cmd.Process != nil { cmd.Process.Kill() }
-		onLog("[Nuclei] [TIMEOUT] Nuclei exceeded 5-minute budget. Terminating.")
-	case err := <-done:
-		if err != nil {
-			onLog(fmt.Sprintf("[Nuclei] [WARNING] Nuclei exited with error: %v", err))
-		}
-	}
-
-	data, err := os.ReadFile(tmpPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read nuclei output: %w", err)
-	}
-	// ... (rest of the parsing logic)
-
+// parseNucleiOutput parses Nuclei JSONL output.
+func parseNucleiOutput(data []byte) []ToolFinding {
 	var findings []ToolFinding
 	lines := strings.Split(string(data), "\n")
 	for _, line := range lines {
@@ -389,8 +333,73 @@ func RunNucleiScan(ctx context.Context, targetURL string, proxyPort int, cookieS
 			})
 		}
 	}
+	return findings
+}
 
-	return findings, nil
+// RunNucleiScan executes Nuclei scanner on targetURL.
+func RunNucleiScan(ctx context.Context, targetURL string, proxyPort int, cookieStr string, onLog func(string)) ([]ToolFinding, error) {
+	if !ToolAvailable("nuclei") {
+		return nil, fmt.Errorf("nuclei binary not found in PATH")
+	}
+
+	// 5-minute timeout for Nuclei
+	toolCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+
+	// Ensure templates are initialized if they appear to be missing
+	if !checkNucleiTemplatesExist() {
+		onLog("[Nuclei] Templates not found in default location. Attempting synchronous initialization...")
+		InitNucleiTemplates()
+	}
+
+	tmpFile, err := os.CreateTemp("", "nuclei-*.json")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create temp file for nuclei: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+	tmpFile.Close()
+	defer os.Remove(tmpPath)
+
+	// Command: nuclei -u <target> -tags safe -as -jsonl-export <tmpPath> -silent
+	args := []string{"-u", targetURL, "-tags", "safe", "-as", "-jsonl-export", tmpPath, "-silent"}
+	if proxyPort > 0 {
+		args = append(args, "-proxy", fmt.Sprintf("http://127.0.0.1:%d", proxyPort))
+	}
+	if cookieStr != "" {
+		args = append(args, "-H", fmt.Sprintf("Cookie: %s", cookieStr))
+	}
+	cmd := exec.CommandContext(toolCtx, "nuclei", args...)
+	cmd.Env = safeEnviron()
+
+	// Stream output to UI
+	stdout, _ := cmd.StdoutPipe()
+	stderr, _ := cmd.StderrPipe()
+	go streamToolOutput(stdout, "[Nuclei]", onLog)
+	go streamToolOutput(stderr, "[Nuclei-ERR]", onLog)
+
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("failed to start nuclei: %w", err)
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+
+	select {
+	case <-toolCtx.Done():
+		if cmd.Process != nil { cmd.Process.Kill() }
+		onLog("[Nuclei] [TIMEOUT] Nuclei exceeded 5-minute budget. Terminating.")
+	case err := <-done:
+		if err != nil {
+			onLog(fmt.Sprintf("[Nuclei] [WARNING] Nuclei exited with error: %v", err))
+		}
+	}
+
+	data, err := os.ReadFile(tmpPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read nuclei output: %w", err)
+	}
+
+	return parseNucleiOutput(data), nil
 }
 
 func streamToolOutput(r io.Reader, prefix string, onLog func(string)) {
@@ -439,7 +448,7 @@ func InitNucleiTemplates() {
 
 	log.Printf("[Nuclei] Nuclei binary detected. Checking templates...")
 	versionCmd := exec.Command("nuclei", "-version")
-	versionCmd.Env = os.Environ()
+	versionCmd.Env = safeEnviron()
 	out, err := versionCmd.CombinedOutput()
 	if err == nil {
 		log.Printf("[Nuclei] Version and template info:\n%s", string(out))
@@ -448,20 +457,32 @@ func InitNucleiTemplates() {
 	log.Printf("[Nuclei] Updating/downloading templates and engine...")
 	// Use modern flags: -ut (update templates), -up (update project/engine)
 	updateCmd := exec.Command("nuclei", "-ut")
-	updateCmd.Env = os.Environ()
+	updateCmd.Env = safeEnviron()
 	if err := updateCmd.Run(); err != nil {
 		log.Printf("[Nuclei] [WARNING] Failed to update templates with -ut: %v. Trying fallback -update-templates...", err)
 		fallbackCmd := exec.Command("nuclei", "-update-templates")
-		fallbackCmd.Env = os.Environ()
+		fallbackCmd.Env = safeEnviron()
 		_ = fallbackCmd.Run()
 	}
 
 	updateEngineCmd := exec.Command("nuclei", "-up")
-	updateEngineCmd.Env = os.Environ()
+	updateEngineCmd.Env = safeEnviron()
 	if err := updateEngineCmd.Run(); err != nil {
 		log.Printf("[Nuclei] [WARNING] Failed to update engine: %v", err)
 	}
 
 	log.Printf("[Nuclei] Initialization process complete.")
+}
+
+// safeEnviron returns the process environment with GITHUB_TOKEN removed
+// if it is present, preventing nuclei from failing on invalid/expired credentials.
+func safeEnviron() []string {
+	var safe []string
+	for _, env := range os.Environ() {
+		if !strings.HasPrefix(env, "GITHUB_TOKEN=") {
+			safe = append(safe, env)
+		}
+	}
+	return safe
 }
 

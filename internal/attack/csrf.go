@@ -3,21 +3,27 @@ package attack
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 
 	"github.com/parth/lastresort/internal/browser"
+	"github.com/parth/lastresort/internal/gen/ai/v1/aiv1connect"
 	"github.com/parth/lastresort/internal/scanner"
 	"github.com/parth/lastresort/internal/storage"
 )
 
 // CsrfModule implements AttackModule for CSRF attacks.
 type CsrfModule struct {
-	scanID string
+	aiClient aiv1connect.AiServiceClient
+	scanID   string
 }
 
-func NewCsrfModule(scanID string) *CsrfModule {
-	return &CsrfModule{scanID: scanID}
+func NewCsrfModule(aiClient aiv1connect.AiServiceClient, scanID string) *CsrfModule {
+	return &CsrfModule{
+		aiClient: aiClient,
+		scanID:   scanID,
+	}
 }
 
 func (m *CsrfModule) Name() string {
@@ -25,6 +31,7 @@ func (m *CsrfModule) Name() string {
 }
 
 func (m *CsrfModule) Plan(ctx context.Context, surf scanner.AttackSurface) ([]AttackAttempt, error) {
+	log.Printf("[CSRF] Planning for surface: %s %s (IsForm: %v)", surf.Method, surf.URL, surf.IsForm)
 	methodUpper := strings.ToUpper(surf.Method)
 	if methodUpper != "POST" && methodUpper != "PUT" && methodUpper != "PATCH" && methodUpper != "DELETE" {
 		return nil, nil
@@ -50,8 +57,15 @@ func (m *CsrfModule) Plan(ctx context.Context, surf scanner.AttackSurface) ([]At
 	}, nil
 }
 
+func (m *CsrfModule) PlanAI(ctx context.Context, surf scanner.AttackSurface, baselineRes *browser.ActionResult) ([]AttackAttempt, string, error) {
+	// CSRF doesn't currently benefit from AI payload generation as it's binary suspected/not suspected.
+	return nil, "", nil
+}
+
 func (m *CsrfModule) Execute(ctx context.Context, executor BrowserExecutor, attempt AttackAttempt) (AttackResult, error) {
+	log.Printf("[CSRF] Executing attack on: %s %s", attempt.Method, attempt.URL)
 	methodUpper := strings.ToUpper(attempt.Method)
+
 	// Execute Attack (deterministic browser execution)
 	actionRes, err := executor.ExecuteAction(ctx, browser.ActionRequest{
 		ScanID:    m.scanID,

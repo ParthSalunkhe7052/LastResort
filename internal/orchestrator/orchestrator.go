@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/parth/lastresort/internal/ai"
 	"github.com/parth/lastresort/internal/browser"
 	"github.com/parth/lastresort/internal/crawler"
 	"github.com/parth/lastresort/internal/gen/ai/v1/aiv1connect"
@@ -36,11 +35,11 @@ type Orchestrator struct {
 }
 
 // NewOrchestrator instantiates a new Orchestrator
-func NewOrchestrator(db *storage.DB, aiClient aiv1connect.AiServiceClient, proxyPort int) *Orchestrator {
+func NewOrchestrator(db *storage.DB, aiClient aiv1connect.AiServiceClient, browserURL string, proxyPort int) *Orchestrator {
 	return &Orchestrator{
 		db:            db,
 		aiClient:      aiClient,
-		browserClient: browser.NewClient(""),
+		browserClient: browser.NewClient(browserURL),
 		proxyPort:     proxyPort,
 		verification:  NewVerificationEngine(aiClient),
 	}
@@ -654,6 +653,77 @@ func (o *Orchestrator) getAttackSurfaces(ctx context.Context, scanID string, tar
 	return surfaces, nil
 }
 
+func (o *Orchestrator) getCsrfSurfaces(ctx context.Context, scanID string, targetURL string, patterns []string) ([]scanner.AttackSurface, error) {
+	var surfaces []scanner.AttackSurface
+
+	// 1. Fetch mutative endpoints
+	endpoints, err := o.db.ListEndpoints(ctx, scanID)
+	if err != nil {
+		return nil, fmt.Errorf("list endpoints: %w", err)
+	}
+
+	seenEndpoints := make(map[string]bool)
+	for _, ep := range endpoints {
+		method := strings.ToUpper(ep.Method)
+		if method != "POST" && method != "PUT" && method != "PATCH" && method != "DELETE" {
+			continue
+		}
+		if !crawler.IsInCrawlScope(ep.URL, targetURL, patterns) {
+			continue
+		}
+
+		key := fmt.Sprintf("%s:%s", method, ep.URL)
+		if seenEndpoints[key] {
+			continue
+		}
+		seenEndpoints[key] = true
+
+		surfaces = append(surfaces, scanner.AttackSurface{
+			URL:         ep.URL,
+			Method:      ep.Method,
+			ContentType: ep.ContentType,
+			IsForm:      false,
+		})
+	}
+
+	// 2. Fetch mutative forms
+	forms, err := o.db.ListForms(ctx, scanID)
+	if err != nil {
+		log.Printf("[Orchestrator] ListForms error: %v", err)
+		return surfaces, nil
+	}
+
+	for _, f := range forms {
+		method := strings.ToUpper(f.Method)
+		if method != "POST" && method != "PUT" && method != "PATCH" && method != "DELETE" {
+			continue
+		}
+
+		formActionURL := o.resolveActionURL(f.URL, f.Action)
+		if !crawler.IsInCrawlScope(formActionURL, targetURL, patterns) {
+			continue
+		}
+
+		key := fmt.Sprintf("%s:%s", method, formActionURL)
+		if seenEndpoints[key] {
+			continue
+		}
+		seenEndpoints[key] = true
+
+		surfaces = append(surfaces, scanner.AttackSurface{
+			URL:         formActionURL,
+			Method:      f.Method,
+			BaseBody:    o.buildFormBody(f.InputsJSON),
+			ContentType: "application/x-www-form-urlencoded",
+			IsForm:      true,
+			FormSel:     f.Selector,
+			FormPageURL: f.URL,
+		})
+	}
+
+	return surfaces, nil
+}
+
 func (o *Orchestrator) buildFormBody(inputsJSON string) []byte {
 	var inputs []browser.BrowserElement
 	if err := json.Unmarshal([]byte(inputsJSON), &inputs); err != nil {
@@ -694,7 +764,15 @@ func (o *Orchestrator) resolveActionURL(baseURL, action string) string {
 }
 
 func (o *Orchestrator) runUnifiedAttackModule(ctx context.Context, scanID, targetURL string, module attack.AttackModule, patterns []string) error {
-	surfaces, err := o.getAttackSurfaces(ctx, scanID, targetURL, patterns)
+	var surfaces []scanner.AttackSurface
+	var err error
+
+	if module.Name() == "Active Scan: CSRF" {
+		surfaces, err = o.getCsrfSurfaces(ctx, scanID, targetURL, patterns)
+	} else {
+		surfaces, err = o.getAttackSurfaces(ctx, scanID, targetURL, patterns)
+	}
+
 	if err != nil {
 		return err
 	}
@@ -706,19 +784,17 @@ func (o *Orchestrator) runUnifiedAttackModule(ctx context.Context, scanID, targe
 			continue
 		}
 
-		// Special path for SQLi AI Planning
-		if sqliMod, ok := module.(*attack.SQLiModule); ok {
-			baselineRes, err := sqliMod.Execute(ctx, o.browserClient, attack.AttackAttempt{
-				URL:    surf.URL,
-				Method: surf.Method,
-				Body:   surf.BaseBody,
-			})
-			if err == nil && baselineRes.RawResult != nil {
-				aiAttempts, reasoning, err := sqliMod.PlanAI(ctx, surf, baselineRes.RawResult)
-				if err == nil {
-					o.publishAgentLog(scanID, fmt.Sprintf("[AGENT] AI planned %d payloads. Reasoning: %s", len(aiAttempts), reasoning))
-					attempts = append(attempts, aiAttempts...)
-				}
+		// Execute baseline request to provide context for AI planning
+		baselineRes, err := module.Execute(ctx, o.browserClient, attack.AttackAttempt{
+			URL:    surf.URL,
+			Method: surf.Method,
+			Body:   surf.BaseBody,
+		})
+		if err == nil && baselineRes.RawResult != nil {
+			aiAttempts, reasoning, err := module.PlanAI(ctx, surf, baselineRes.RawResult)
+			if err == nil && len(aiAttempts) > 0 {
+				o.publishAgentLog(scanID, fmt.Sprintf("[AGENT] AI planned %d payloads for %s. Reasoning: %s", len(aiAttempts), module.Name(), reasoning))
+				attempts = append(attempts, aiAttempts...)
 			}
 		}
 
@@ -1215,19 +1291,19 @@ func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module 
 		return nil
 
 	case ModuleRateLimitBasic:
-		return o.runUnifiedAttackModule(ctx, scanID, targetURL, attack.NewRateLimitModule(scanID), scopePatterns)
+		return o.runUnifiedAttackModule(ctx, scanID, targetURL, attack.NewRateLimitModule(o.aiClient, scanID), scopePatterns)
 
 	case ModuleXssReflected:
-		return o.runUnifiedAttackModule(ctx, scanID, targetURL, attack.NewXSSModule(scanID), scopePatterns)
+		return o.runUnifiedAttackModule(ctx, scanID, targetURL, attack.NewXSSModule(o.aiClient, scanID), scopePatterns)
 
 	case ModuleSqliAgent:
 		return o.runUnifiedAttackModule(ctx, scanID, targetURL, attack.NewSQLiModule(o.aiClient, scanID), scopePatterns)
 
 	case ModuleCsrfBasic:
-		return o.runUnifiedAttackModule(ctx, scanID, targetURL, attack.NewCsrfModule(scanID), scopePatterns)
+		return o.runUnifiedAttackModule(ctx, scanID, targetURL, attack.NewCsrfModule(o.aiClient, scanID), scopePatterns)
 
 	case ModulePathTraversal:
-		return o.runUnifiedAttackModule(ctx, scanID, targetURL, attack.NewPathTraversalModule(scanID), scopePatterns)
+		return o.runUnifiedAttackModule(ctx, scanID, targetURL, attack.NewPathTraversalModule(o.aiClient, scanID), scopePatterns)
 
 	case ModuleNuclei:
 		return o.runNucleiScan(ctx, scanID, targetURL, onLog)
@@ -1350,8 +1426,6 @@ func (o *Orchestrator) runModule(ctx context.Context, scanID, targetURL, module 
 		consecutiveFailures := 0
 		currentStep, _ := o.db.GetLastJournalStep(authCtx, scanID)
 
-		localAI, isLocal := o.aiClient.(*ai.LocalServiceClient)
-
 		for step := currentStep + 1; step <= currentStep+maxSteps; step++ {
 			select {
 			case <-authCtx.Done():
@@ -1451,10 +1525,10 @@ Your response MUST be in JSON format matching this schema:
 `, actionRes.CurrentURL, actionRes.PageTitle, actionRes.AXTree, string(linksJSON), string(buttonsJSON), string(formsJSON), string(historyJSON))
 
 			var resStr string
-			if isLocal {
-				resStr, err = localAI.CallLLM(authCtx, prompt, true)
+			if caller, ok := o.aiClient.(llmCaller); ok {
+				resStr, err = caller.CallLLM(authCtx, prompt, true)
 			} else {
-				err = fmt.Errorf("local AI service client is unavailable")
+				err = fmt.Errorf("AI service client does not support raw LLM calls")
 			}
 
 			if err != nil {
@@ -1702,11 +1776,10 @@ IMPORTANT RULES:
 `, targetURL, detectedTechs, authModel, summaryText, findingsText)
 
                 var guideStr string
-                localAI, isLocal := o.aiClient.(*ai.LocalServiceClient)
-                if isLocal {
-                        guideStr, err = localAI.CallLLM(ctx, prompt, false)
+                if caller, ok := o.aiClient.(llmCaller); ok {
+                        guideStr, err = caller.CallLLM(ctx, prompt, false)
                 } else {
-                        err = fmt.Errorf("local AI service client is unavailable")
+                        err = fmt.Errorf("AI service client does not support raw LLM calls")
                 }
 
                 if err != nil {
@@ -1882,6 +1955,10 @@ func (o *Orchestrator) runNucleiScan(ctx context.Context, scanID, targetURL stri
 }
 
 // runManualRecon runs httpx + whatweb for technology fingerprinting in manual mode.
+type llmCaller interface {
+	CallLLM(ctx context.Context, prompt string, requireJSON bool) (string, error)
+}
+
 func (o *Orchestrator) runManualRecon(ctx context.Context, scanID, targetURL string, onLog func(string)) error {
 	cookieStr := o.getAuthCookieString(ctx, scanID)
 	scopePatterns, err := o.db.GetScopePatterns(ctx, scanID)

@@ -6,17 +6,22 @@ import (
 	"strings"
 
 	"github.com/parth/lastresort/internal/browser"
+	"github.com/parth/lastresort/internal/gen/ai/v1/aiv1connect"
 	"github.com/parth/lastresort/internal/scanner"
 	"github.com/parth/lastresort/internal/storage"
 )
 
 // RateLimitModule implements AttackModule for Rate Limiting attacks.
 type RateLimitModule struct {
-	scanID string
+	aiClient aiv1connect.AiServiceClient
+	scanID   string
 }
 
-func NewRateLimitModule(scanID string) *RateLimitModule {
-	return &RateLimitModule{scanID: scanID}
+func NewRateLimitModule(aiClient aiv1connect.AiServiceClient, scanID string) *RateLimitModule {
+	return &RateLimitModule{
+		aiClient: aiClient,
+		scanID:   scanID,
+	}
 }
 
 func (m *RateLimitModule) Name() string {
@@ -37,6 +42,10 @@ func (m *RateLimitModule) Plan(ctx context.Context, surf scanner.AttackSurface) 
 			Payload:    "10 burst requests / 1s",
 		},
 	}, nil
+}
+
+func (m *RateLimitModule) PlanAI(ctx context.Context, surf scanner.AttackSurface, baselineRes *browser.ActionResult) ([]AttackAttempt, string, error) {
+	return nil, "", nil
 }
 
 func (m *RateLimitModule) Execute(ctx context.Context, executor BrowserExecutor, attempt AttackAttempt) (AttackResult, error) {

@@ -33,6 +33,7 @@ type AttackResult struct {
 type AttackModule interface {
 	Name() string
 	Plan(ctx context.Context, surface scanner.AttackSurface) ([]AttackAttempt, error)
+	PlanAI(ctx context.Context, surf scanner.AttackSurface, baselineRes *browser.ActionResult) ([]AttackAttempt, string, error)
 	Execute(ctx context.Context, executor BrowserExecutor, attempt AttackAttempt) (AttackResult, error)
 	Verify(ctx context.Context, result AttackResult, verifier Verifier) (*storage.VerificationResult, error)
 	Record(ctx context.Context, recorder EvidenceRecorder, attempt AttackAttempt, result AttackResult, vr *storage.VerificationResult) (string, error)

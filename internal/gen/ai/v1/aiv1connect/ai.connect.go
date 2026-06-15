@@ -38,9 +38,8 @@ const (
 	// AiServiceGenerateExecutiveSummaryProcedure is the fully-qualified name of the AiService's
 	// GenerateExecutiveSummary RPC.
 	AiServiceGenerateExecutiveSummaryProcedure = "/ai.v1.AiService/GenerateExecutiveSummary"
-	// AiServicePlanSQLiAttackProcedure is the fully-qualified name of the AiService's PlanSQLiAttack
-	// RPC.
-	AiServicePlanSQLiAttackProcedure = "/ai.v1.AiService/PlanSQLiAttack"
+	// AiServicePlanAttackProcedure is the fully-qualified name of the AiService's PlanAttack RPC.
+	AiServicePlanAttackProcedure = "/ai.v1.AiService/PlanAttack"
 	// AiServiceVerifyAttackResultProcedure is the fully-qualified name of the AiService's
 	// VerifyAttackResult RPC.
 	AiServiceVerifyAttackResultProcedure = "/ai.v1.AiService/VerifyAttackResult"
@@ -50,7 +49,7 @@ const (
 type AiServiceClient interface {
 	Health(context.Context, *connect.Request[v1.HealthRequest]) (*connect.Response[v1.HealthResponse], error)
 	GenerateExecutiveSummary(context.Context, *connect.Request[v1.GenerateExecutiveSummaryRequest]) (*connect.Response[v1.GenerateExecutiveSummaryResponse], error)
-	PlanSQLiAttack(context.Context, *connect.Request[v1.PlanSQLiAttackRequest]) (*connect.Response[v1.PlanSQLiAttackResponse], error)
+	PlanAttack(context.Context, *connect.Request[v1.PlanAttackRequest]) (*connect.Response[v1.PlanAttackResponse], error)
 	VerifyAttackResult(context.Context, *connect.Request[v1.VerifyAttackResultRequest]) (*connect.Response[v1.VerifyAttackResultResponse], error)
 }
 
@@ -77,10 +76,10 @@ func NewAiServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...c
 			connect.WithSchema(aiServiceMethods.ByName("GenerateExecutiveSummary")),
 			connect.WithClientOptions(opts...),
 		),
-		planSQLiAttack: connect.NewClient[v1.PlanSQLiAttackRequest, v1.PlanSQLiAttackResponse](
+		planAttack: connect.NewClient[v1.PlanAttackRequest, v1.PlanAttackResponse](
 			httpClient,
-			baseURL+AiServicePlanSQLiAttackProcedure,
-			connect.WithSchema(aiServiceMethods.ByName("PlanSQLiAttack")),
+			baseURL+AiServicePlanAttackProcedure,
+			connect.WithSchema(aiServiceMethods.ByName("PlanAttack")),
 			connect.WithClientOptions(opts...),
 		),
 		verifyAttackResult: connect.NewClient[v1.VerifyAttackResultRequest, v1.VerifyAttackResultResponse](
@@ -96,7 +95,7 @@ func NewAiServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...c
 type aiServiceClient struct {
 	health                   *connect.Client[v1.HealthRequest, v1.HealthResponse]
 	generateExecutiveSummary *connect.Client[v1.GenerateExecutiveSummaryRequest, v1.GenerateExecutiveSummaryResponse]
-	planSQLiAttack           *connect.Client[v1.PlanSQLiAttackRequest, v1.PlanSQLiAttackResponse]
+	planAttack               *connect.Client[v1.PlanAttackRequest, v1.PlanAttackResponse]
 	verifyAttackResult       *connect.Client[v1.VerifyAttackResultRequest, v1.VerifyAttackResultResponse]
 }
 
@@ -110,9 +109,9 @@ func (c *aiServiceClient) GenerateExecutiveSummary(ctx context.Context, req *con
 	return c.generateExecutiveSummary.CallUnary(ctx, req)
 }
 
-// PlanSQLiAttack calls ai.v1.AiService.PlanSQLiAttack.
-func (c *aiServiceClient) PlanSQLiAttack(ctx context.Context, req *connect.Request[v1.PlanSQLiAttackRequest]) (*connect.Response[v1.PlanSQLiAttackResponse], error) {
-	return c.planSQLiAttack.CallUnary(ctx, req)
+// PlanAttack calls ai.v1.AiService.PlanAttack.
+func (c *aiServiceClient) PlanAttack(ctx context.Context, req *connect.Request[v1.PlanAttackRequest]) (*connect.Response[v1.PlanAttackResponse], error) {
+	return c.planAttack.CallUnary(ctx, req)
 }
 
 // VerifyAttackResult calls ai.v1.AiService.VerifyAttackResult.
@@ -124,7 +123,7 @@ func (c *aiServiceClient) VerifyAttackResult(ctx context.Context, req *connect.R
 type AiServiceHandler interface {
 	Health(context.Context, *connect.Request[v1.HealthRequest]) (*connect.Response[v1.HealthResponse], error)
 	GenerateExecutiveSummary(context.Context, *connect.Request[v1.GenerateExecutiveSummaryRequest]) (*connect.Response[v1.GenerateExecutiveSummaryResponse], error)
-	PlanSQLiAttack(context.Context, *connect.Request[v1.PlanSQLiAttackRequest]) (*connect.Response[v1.PlanSQLiAttackResponse], error)
+	PlanAttack(context.Context, *connect.Request[v1.PlanAttackRequest]) (*connect.Response[v1.PlanAttackResponse], error)
 	VerifyAttackResult(context.Context, *connect.Request[v1.VerifyAttackResultRequest]) (*connect.Response[v1.VerifyAttackResultResponse], error)
 }
 
@@ -147,10 +146,10 @@ func NewAiServiceHandler(svc AiServiceHandler, opts ...connect.HandlerOption) (s
 		connect.WithSchema(aiServiceMethods.ByName("GenerateExecutiveSummary")),
 		connect.WithHandlerOptions(opts...),
 	)
-	aiServicePlanSQLiAttackHandler := connect.NewUnaryHandler(
-		AiServicePlanSQLiAttackProcedure,
-		svc.PlanSQLiAttack,
-		connect.WithSchema(aiServiceMethods.ByName("PlanSQLiAttack")),
+	aiServicePlanAttackHandler := connect.NewUnaryHandler(
+		AiServicePlanAttackProcedure,
+		svc.PlanAttack,
+		connect.WithSchema(aiServiceMethods.ByName("PlanAttack")),
 		connect.WithHandlerOptions(opts...),
 	)
 	aiServiceVerifyAttackResultHandler := connect.NewUnaryHandler(
@@ -165,8 +164,8 @@ func NewAiServiceHandler(svc AiServiceHandler, opts ...connect.HandlerOption) (s
 			aiServiceHealthHandler.ServeHTTP(w, r)
 		case AiServiceGenerateExecutiveSummaryProcedure:
 			aiServiceGenerateExecutiveSummaryHandler.ServeHTTP(w, r)
-		case AiServicePlanSQLiAttackProcedure:
-			aiServicePlanSQLiAttackHandler.ServeHTTP(w, r)
+		case AiServicePlanAttackProcedure:
+			aiServicePlanAttackHandler.ServeHTTP(w, r)
 		case AiServiceVerifyAttackResultProcedure:
 			aiServiceVerifyAttackResultHandler.ServeHTTP(w, r)
 		default:
@@ -186,8 +185,8 @@ func (UnimplementedAiServiceHandler) GenerateExecutiveSummary(context.Context, *
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("ai.v1.AiService.GenerateExecutiveSummary is not implemented"))
 }
 
-func (UnimplementedAiServiceHandler) PlanSQLiAttack(context.Context, *connect.Request[v1.PlanSQLiAttackRequest]) (*connect.Response[v1.PlanSQLiAttackResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("ai.v1.AiService.PlanSQLiAttack is not implemented"))
+func (UnimplementedAiServiceHandler) PlanAttack(context.Context, *connect.Request[v1.PlanAttackRequest]) (*connect.Response[v1.PlanAttackResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("ai.v1.AiService.PlanAttack is not implemented"))
 }
 
 func (UnimplementedAiServiceHandler) VerifyAttackResult(context.Context, *connect.Request[v1.VerifyAttackResultRequest]) (*connect.Response[v1.VerifyAttackResultResponse], error) {

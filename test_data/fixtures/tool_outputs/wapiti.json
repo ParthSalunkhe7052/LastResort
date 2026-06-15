@@ -1,0 +1,1 @@
+{"vulnerabilities":{"sql_injection":[{"method":"GET","info":"SQL injection found","path":"/index.php","parameter":"id","curl_command":"curl ..."}]}}

@@ -38,9 +38,9 @@ func isValidTransition(from, to string) bool {
 	return stateWeight(to) >= stateWeight(from)
 }
 
-// Map compatibility strings from old database schemas to canonical state enum values
-func mapCategoryForCompatibility(category string) string {
-	switch category {
+// MapCategoryForCompatibility maps strings from old database schemas or diverse sources to canonical state enum values.
+func MapCategoryForCompatibility(category string) string {
+	switch strings.ToUpper(category) {
 	case "POTENTIAL_FINDING", "HYPOTHESIS":
 		return StatePotentialFinding // "HYPOTHESIS"
 	case "VERIFIED_FINDING", "VERIFIED_ATTACK":
@@ -49,10 +49,10 @@ func mapCategoryForCompatibility(category string) string {
 		return StateNeedsReview // "ATTEMPT"
 	case "FALSE_POSITIVE":
 		return StateFalsePositive // "FALSE_POSITIVE"
-	case "":
+	case "OBSERVATION", "":
 		return StateObservation // "OBSERVATION"
 	default:
-		return category
+		return StateObservation
 	}
 }
 
@@ -134,7 +134,7 @@ func (db *DB) SaveFindingWithEvidence(ctx context.Context, in FindingInput, ev E
 	}
 	
 	// Normalize Category
-	in.Category = mapCategoryForCompatibility(in.Category)
+	in.Category = MapCategoryForCompatibility(in.Category)
 
 	// State machine: VERIFIED_FINDING requires actual evidence content and verification details
 	if in.Category == StateVerifiedFinding {
@@ -162,7 +162,7 @@ func (db *DB) SaveFindingWithEvidence(ctx context.Context, in FindingInput, ev E
 	var existingID, existingCategory string
 	err := db.QueryRowContext(ctx, "SELECT id, category FROM findings WHERE scan_id = ? AND fingerprint = ?", in.ScanID, fp).Scan(&existingID, &existingCategory)
 	if err == nil {
-		existingCategory = mapCategoryForCompatibility(existingCategory)
+		existingCategory = MapCategoryForCompatibility(existingCategory)
 		// Enforce transitions: only allow transition if valid
 		if !isValidTransition(existingCategory, in.Category) {
 			in.Category = existingCategory // Retain the higher existing state

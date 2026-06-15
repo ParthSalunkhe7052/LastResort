@@ -42,10 +42,10 @@ func (m *mockAiServiceClient) GenerateExecutiveSummary(ctx context.Context, req 
 	}), nil
 }
 
-func (m *mockAiServiceClient) PlanSQLiAttack(ctx context.Context, req *connect.Request[aiv1.PlanSQLiAttackRequest]) (*connect.Response[aiv1.PlanSQLiAttackResponse], error) {
-	return connect.NewResponse(&aiv1.PlanSQLiAttackResponse{
+func (m *mockAiServiceClient) PlanAttack(ctx context.Context, req *connect.Request[aiv1.PlanAttackRequest]) (*connect.Response[aiv1.PlanAttackResponse], error) {
+	return connect.NewResponse(&aiv1.PlanAttackResponse{
 		Reasoning: "mock reasoning",
-		Payloads: []*aiv1.SQLiPayload{
+		Payloads: []*aiv1.AttackPayload{
 			{Strategy: "mock", Value: "' OR 1=1 --", Description: "mock description"},
 		},
 	}), nil
@@ -86,11 +86,12 @@ func TestStandardScanIntegration(t *testing.T) {
 	}
 	defer db.Close()
 
-	// 3. Start local mock browser crawler service on port 3010
-	l, err := net.Listen("tcp", "127.0.0.1:3010")
+	// 3. Start local mock browser crawler service on a random port
+	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		t.Fatalf("failed to listen on port 3010: %v. Is another browser service running?", err)
+		t.Fatalf("failed to listen on random port: %v", err)
 	}
+	mockBrowserURL := "http://" + l.Addr().String()
 
 	mockBrowserMux := http.NewServeMux()
 	mockBrowserMux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -165,7 +166,7 @@ func TestStandardScanIntegration(t *testing.T) {
 
 	// 5. Instantiate Orchestrator and run scan
 	aiMock := &mockAiServiceClient{}
-	orch := orchestrator.NewOrchestrator(db, aiMock, 8443)
+	orch := orchestrator.NewOrchestrator(db, aiMock, mockBrowserURL, 8443)
 	orch.Start(scanID)
 
 	// 6. Wait for scan completion (max 90 seconds)
@@ -275,7 +276,7 @@ func TestManualScanIntegration(t *testing.T) {
 
 	// 5. Instantiate Orchestrator and run scan
 	aiMock := &mockAiServiceClient{}
-	orch := orchestrator.NewOrchestrator(db, aiMock, 8444) // Different port for safety
+	orch := orchestrator.NewOrchestrator(db, aiMock, "", 8444) // Different port for safety
 	orch.Start(scanID)
 
 	// 6. Wait for scan completion (max 60 seconds)

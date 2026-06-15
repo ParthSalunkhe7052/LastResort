@@ -47,24 +47,21 @@ func TestGetScanPerformance(t *testing.T) {
 		t.Fatalf("insert form failed: %v", err)
 	}
 
-	// 4. Setup attack attempts
-	_, err = db.ExecContext(ctx, "INSERT INTO attack_attempts (id, scan_id, attack_type, endpoint, payload, request_captured, result) VALUES ('a1', ?, 'XSS', 'http://example.com/a', '<script>', 'GET...', 'done')", scanID)
+	// 4. Setup attack metrics
+	_ = db.CreateMetricsTables()
+	_, err = db.ExecContext(ctx, "INSERT INTO scan_attack_metrics (scan_id, attacks_executed, attacks_verified, attacks_failed) VALUES (?, 2, 1, 1)", scanID)
 	if err != nil {
-		t.Fatalf("insert attack_attempt 1 failed: %v", err)
-	}
-	_, err = db.ExecContext(ctx, "INSERT INTO attack_attempts (id, scan_id, attack_type, endpoint, payload, request_captured, result) VALUES ('a2', ?, 'SQLi', 'http://example.com/b', 'OR 1=1', 'GET...', 'done')", scanID)
-	if err != nil {
-		t.Fatalf("insert attack_attempt 2 failed: %v", err)
+		t.Fatalf("insert scan_attack_metrics failed: %v", err)
 	}
 
 	// 5. Setup findings
 	// Verified
-	_, err = db.ExecContext(ctx, "INSERT INTO findings (id, scan_id, title, description, category, vulnerability_type, endpoint, severity, fingerprint) VALUES ('f-v', ?, 'V', 'D', 'VERIFIED_FINDING', 'XSS', 'url', 'HIGH', 'fp1')", scanID)
+	_, err = db.ExecContext(ctx, "INSERT INTO findings (id, scan_id, title, description, category, vulnerability_type, endpoint, severity, fingerprint) VALUES ('f-v', ?, 'V', 'D', 'VERIFIED_ATTACK', 'XSS', 'url', 'HIGH', 'fp1')", scanID)
 	if err != nil {
 		t.Fatalf("insert finding verified failed: %v", err)
 	}
 	// Potential
-	_, err = db.ExecContext(ctx, "INSERT INTO findings (id, scan_id, title, description, category, vulnerability_type, endpoint, severity, fingerprint) VALUES ('f-p', ?, 'P', 'D', 'POTENTIAL_FINDING', 'SQLi', 'url', 'MEDIUM', 'fp2')", scanID)
+	_, err = db.ExecContext(ctx, "INSERT INTO findings (id, scan_id, title, description, category, vulnerability_type, endpoint, severity, fingerprint) VALUES ('f-p', ?, 'P', 'D', 'HYPOTHESIS', 'SQLi', 'url', 'MEDIUM', 'fp2')", scanID)
 	if err != nil {
 		t.Fatalf("insert finding potential failed: %v", err)
 	}

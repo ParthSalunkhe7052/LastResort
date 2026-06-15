@@ -5,18 +5,25 @@ import (
 	"fmt"
 	"strings"
 
+	"connectrpc.com/connect"
 	"github.com/parth/lastresort/internal/browser"
+	aiv1 "github.com/parth/lastresort/internal/gen/ai/v1"
+	"github.com/parth/lastresort/internal/gen/ai/v1/aiv1connect"
 	"github.com/parth/lastresort/internal/scanner"
 	"github.com/parth/lastresort/internal/storage"
 )
 
 // PathTraversalModule implements AttackModule for Path Traversal attacks.
 type PathTraversalModule struct {
-	scanID string
+	aiClient aiv1connect.AiServiceClient
+	scanID   string
 }
 
-func NewPathTraversalModule(scanID string) *PathTraversalModule {
-	return &PathTraversalModule{scanID: scanID}
+func NewPathTraversalModule(aiClient aiv1connect.AiServiceClient, scanID string) *PathTraversalModule {
+	return &PathTraversalModule{
+		aiClient: aiClient,
+		scanID:   scanID,
+	}
 }
 
 func (m *PathTraversalModule) Name() string {
@@ -46,6 +53,37 @@ func (m *PathTraversalModule) Plan(ctx context.Context, surf scanner.AttackSurfa
 	}
 
 	return attempts, nil
+}
+
+func (m *PathTraversalModule) PlanAI(ctx context.Context, surf scanner.AttackSurface, baselineRes *browser.ActionResult) ([]AttackAttempt, string, error) {
+	if m.aiClient == nil {
+		return nil, "", nil
+	}
+
+	resp, err := m.aiClient.PlanAttack(ctx, connect.NewRequest(&aiv1.PlanAttackRequest{
+		VulnerabilityType: "Path Traversal",
+		CurrentContext:    ConvertToProtoContext(baselineRes),
+		Endpoint:          surf.URL,
+		Parameters:        []string{surf.Point.Name},
+	}))
+	if err != nil {
+		return nil, "", err
+	}
+
+	var attempts []AttackAttempt
+	for _, payload := range resp.Msg.Payloads {
+		injectedURL, injectedBody := scanner.BuildInjectedRequest(surf.Method, surf.URL, surf.BaseBody, surf.ContentType, surf.Point, payload.Value)
+		attempts = append(attempts, AttackAttempt{
+			AttackType: "Path Traversal",
+			URL:        injectedURL,
+			Method:     surf.Method,
+			Payload:    payload.Value,
+			Body:       injectedBody,
+			Headers:    map[string]string{"Content-Type": surf.ContentType},
+		})
+	}
+
+	return attempts, resp.Msg.Reasoning, nil
 }
 
 func (m *PathTraversalModule) Execute(ctx context.Context, executor BrowserExecutor, attempt AttackAttempt) (AttackResult, error) {

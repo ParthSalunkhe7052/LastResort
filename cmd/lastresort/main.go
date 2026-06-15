@@ -103,7 +103,7 @@ func runServe(dbPath string, apiPort int) {
 
 	// 3. Initialize background Scan Orchestrator
 	// No proxy port parameter needed now (passed as 0)
-	scanOrch := orchestrator.NewOrchestrator(db, aiClient, 0)
+	scanOrch := orchestrator.NewOrchestrator(db, aiClient, "", 0)
 
 	// 4. Register ConnectRPC Services
 	scanServer := api.NewScanServer(db, aiClient, scanOrch)
