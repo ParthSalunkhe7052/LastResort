@@ -778,11 +778,7 @@ func (o *Orchestrator) runUnifiedAttackModule(ctx context.Context, scanID, targe
 	}
 
 	for _, surf := range surfaces {
-		attempts, err := module.Plan(ctx, surf)
-		if err != nil {
-			log.Printf("[Orchestrator] [%s] Planning failed on surface %s: %v", module.Name(), surf.URL, err)
-			continue
-		}
+		var attempts []attack.AttackAttempt
 
 		// Execute baseline request to provide context for AI planning
 		baselineRes, err := module.Execute(ctx, o.browserClient, attack.AttackAttempt{
@@ -790,12 +786,27 @@ func (o *Orchestrator) runUnifiedAttackModule(ctx context.Context, scanID, targe
 			Method: surf.Method,
 			Body:   surf.BaseBody,
 		})
+
 		if err == nil && baselineRes.RawResult != nil {
-			aiAttempts, reasoning, err := module.PlanAI(ctx, surf, baselineRes.RawResult)
-			if err == nil && len(aiAttempts) > 0 {
+			aiAttempts, reasoning, aiErr := module.PlanAI(ctx, surf, baselineRes.RawResult)
+			if aiErr == nil && len(aiAttempts) > 0 {
 				o.publishAgentLog(scanID, fmt.Sprintf("[AGENT] AI planned %d payloads for %s. Reasoning: %s", len(aiAttempts), module.Name(), reasoning))
-				attempts = append(attempts, aiAttempts...)
+				attempts = aiAttempts
 			}
+		}
+
+		// Fallback to deterministic planning if AI failed or provided no attempts
+		if len(attempts) == 0 {
+			staticAttempts, planErr := module.Plan(ctx, surf)
+			if planErr != nil {
+				log.Printf("[Orchestrator] [%s] Deterministic planning failed on surface %s: %v", module.Name(), surf.URL, planErr)
+				continue
+			}
+			attempts = staticAttempts
+		}
+
+		if len(attempts) == 0 {
+			continue
 		}
 
 		for _, att := range attempts {
